@@ -1,5 +1,9 @@
 # ArchStudio
 
+[![CI](https://github.com/tonux/archstudio/actions/workflows/ci.yml/badge.svg)](https://github.com/tonux/archstudio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0E7C8A.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.13-0E7C8A.svg)](#architecture-of-the-app-itself)
+
 **Draw the architecture once. Send the document.**
 
 A self-hosted studio for architecture documentation. Organise many architectures in folders,

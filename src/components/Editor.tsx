@@ -29,6 +29,15 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const first = useRef(true);
 
+  /* A project just created from a template opens with its first component
+   * selected, so the inspector shows immediately what can be changed. The flag
+   * is dropped from the URL so a reload does not re-select. */
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') !== '1') return;
+    setSelected(project.data.components[0]?.id ?? null);
+    window.history.replaceState(null, '', `/projects/${project.id}`);
+  }, [project.id, project.data.components]);
+
   /* ------------------------------------------------------------- autosave */
   useEffect(() => {
     if (first.current) { first.current = false; return; }

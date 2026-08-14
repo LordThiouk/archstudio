@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -8,6 +8,10 @@ import {
 } from '@dnd-kit/core';
 import { Icon } from './Icon';
 import { FOLDER_COLORS } from '@/lib/defaults';
+/* `templates/types` carries no template bodies — importing the registry here
+ * would ship every template's editorial content to the browser. */
+import { LANGS, TARGETS, TARGET_LABELS } from '@/lib/templates/types';
+import type { CloudTarget, Lang, TemplateSummary } from '@/lib/templates/types';
 import type { FolderRecord, ProjectSummary } from '@/lib/types';
 
 type Scope = { kind: 'all' } | { kind: 'unfiled' } | { kind: 'folder'; id: string };
@@ -234,7 +238,9 @@ export default function Workspace({
         <NewProjectDialog
           folderId={currentFolderId} busy={busy} setBusy={setBusy}
           onClose={() => setDialog(null)}
-          onCreated={id => router.push(`/projects/${id}`)}
+          /* `new` tells the editor to select the first component, so the
+           * inspector shows straight away what there is to change */
+          onCreated={id => router.push(`/projects/${id}?new=1`)}
         />
       )}
       {dialog === 'import' && (
@@ -380,13 +386,36 @@ function ProjectCard({ project, folders, onOpen, onChanged }: {
 
 /* ------------------------------------------------------------------ dialogs */
 
+const LANG_LABELS: Record<Lang, string> = { en: 'English', fr: 'Français' };
+
+/** Two steps, never three: pick a starting point, then name it and aim it. */
 function NewProjectDialog({ folderId, busy, setBusy, onClose, onCreated }: {
   folderId: string | null; busy: boolean; setBusy: (b: boolean) => void;
   onClose: () => void; onCreated: (id: string) => void;
 }) {
+  const [templates, setTemplates] = useState<TemplateSummary[] | null>(null);
+  const [verifiedOn, setVerifiedOn] = useState('');
+  const [step, setStep] = useState<1 | 2>(1);
+  const [pick, setPick] = useState<string | null>(null);   // null = blank
+  const [hover, setHover] = useState<string | null>(null);
+  const [lang, setLang] = useState<Lang>('en');
+  const [target, setTarget] = useState<CloudTarget>('agnostic');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    api.json<{ verifiedOn: string; templates: TemplateSummary[] }>('/api/templates')
+      .then(r => { if (alive) { setTemplates(r.templates); setVerifiedOn(r.verifiedOn); } })
+      /* the picker degrades to "blank only" rather than blocking creation */
+      .catch(() => { if (alive) setTemplates([]); });
+    return () => { alive = false; };
+  }, []);
+
+  const chosen = templates?.find(t => t.id === pick) ?? null;
+  const detail = templates?.find(t => t.id === (hover ?? pick)) ?? null;
+  const targets = chosen ? TARGETS.filter(t => chosen.supportedTargets.includes(t)) : [];
 
   async function submit() {
     if (!name.trim()) { setError('Give it a name first.'); return; }
@@ -394,7 +423,12 @@ function NewProjectDialog({ folderId, busy, setBusy, onClose, onCreated }: {
     try {
       const p = await api.json<{ id: string }>('/api/projects', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined, folderId })
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          folderId,
+          ...(chosen ? { templateId: chosen.id, target, lang } : {})
+        })
       });
       onCreated(p.id);
     } catch (e) { setError((e as Error).message); setBusy(false); }
@@ -402,24 +436,144 @@ function NewProjectDialog({ folderId, busy, setBusy, onClose, onCreated }: {
 
   return (
     <div className="modal-scrim" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>New project</h2>
-        <p className="lede">Starts with two scopes and four layers — rename them as you go.</p>
-        <label className="field"><span>Name</span>
-          <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()} placeholder="Payments platform" />
-        </label>
-        <label className="field"><span>Description (optional)</span>
-          <input className="input" value={description} onChange={e => setDescription(e.target.value)}
-            placeholder="What this system does, in one line" />
-        </label>
-        {error && <div className="err">{error}</div>}
-        <div className="modal-actions">
-          <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={submit} disabled={busy}>
-            {busy ? 'Creating…' : 'Create'}
-          </button>
-        </div>
+      <div className={`modal${step === 1 ? ' wide' : ''}`} onClick={e => e.stopPropagation()}>
+        {step === 1 ? (
+          <>
+            <div className="modal-head">
+              <div>
+                <h2>New project</h2>
+                <p className="lede">Start from nothing, or from an architecture that already has a shape.</p>
+              </div>
+              <div className="segmented" role="group" aria-label="Template language">
+                {LANGS.map(l => (
+                  <button key={l} aria-pressed={lang === l} onClick={() => setLang(l)}>{LANG_LABELS[l]}</button>
+                ))}
+              </div>
+            </div>
+
+            <button className={`tpl-blank${pick === null ? ' on' : ''}`}
+              onClick={() => setPick(null)} onMouseEnter={() => setHover(null)}>
+              <span className="dot"><Icon name="cube" size={15} /></span>
+              <span>
+                <b>Blank</b>
+                <em>Two scopes, four layers, no components. Everything is yours to invent.</em>
+              </span>
+            </button>
+
+            {templates === null ? (
+              <div className="empty" style={{ padding: 28 }}>Loading templates…</div>
+            ) : templates.length === 0 ? (
+              <div className="hint">No template available — a blank project still works.</div>
+            ) : (
+              <>
+                <div className="sect-label" style={{ marginTop: 6 }}>Or start from a template</div>
+                <div className="tpl-grid">
+                  {templates.map(t => (
+                    <button key={t.id}
+                      className={`tpl-card${pick === t.id ? ' on' : ''}`}
+                      style={{ ['--tpl' as string]: t.accent }}
+                      onClick={() => setPick(t.id)}
+                      onDoubleClick={() => { setPick(t.id); setStep(2); }}
+                      onMouseEnter={() => setHover(t.id)} onMouseLeave={() => setHover(null)}
+                      onFocus={() => setHover(t.id)} onBlur={() => setHover(null)}>
+                      <span className="dot"><Icon name={t.icon} size={15} /></span>
+                      <b>{t.name[lang]}</b>
+                      <em>{t.tagline[lang]}</em>
+                      <span className="n">{t.counts.agnostic} components</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="tpl-detail">
+                  {detail ? (
+                    <>
+                      <div>
+                        <span className="ok">Good fit when</span>
+                        <ul>{detail.whenToUse[lang].map((b, i) => <li key={i}>{b}</li>)}</ul>
+                      </div>
+                      <div>
+                        <span className="no">Not this one when</span>
+                        <ul>{detail.whenNotToUse[lang].map((b, i) => <li key={i}>{b}</li>)}</ul>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="muted">Hover a template to see where it fits — and where it does not.</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={onClose}>Cancel</button>
+              <button className="btn primary" onClick={() => setStep(2)}>Continue</button>
+            </div>
+          </>
+        ) : (
+          <>
+            {chosen ? (
+              <div className="modal-head">
+                <button className="iconbtn" onClick={() => setStep(1)} aria-label="Back">
+                  <Icon name="back" size={15} />
+                </button>
+                <div>
+                  <h2>{chosen.name[lang]}</h2>
+                  <p className="lede">{chosen.tagline[lang]}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2>Blank project</h2>
+                <p className="lede">Starts with two scopes and four layers — rename them as you go.</p>
+              </>
+            )}
+
+            <label className="field"><span>Name</span>
+              <input className="input" autoFocus value={name} onChange={e => setName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && submit()} placeholder="Payments platform" />
+            </label>
+            <label className="field"><span>Description (optional)</span>
+              <input className="input" value={description} onChange={e => setDescription(e.target.value)}
+                placeholder={chosen ? chosen.tagline[lang] : 'What this system does, in one line'} />
+            </label>
+
+            {chosen && (
+              <>
+                <div className="field"><span>Deployment target</span>
+                  <div className="radio-row">
+                    {targets.map(t => (
+                      <button key={t} className={`radio${target === t ? ' on' : ''}`} onClick={() => setTarget(t)}>
+                        <i /> {TARGET_LABELS[t][lang]}
+                        <em>{chosen.counts[t]}</em>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="hint">
+                    {target === 'agnostic'
+                      ? 'Components keep their abstract names, and no deployment table is generated.'
+                      : `Components are named after ${TARGET_LABELS[target][lang]} services and a “Deployment” tab lists the mapping. Rename anything afterwards — nothing is locked.`}
+                    {target !== 'agnostic' && verifiedOn && ` Service names checked on ${verifiedOn}.`}
+                  </div>
+                </div>
+
+                <div className="warn">
+                  <Icon name="alert" size={15} />
+                  <span>
+                    A template is a credible starting point, <b>not a recommendation</b>. Check every
+                    component against your own context before using this as a reference.
+                  </span>
+                </div>
+              </>
+            )}
+
+            {error && <div className="err">{error}</div>}
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={() => setStep(1)}>Back</button>
+              <button className="btn primary" onClick={submit} disabled={busy}>
+                {busy ? 'Creating…' : 'Create project'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

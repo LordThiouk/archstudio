@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "reset": "node -e \"require('fs').rmSync('data',{recursive:true,force:true});console.log('database removed \u2014 it will be recreated and re-seeded on next start')\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/lib/**/*.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

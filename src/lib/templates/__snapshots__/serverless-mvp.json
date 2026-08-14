@@ -1,0 +1,526 @@
+{
+  "agnostic · en": {
+    "title": "Serverless MVP",
+    "kicker": "Template: Serverless MVP · Vendor-neutral · 2026-08-14",
+    "groups": [
+      "product: Product",
+      "data: Data",
+      "platform: Platform",
+      "vendor: Third parties"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Processing",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/product] Web application → cdn",
+      "mobile [clients/product] Mobile application → api,auth,pay",
+      "cdn [edge/product] CDN & edge → api",
+      "api [edge/product] API gateway → fn,auth",
+      "fn [compute/product] Business functions → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Deferred processing → queue,db,files",
+      "auth [compute/product] Authentication → mail",
+      "db [data/data] Primary store → —",
+      "files [data/data] File storage → —",
+      "queue [data/data] Message queue → —",
+      "secrets [platform/platform] Secrets & config → —",
+      "obs [platform/platform] Logs & metrics → —",
+      "cicd [platform/platform] CI/CD & infrastructure as code → —",
+      "pay [compute/vendor] Payments → fn",
+      "mail [compute/vendor] Transactional email → —"
+    ],
+    "flows": [
+      "signup-payment: Sign-up and first payment (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Serverless traps",
+      "cost: table — Cost drivers",
+      "exit: timeline — When to leave serverless"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "flows",
+      "stack"
+    ]
+  },
+  "agnostic · fr": {
+    "title": "MVP serverless",
+    "kicker": "Modèle : MVP serverless · Agnostique · 2026-08-14",
+    "groups": [
+      "product: Produit",
+      "data: Données",
+      "platform: Plateforme",
+      "vendor: Tiers"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Traitement",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/product] Application web → cdn",
+      "mobile [clients/product] Application mobile → api,auth,pay",
+      "cdn [edge/product] CDN & edge → api",
+      "api [edge/product] Passerelle API → fn,auth",
+      "fn [compute/product] Fonctions métier → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Traitements différés → queue,db,files",
+      "auth [compute/product] Authentification → mail",
+      "db [data/data] Base principale → —",
+      "files [data/data] Stockage de fichiers → —",
+      "queue [data/data] File de messages → —",
+      "secrets [platform/platform] Secrets & configuration → —",
+      "obs [platform/platform] Logs & métriques → —",
+      "cicd [platform/platform] CI/CD & infrastructure as code → —",
+      "pay [compute/vendor] Paiement → fn",
+      "mail [compute/vendor] Email transactionnel → —"
+    ],
+    "flows": [
+      "signup-payment: Inscription et premier paiement (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Pièges du serverless",
+      "cost: table — Facteurs de coût",
+      "exit: timeline — Quand sortir du serverless"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · en": {
+    "title": "Serverless MVP",
+    "kicker": "Template: Serverless MVP · AWS · 2026-08-14",
+    "groups": [
+      "product: Product",
+      "data: Data",
+      "platform: Platform",
+      "vendor: Third parties"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Processing",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/product] S3 + CloudFront → cdn",
+      "mobile [clients/product] Mobile application → api,auth,pay",
+      "cdn [edge/product] Amazon CloudFront → api",
+      "api [edge/product] API Gateway (HTTP API) → fn,auth",
+      "fn [compute/product] AWS Lambda → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] AWS Lambda (SQS trigger) → queue,db,files",
+      "auth [compute/product] Amazon Cognito → mail",
+      "db [data/data] Amazon DynamoDB → —",
+      "files [data/data] Amazon S3 → —",
+      "queue [data/data] Amazon SQS → —",
+      "secrets [platform/platform] AWS Secrets Manager → —",
+      "obs [platform/platform] Amazon CloudWatch → —",
+      "cicd [platform/platform] GitHub Actions + AWS CDK → —",
+      "pay [compute/vendor] Payments → fn",
+      "mail [compute/vendor] Amazon SES → —"
+    ],
+    "flows": [
+      "signup-payment: Sign-up and first payment (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Serverless traps",
+      "cost: table — Cost drivers",
+      "exit: timeline — When to leave serverless",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · fr": {
+    "title": "MVP serverless",
+    "kicker": "Modèle : MVP serverless · AWS · 2026-08-14",
+    "groups": [
+      "product: Produit",
+      "data: Données",
+      "platform: Plateforme",
+      "vendor: Tiers"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Traitement",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/product] S3 + CloudFront → cdn",
+      "mobile [clients/product] Application mobile → api,auth,pay",
+      "cdn [edge/product] Amazon CloudFront → api",
+      "api [edge/product] API Gateway (HTTP API) → fn,auth",
+      "fn [compute/product] AWS Lambda → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] AWS Lambda (SQS trigger) → queue,db,files",
+      "auth [compute/product] Amazon Cognito → mail",
+      "db [data/data] Amazon DynamoDB → —",
+      "files [data/data] Amazon S3 → —",
+      "queue [data/data] Amazon SQS → —",
+      "secrets [platform/platform] AWS Secrets Manager → —",
+      "obs [platform/platform] Amazon CloudWatch → —",
+      "cicd [platform/platform] GitHub Actions + AWS CDK → —",
+      "pay [compute/vendor] Paiement → fn",
+      "mail [compute/vendor] Amazon SES → —"
+    ],
+    "flows": [
+      "signup-payment: Inscription et premier paiement (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Pièges du serverless",
+      "cost: table — Facteurs de coût",
+      "exit: timeline — Quand sortir du serverless",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · en": {
+    "title": "Serverless MVP",
+    "kicker": "Template: Serverless MVP · Google Cloud · 2026-08-14",
+    "groups": [
+      "product: Product",
+      "data: Data",
+      "platform: Platform",
+      "vendor: Third parties"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Processing",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/product] Firebase Hosting → cdn",
+      "mobile [clients/product] Mobile application → api,auth,pay",
+      "cdn [edge/product] Cloud CDN → api",
+      "api [edge/product] API Gateway → fn,auth",
+      "fn [compute/product] Cloud Run functions → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Cloud Run (Pub/Sub push) → queue,db,files",
+      "auth [compute/product] Identity Platform → mail",
+      "db [data/data] Firestore → —",
+      "files [data/data] Cloud Storage → —",
+      "queue [data/data] Cloud Pub/Sub (pull) → —",
+      "secrets [platform/platform] Secret Manager → —",
+      "obs [platform/platform] Cloud Logging & Monitoring → —",
+      "cicd [platform/platform] Cloud Build + Terraform → —",
+      "pay [compute/vendor] Payments → fn",
+      "mail [compute/vendor] SendGrid / Resend → —"
+    ],
+    "flows": [
+      "signup-payment: Sign-up and first payment (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Serverless traps",
+      "cost: table — Cost drivers",
+      "exit: timeline — When to leave serverless",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · fr": {
+    "title": "MVP serverless",
+    "kicker": "Modèle : MVP serverless · Google Cloud · 2026-08-14",
+    "groups": [
+      "product: Produit",
+      "data: Données",
+      "platform: Plateforme",
+      "vendor: Tiers"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Traitement",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/product] Firebase Hosting → cdn",
+      "mobile [clients/product] Application mobile → api,auth,pay",
+      "cdn [edge/product] Cloud CDN → api",
+      "api [edge/product] API Gateway → fn,auth",
+      "fn [compute/product] Cloud Run functions → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Cloud Run (Pub/Sub push) → queue,db,files",
+      "auth [compute/product] Identity Platform → mail",
+      "db [data/data] Firestore → —",
+      "files [data/data] Cloud Storage → —",
+      "queue [data/data] Cloud Pub/Sub (pull) → —",
+      "secrets [platform/platform] Secret Manager → —",
+      "obs [platform/platform] Cloud Logging & Monitoring → —",
+      "cicd [platform/platform] Cloud Build + Terraform → —",
+      "pay [compute/vendor] Paiement → fn",
+      "mail [compute/vendor] SendGrid / Resend → —"
+    ],
+    "flows": [
+      "signup-payment: Inscription et premier paiement (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Pièges du serverless",
+      "cost: table — Facteurs de coût",
+      "exit: timeline — Quand sortir du serverless",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · en": {
+    "title": "Serverless MVP",
+    "kicker": "Template: Serverless MVP · Azure · 2026-08-14",
+    "groups": [
+      "product: Product",
+      "data: Data",
+      "platform: Platform",
+      "vendor: Third parties"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Processing",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/product] Azure Static Web Apps → cdn",
+      "mobile [clients/product] Mobile application → api,auth,pay",
+      "cdn [edge/product] Azure Front Door → api",
+      "api [edge/product] Azure API Management → fn,auth",
+      "fn [compute/product] Azure Functions → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Azure Functions (Service Bus trigger) → queue,db,files",
+      "auth [compute/product] Microsoft Entra External ID → mail",
+      "db [data/data] Azure Cosmos DB (serverless) → —",
+      "files [data/data] Azure Blob Storage → —",
+      "queue [data/data] Azure Service Bus → —",
+      "secrets [platform/platform] Azure Key Vault → —",
+      "obs [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions + Bicep → —",
+      "pay [compute/vendor] Payments → fn",
+      "mail [compute/vendor] Azure Communication Services → —"
+    ],
+    "flows": [
+      "signup-payment: Sign-up and first payment (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Serverless traps",
+      "cost: table — Cost drivers",
+      "exit: timeline — When to leave serverless",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · fr": {
+    "title": "MVP serverless",
+    "kicker": "Modèle : MVP serverless · Azure · 2026-08-14",
+    "groups": [
+      "product: Produit",
+      "data: Données",
+      "platform: Plateforme",
+      "vendor: Tiers"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Traitement",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/product] Azure Static Web Apps → cdn",
+      "mobile [clients/product] Application mobile → api,auth,pay",
+      "cdn [edge/product] Azure Front Door → api",
+      "api [edge/product] Azure API Management → fn,auth",
+      "fn [compute/product] Azure Functions → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Azure Functions (Service Bus trigger) → queue,db,files",
+      "auth [compute/product] Microsoft Entra External ID → mail",
+      "db [data/data] Azure Cosmos DB (serverless) → —",
+      "files [data/data] Azure Blob Storage → —",
+      "queue [data/data] Azure Service Bus → —",
+      "secrets [platform/platform] Azure Key Vault → —",
+      "obs [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions + Bicep → —",
+      "pay [compute/vendor] Paiement → fn",
+      "mail [compute/vendor] Azure Communication Services → —"
+    ],
+    "flows": [
+      "signup-payment: Inscription et premier paiement (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Pièges du serverless",
+      "cost: table — Facteurs de coût",
+      "exit: timeline — Quand sortir du serverless",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · en": {
+    "title": "Serverless MVP",
+    "kicker": "Template: Serverless MVP · Self-hosted · 2026-08-14",
+    "groups": [
+      "product: Product",
+      "data: Data",
+      "platform: Platform",
+      "vendor: Third parties"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Processing",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/product] Caddy / Nginx → api",
+      "mobile [clients/product] Mobile application → api,auth,pay",
+      "api [edge/product] Traefik / Kong → fn,auth",
+      "fn [compute/product] OpenFaaS / Knative → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Worker process → queue,db,files",
+      "auth [compute/product] Keycloak / Zitadel → mail",
+      "db [data/data] PostgreSQL → —",
+      "files [data/data] MinIO → —",
+      "queue [data/data] RabbitMQ / NATS JetStream → —",
+      "secrets [platform/platform] OpenBao / Vault → —",
+      "obs [platform/platform] Prometheus + Grafana + Loki → —",
+      "cicd [platform/platform] Forgejo Actions + Ansible → —",
+      "pay [compute/vendor] Payments → fn",
+      "mail [compute/vendor] Postal / SMTP relay → —"
+    ],
+    "flows": [
+      "signup-payment: Sign-up and first payment (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Serverless traps",
+      "cost: table — Cost drivers",
+      "exit: timeline — When to leave serverless",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · fr": {
+    "title": "MVP serverless",
+    "kicker": "Modèle : MVP serverless · Auto-hébergé · 2026-08-14",
+    "groups": [
+      "product: Produit",
+      "data: Données",
+      "platform: Plateforme",
+      "vendor: Tiers"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "compute: Traitement",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/product] Caddy / Nginx → api",
+      "mobile [clients/product] Application mobile → api,auth,pay",
+      "api [edge/product] Traefik / Kong → fn,auth",
+      "fn [compute/product] OpenFaaS / Knative → db,files,queue,pay,mail,secrets",
+      "worker [compute/product] Worker process → queue,db,files",
+      "auth [compute/product] Keycloak / Zitadel → mail",
+      "db [data/data] PostgreSQL → —",
+      "files [data/data] MinIO → —",
+      "queue [data/data] RabbitMQ / NATS JetStream → —",
+      "secrets [platform/platform] OpenBao / Vault → —",
+      "obs [platform/platform] Prometheus + Grafana + Loki → —",
+      "cicd [platform/platform] Forgejo Actions + Ansible → —",
+      "pay [compute/vendor] Paiement → fn",
+      "mail [compute/vendor] Postal / SMTP relay → —"
+    ],
+    "flows": [
+      "signup-payment: Inscription et premier paiement (8) web→auth→api→fn→db→pay→queue→mail"
+    ],
+    "sections": [
+      "traps: cards — Pièges du serverless",
+      "cost: table — Facteurs de coût",
+      "exit: timeline — Quand sortir du serverless",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "traps",
+      "cost",
+      "exit",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  }
+}

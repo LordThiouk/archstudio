@@ -1,0 +1,568 @@
+{
+  "agnostic · en": {
+    "title": "Event-driven processing",
+    "kicker": "Template: Event-driven processing · Vendor-neutral · 2026-08-14",
+    "groups": [
+      "producers: Producers",
+      "bus: Bus & routing",
+      "processing: Processing",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producers",
+      "ingestion: Ingestion & bus",
+      "processing: Processing",
+      "destinations: Destinations",
+      "platform: Platform"
+    ],
+    "components": [
+      "producers [producers/producers] Producing services → outbox",
+      "outbox [producers/producers] Outbox table → ingest",
+      "ingest [ingestion/bus] Event entry point → schema,router",
+      "schema [ingestion/bus] Schema registry → —",
+      "router [ingestion/bus] Routing & filtering → queue,stream",
+      "queue [ingestion/bus] Work queue → —",
+      "stream [ingestion/bus] High-throughput stream → —",
+      "workers [processing/processing] Consumers → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Stream processing → stream,warehouse",
+      "saga [processing/processing] Saga orchestration → workers",
+      "idempotency [processing/processing] Idempotency store → —",
+      "dlq [processing/processing] Dead-letter queue → —",
+      "store [destinations/destinations] Event log → —",
+      "warehouse [destinations/destinations] Analytical warehouse → —",
+      "notify [destinations/destinations] Outbound notifications → —",
+      "obs [platform/processing] Tracing & queue metrics → —"
+    ],
+    "flows": [
+      "order-events: An order becomes events (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: A poison message (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Delivery guarantees",
+      "traps: cards — The five traps",
+      "measure: table — What to measure",
+      "replay: cards — Replay"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "flows",
+      "stack"
+    ]
+  },
+  "agnostic · fr": {
+    "title": "Traitement événementiel",
+    "kicker": "Modèle : Traitement événementiel · Agnostique · 2026-08-14",
+    "groups": [
+      "producers: Producteurs",
+      "bus: Bus & routage",
+      "processing: Traitement",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producteurs",
+      "ingestion: Ingestion & bus",
+      "processing: Traitement",
+      "destinations: Destinations",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "producers [producers/producers] Services producteurs → outbox",
+      "outbox [producers/producers] Table outbox → ingest",
+      "ingest [ingestion/bus] Point d'entrée d'événements → schema,router",
+      "schema [ingestion/bus] Registre de schémas → —",
+      "router [ingestion/bus] Routage & filtrage → queue,stream",
+      "queue [ingestion/bus] File de travail → —",
+      "stream [ingestion/bus] Flux à haut débit → —",
+      "workers [processing/processing] Consommateurs → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Traitement de flux → stream,warehouse",
+      "saga [processing/processing] Orchestration de saga → workers",
+      "idempotency [processing/processing] Table d'idempotence → —",
+      "dlq [processing/processing] File de rebut (DLQ) → —",
+      "store [destinations/destinations] Journal d'événements → —",
+      "warehouse [destinations/destinations] Entrepôt analytique → —",
+      "notify [destinations/destinations] Notifications sortantes → —",
+      "obs [platform/processing] Traçage & métriques de file → —"
+    ],
+    "flows": [
+      "order-events: Une commande devient des événements (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: Un message empoisonné (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Garanties de livraison",
+      "traps: cards — Les cinq pièges",
+      "measure: table — Ce qu'il faut mesurer",
+      "replay: cards — Rejeu"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · en": {
+    "title": "Event-driven processing",
+    "kicker": "Template: Event-driven processing · AWS · 2026-08-14",
+    "groups": [
+      "producers: Producers",
+      "bus: Bus & routing",
+      "processing: Processing",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producers",
+      "ingestion: Ingestion & bus",
+      "processing: Processing",
+      "destinations: Destinations",
+      "platform: Platform"
+    ],
+    "components": [
+      "producers [producers/producers] Producing services → outbox",
+      "outbox [producers/producers] Outbox table → ingest",
+      "ingest [ingestion/bus] Amazon EventBridge → schema,router",
+      "schema [ingestion/bus] EventBridge Schema Registry → —",
+      "router [ingestion/bus] EventBridge rules → queue,stream",
+      "queue [ingestion/bus] Amazon SQS → —",
+      "stream [ingestion/bus] Amazon Kinesis Data Streams → —",
+      "workers [processing/processing] AWS Lambda or ECS → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Amazon Managed Service for Apache Flink → stream,warehouse",
+      "saga [processing/processing] AWS Step Functions → workers",
+      "idempotency [processing/processing] Amazon DynamoDB → —",
+      "dlq [processing/processing] Amazon SQS dead-letter queue → —",
+      "store [destinations/destinations] Amazon S3 (event archive) → —",
+      "warehouse [destinations/destinations] Amazon Redshift → —",
+      "notify [destinations/destinations] Amazon SNS + SES → —",
+      "obs [platform/processing] AWS X-Ray → —"
+    ],
+    "flows": [
+      "order-events: An order becomes events (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: A poison message (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Delivery guarantees",
+      "traps: cards — The five traps",
+      "measure: table — What to measure",
+      "replay: cards — Replay",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · fr": {
+    "title": "Traitement événementiel",
+    "kicker": "Modèle : Traitement événementiel · AWS · 2026-08-14",
+    "groups": [
+      "producers: Producteurs",
+      "bus: Bus & routage",
+      "processing: Traitement",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producteurs",
+      "ingestion: Ingestion & bus",
+      "processing: Traitement",
+      "destinations: Destinations",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "producers [producers/producers] Services producteurs → outbox",
+      "outbox [producers/producers] Table outbox → ingest",
+      "ingest [ingestion/bus] Amazon EventBridge → schema,router",
+      "schema [ingestion/bus] EventBridge Schema Registry → —",
+      "router [ingestion/bus] EventBridge rules → queue,stream",
+      "queue [ingestion/bus] Amazon SQS → —",
+      "stream [ingestion/bus] Amazon Kinesis Data Streams → —",
+      "workers [processing/processing] AWS Lambda or ECS → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Amazon Managed Service for Apache Flink → stream,warehouse",
+      "saga [processing/processing] AWS Step Functions → workers",
+      "idempotency [processing/processing] Amazon DynamoDB → —",
+      "dlq [processing/processing] Amazon SQS dead-letter queue → —",
+      "store [destinations/destinations] Amazon S3 (event archive) → —",
+      "warehouse [destinations/destinations] Amazon Redshift → —",
+      "notify [destinations/destinations] Amazon SNS + SES → —",
+      "obs [platform/processing] AWS X-Ray → —"
+    ],
+    "flows": [
+      "order-events: Une commande devient des événements (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: Un message empoisonné (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Garanties de livraison",
+      "traps: cards — Les cinq pièges",
+      "measure: table — Ce qu'il faut mesurer",
+      "replay: cards — Rejeu",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · en": {
+    "title": "Event-driven processing",
+    "kicker": "Template: Event-driven processing · Google Cloud · 2026-08-14",
+    "groups": [
+      "producers: Producers",
+      "bus: Bus & routing",
+      "processing: Processing",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producers",
+      "ingestion: Ingestion & bus",
+      "processing: Processing",
+      "destinations: Destinations",
+      "platform: Platform"
+    ],
+    "components": [
+      "producers [producers/producers] Producing services → outbox",
+      "outbox [producers/producers] Outbox table → ingest",
+      "ingest [ingestion/bus] Cloud Pub/Sub → schema,router",
+      "schema [ingestion/bus] Pub/Sub schemas → —",
+      "router [ingestion/bus] Eventarc triggers → queue,stream",
+      "queue [ingestion/bus] Cloud Pub/Sub (pull) → —",
+      "stream [ingestion/bus] Cloud Pub/Sub → —",
+      "workers [processing/processing] Cloud Run → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Dataflow → stream,warehouse",
+      "saga [processing/processing] Workflows → workers",
+      "idempotency [processing/processing] Firestore → —",
+      "dlq [processing/processing] Pub/Sub dead-letter topic → —",
+      "store [destinations/destinations] Cloud Storage (event archive) → —",
+      "warehouse [destinations/destinations] BigQuery → —",
+      "notify [destinations/destinations] SendGrid / Resend → —",
+      "obs [platform/processing] Cloud Trace → —"
+    ],
+    "flows": [
+      "order-events: An order becomes events (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: A poison message (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Delivery guarantees",
+      "traps: cards — The five traps",
+      "measure: table — What to measure",
+      "replay: cards — Replay",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · fr": {
+    "title": "Traitement événementiel",
+    "kicker": "Modèle : Traitement événementiel · Google Cloud · 2026-08-14",
+    "groups": [
+      "producers: Producteurs",
+      "bus: Bus & routage",
+      "processing: Traitement",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producteurs",
+      "ingestion: Ingestion & bus",
+      "processing: Traitement",
+      "destinations: Destinations",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "producers [producers/producers] Services producteurs → outbox",
+      "outbox [producers/producers] Table outbox → ingest",
+      "ingest [ingestion/bus] Cloud Pub/Sub → schema,router",
+      "schema [ingestion/bus] Pub/Sub schemas → —",
+      "router [ingestion/bus] Eventarc triggers → queue,stream",
+      "queue [ingestion/bus] Cloud Pub/Sub (pull) → —",
+      "stream [ingestion/bus] Cloud Pub/Sub → —",
+      "workers [processing/processing] Cloud Run → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Dataflow → stream,warehouse",
+      "saga [processing/processing] Workflows → workers",
+      "idempotency [processing/processing] Firestore → —",
+      "dlq [processing/processing] Pub/Sub dead-letter topic → —",
+      "store [destinations/destinations] Cloud Storage (event archive) → —",
+      "warehouse [destinations/destinations] BigQuery → —",
+      "notify [destinations/destinations] SendGrid / Resend → —",
+      "obs [platform/processing] Cloud Trace → —"
+    ],
+    "flows": [
+      "order-events: Une commande devient des événements (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: Un message empoisonné (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Garanties de livraison",
+      "traps: cards — Les cinq pièges",
+      "measure: table — Ce qu'il faut mesurer",
+      "replay: cards — Rejeu",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · en": {
+    "title": "Event-driven processing",
+    "kicker": "Template: Event-driven processing · Azure · 2026-08-14",
+    "groups": [
+      "producers: Producers",
+      "bus: Bus & routing",
+      "processing: Processing",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producers",
+      "ingestion: Ingestion & bus",
+      "processing: Processing",
+      "destinations: Destinations",
+      "platform: Platform"
+    ],
+    "components": [
+      "producers [producers/producers] Producing services → outbox",
+      "outbox [producers/producers] Outbox table → ingest",
+      "ingest [ingestion/bus] Azure Event Grid → schema,router",
+      "schema [ingestion/bus] Event Hubs Schema Registry → —",
+      "router [ingestion/bus] Event Grid topics & subscriptions → queue,stream",
+      "queue [ingestion/bus] Azure Service Bus → —",
+      "stream [ingestion/bus] Azure Event Hubs → —",
+      "workers [processing/processing] Container Apps or Azure Functions → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Azure Stream Analytics → stream,warehouse",
+      "saga [processing/processing] Durable Functions → workers",
+      "idempotency [processing/processing] Azure Cosmos DB → —",
+      "dlq [processing/processing] Service Bus dead-letter queue → —",
+      "store [destinations/destinations] Blob Storage (event archive) → —",
+      "warehouse [destinations/destinations] Microsoft Fabric → —",
+      "notify [destinations/destinations] Azure Communication Services → —",
+      "obs [platform/processing] Application Insights → —"
+    ],
+    "flows": [
+      "order-events: An order becomes events (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: A poison message (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Delivery guarantees",
+      "traps: cards — The five traps",
+      "measure: table — What to measure",
+      "replay: cards — Replay",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · fr": {
+    "title": "Traitement événementiel",
+    "kicker": "Modèle : Traitement événementiel · Azure · 2026-08-14",
+    "groups": [
+      "producers: Producteurs",
+      "bus: Bus & routage",
+      "processing: Traitement",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producteurs",
+      "ingestion: Ingestion & bus",
+      "processing: Traitement",
+      "destinations: Destinations",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "producers [producers/producers] Services producteurs → outbox",
+      "outbox [producers/producers] Table outbox → ingest",
+      "ingest [ingestion/bus] Azure Event Grid → schema,router",
+      "schema [ingestion/bus] Event Hubs Schema Registry → —",
+      "router [ingestion/bus] Event Grid topics & subscriptions → queue,stream",
+      "queue [ingestion/bus] Azure Service Bus → —",
+      "stream [ingestion/bus] Azure Event Hubs → —",
+      "workers [processing/processing] Container Apps or Azure Functions → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Azure Stream Analytics → stream,warehouse",
+      "saga [processing/processing] Durable Functions → workers",
+      "idempotency [processing/processing] Azure Cosmos DB → —",
+      "dlq [processing/processing] Service Bus dead-letter queue → —",
+      "store [destinations/destinations] Blob Storage (event archive) → —",
+      "warehouse [destinations/destinations] Microsoft Fabric → —",
+      "notify [destinations/destinations] Azure Communication Services → —",
+      "obs [platform/processing] Application Insights → —"
+    ],
+    "flows": [
+      "order-events: Une commande devient des événements (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: Un message empoisonné (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Garanties de livraison",
+      "traps: cards — Les cinq pièges",
+      "measure: table — Ce qu'il faut mesurer",
+      "replay: cards — Rejeu",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · en": {
+    "title": "Event-driven processing",
+    "kicker": "Template: Event-driven processing · Self-hosted · 2026-08-14",
+    "groups": [
+      "producers: Producers",
+      "bus: Bus & routing",
+      "processing: Processing",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producers",
+      "ingestion: Ingestion & bus",
+      "processing: Processing",
+      "destinations: Destinations",
+      "platform: Platform"
+    ],
+    "components": [
+      "producers [producers/producers] Producing services → outbox",
+      "outbox [producers/producers] Outbox table → ingest",
+      "ingest [ingestion/bus] NATS JetStream → schema,router",
+      "schema [ingestion/bus] Apicurio / Karapace → —",
+      "router [ingestion/bus] NATS subjects & filters → queue,stream",
+      "queue [ingestion/bus] RabbitMQ / NATS JetStream → —",
+      "stream [ingestion/bus] Apache Kafka / Redpanda → —",
+      "workers [processing/processing] Docker Compose / Nomad → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Apache Flink / Benthos → stream,warehouse",
+      "saga [processing/processing] Temporal → workers",
+      "idempotency [processing/processing] MongoDB → —",
+      "dlq [processing/processing] RabbitMQ dead-letter exchange → —",
+      "store [destinations/destinations] MinIO (event archive) → —",
+      "warehouse [destinations/destinations] ClickHouse → —",
+      "notify [destinations/destinations] Postal / SMTP relay → —",
+      "obs [platform/processing] Jaeger / Tempo → —"
+    ],
+    "flows": [
+      "order-events: An order becomes events (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: A poison message (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Delivery guarantees",
+      "traps: cards — The five traps",
+      "measure: table — What to measure",
+      "replay: cards — Replay",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · fr": {
+    "title": "Traitement événementiel",
+    "kicker": "Modèle : Traitement événementiel · Auto-hébergé · 2026-08-14",
+    "groups": [
+      "producers: Producteurs",
+      "bus: Bus & routage",
+      "processing: Traitement",
+      "destinations: Destinations"
+    ],
+    "layers": [
+      "producers: Producteurs",
+      "ingestion: Ingestion & bus",
+      "processing: Traitement",
+      "destinations: Destinations",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "producers [producers/producers] Services producteurs → outbox",
+      "outbox [producers/producers] Table outbox → ingest",
+      "ingest [ingestion/bus] NATS JetStream → schema,router",
+      "schema [ingestion/bus] Apicurio / Karapace → —",
+      "router [ingestion/bus] NATS subjects & filters → queue,stream",
+      "queue [ingestion/bus] RabbitMQ / NATS JetStream → —",
+      "stream [ingestion/bus] Apache Kafka / Redpanda → —",
+      "workers [processing/processing] Docker Compose / Nomad → queue,idempotency,store,dlq,notify",
+      "stream-proc [processing/processing] Apache Flink / Benthos → stream,warehouse",
+      "saga [processing/processing] Temporal → workers",
+      "idempotency [processing/processing] MongoDB → —",
+      "dlq [processing/processing] RabbitMQ dead-letter exchange → —",
+      "store [destinations/destinations] MinIO (event archive) → —",
+      "warehouse [destinations/destinations] ClickHouse → —",
+      "notify [destinations/destinations] Postal / SMTP relay → —",
+      "obs [platform/processing] Jaeger / Tempo → —"
+    ],
+    "flows": [
+      "order-events: Une commande devient des événements (9) producers→outbox→ingest→schema→router→queue→workers→store→notify",
+      "poison: Un message empoisonné (6) workers→queue→dlq→obs→idempotency→workers"
+    ],
+    "sections": [
+      "guarantees: table — Garanties de livraison",
+      "traps: cards — Les cinq pièges",
+      "measure: table — Ce qu'il faut mesurer",
+      "replay: cards — Rejeu",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "guarantees",
+      "traps",
+      "measure",
+      "replay",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  }
+}

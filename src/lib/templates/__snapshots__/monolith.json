@@ -1,0 +1,528 @@
+{
+  "agnostic · en": {
+    "title": "Modular monolith",
+    "kicker": "Template: Modular monolith · Vendor-neutral · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Business modules",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/app] Web interface (server-rendered) → lb",
+      "lb [edge/app] Load balancer & TLS → app",
+      "app [app/app] Application → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — core domain → db,cache",
+      "mod-billing [app/modules] Module — billing → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] Background jobs → db,files",
+      "db [data/data] Relational database → —",
+      "replica [data/data] Read replica → —",
+      "cache [data/data] Cache → —",
+      "files [data/data] Files → —",
+      "backup [platform/platform] Backup & restore → —",
+      "obs [platform/platform] Logs & metrics → —",
+      "cicd [platform/platform] CI/CD → —"
+    ],
+    "flows": [
+      "request: Life of a request (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: A deployment (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Holding the internal boundaries",
+      "signals: table — Signals it is time to split",
+      "extract: timeline — Extracting a first service"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "flows",
+      "stack"
+    ]
+  },
+  "agnostic · fr": {
+    "title": "Monolithe modulaire",
+    "kicker": "Modèle : Monolithe modulaire · Agnostique · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Modules métier",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/app] Interface web (rendu serveur) → lb",
+      "lb [edge/app] Répartiteur & TLS → app",
+      "app [app/app] Application → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — domaine principal → db,cache",
+      "mod-billing [app/modules] Module — facturation → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] Tâches de fond → db,files",
+      "db [data/data] Base relationnelle → —",
+      "replica [data/data] Réplica de lecture → —",
+      "cache [data/data] Cache → —",
+      "files [data/data] Fichiers → —",
+      "backup [platform/platform] Sauvegarde & restauration → —",
+      "obs [platform/platform] Logs & métriques → —",
+      "cicd [platform/platform] CI/CD → —"
+    ],
+    "flows": [
+      "request: Cycle de vie d'une requête (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: Un déploiement (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Tenir les frontières internes",
+      "signals: table — Signaux de découpage",
+      "extract: timeline — Extraire un premier service"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · en": {
+    "title": "Modular monolith",
+    "kicker": "Template: Modular monolith · AWS · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Business modules",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/app] Web interface (server-rendered) → lb",
+      "lb [edge/app] Application Load Balancer → app",
+      "app [app/app] ECS Fargate → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — core domain → db,cache",
+      "mod-billing [app/modules] Module — billing → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] ECS scheduled tasks → db,files",
+      "db [data/data] Amazon RDS for PostgreSQL (Multi-AZ) → —",
+      "replica [data/data] RDS read replica → —",
+      "cache [data/data] Amazon ElastiCache → —",
+      "files [data/data] Amazon S3 → —",
+      "backup [platform/platform] AWS Backup → —",
+      "obs [platform/platform] Amazon CloudWatch → —",
+      "cicd [platform/platform] GitHub Actions + CodeDeploy → —"
+    ],
+    "flows": [
+      "request: Life of a request (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: A deployment (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Holding the internal boundaries",
+      "signals: table — Signals it is time to split",
+      "extract: timeline — Extracting a first service",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · fr": {
+    "title": "Monolithe modulaire",
+    "kicker": "Modèle : Monolithe modulaire · AWS · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Modules métier",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/app] Interface web (rendu serveur) → lb",
+      "lb [edge/app] Application Load Balancer → app",
+      "app [app/app] ECS Fargate → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — domaine principal → db,cache",
+      "mod-billing [app/modules] Module — facturation → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] ECS scheduled tasks → db,files",
+      "db [data/data] Amazon RDS for PostgreSQL (Multi-AZ) → —",
+      "replica [data/data] RDS read replica → —",
+      "cache [data/data] Amazon ElastiCache → —",
+      "files [data/data] Amazon S3 → —",
+      "backup [platform/platform] AWS Backup → —",
+      "obs [platform/platform] Amazon CloudWatch → —",
+      "cicd [platform/platform] GitHub Actions + CodeDeploy → —"
+    ],
+    "flows": [
+      "request: Cycle de vie d'une requête (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: Un déploiement (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Tenir les frontières internes",
+      "signals: table — Signaux de découpage",
+      "extract: timeline — Extraire un premier service",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · en": {
+    "title": "Modular monolith",
+    "kicker": "Template: Modular monolith · Google Cloud · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Business modules",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/app] Web interface (server-rendered) → lb",
+      "lb [edge/app] Cloud Load Balancing → app",
+      "app [app/app] Cloud Run → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — core domain → db,cache",
+      "mod-billing [app/modules] Module — billing → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] Cloud Run Jobs → db,files",
+      "db [data/data] Cloud SQL / AlloyDB → —",
+      "replica [data/data] Cloud SQL read replica → —",
+      "cache [data/data] Memorystore → —",
+      "files [data/data] Cloud Storage → —",
+      "backup [platform/platform] Backup and DR Service → —",
+      "obs [platform/platform] Cloud Logging & Monitoring → —",
+      "cicd [platform/platform] Cloud Build → —"
+    ],
+    "flows": [
+      "request: Life of a request (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: A deployment (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Holding the internal boundaries",
+      "signals: table — Signals it is time to split",
+      "extract: timeline — Extracting a first service",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · fr": {
+    "title": "Monolithe modulaire",
+    "kicker": "Modèle : Monolithe modulaire · Google Cloud · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Modules métier",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/app] Interface web (rendu serveur) → lb",
+      "lb [edge/app] Cloud Load Balancing → app",
+      "app [app/app] Cloud Run → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — domaine principal → db,cache",
+      "mod-billing [app/modules] Module — facturation → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] Cloud Run Jobs → db,files",
+      "db [data/data] Cloud SQL / AlloyDB → —",
+      "replica [data/data] Cloud SQL read replica → —",
+      "cache [data/data] Memorystore → —",
+      "files [data/data] Cloud Storage → —",
+      "backup [platform/platform] Backup and DR Service → —",
+      "obs [platform/platform] Cloud Logging & Monitoring → —",
+      "cicd [platform/platform] Cloud Build → —"
+    ],
+    "flows": [
+      "request: Cycle de vie d'une requête (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: Un déploiement (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Tenir les frontières internes",
+      "signals: table — Signaux de découpage",
+      "extract: timeline — Extraire un premier service",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · en": {
+    "title": "Modular monolith",
+    "kicker": "Template: Modular monolith · Azure · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Business modules",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/app] Web interface (server-rendered) → lb",
+      "lb [edge/app] Azure Application Gateway → app",
+      "app [app/app] Azure App Service → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — core domain → db,cache",
+      "mod-billing [app/modules] Module — billing → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] Container Apps Jobs → db,files",
+      "db [data/data] Azure Database for PostgreSQL → —",
+      "replica [data/data] PostgreSQL read replica → —",
+      "cache [data/data] Azure Managed Redis → —",
+      "files [data/data] Azure Blob Storage → —",
+      "backup [platform/platform] Azure Backup → —",
+      "obs [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions → —"
+    ],
+    "flows": [
+      "request: Life of a request (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: A deployment (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Holding the internal boundaries",
+      "signals: table — Signals it is time to split",
+      "extract: timeline — Extracting a first service",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · fr": {
+    "title": "Monolithe modulaire",
+    "kicker": "Modèle : Monolithe modulaire · Azure · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Modules métier",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/app] Interface web (rendu serveur) → lb",
+      "lb [edge/app] Azure Application Gateway → app",
+      "app [app/app] Azure App Service → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — domaine principal → db,cache",
+      "mod-billing [app/modules] Module — facturation → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] Container Apps Jobs → db,files",
+      "db [data/data] Azure Database for PostgreSQL → —",
+      "replica [data/data] PostgreSQL read replica → —",
+      "cache [data/data] Azure Managed Redis → —",
+      "files [data/data] Azure Blob Storage → —",
+      "backup [platform/platform] Azure Backup → —",
+      "obs [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions → —"
+    ],
+    "flows": [
+      "request: Cycle de vie d'une requête (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: Un déploiement (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Tenir les frontières internes",
+      "signals: table — Signaux de découpage",
+      "extract: timeline — Extraire un premier service",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · en": {
+    "title": "Modular monolith",
+    "kicker": "Template: Modular monolith · Self-hosted · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Business modules",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "web [clients/app] Web interface (server-rendered) → lb",
+      "lb [edge/app] HAProxy / Traefik → app",
+      "app [app/app] Docker Compose on a VM → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — core domain → db,cache",
+      "mod-billing [app/modules] Module — billing → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] systemd timers / Nomad periodic → db,files",
+      "db [data/data] PostgreSQL (Patroni) → —",
+      "replica [data/data] Streaming replica (hot standby) → —",
+      "cache [data/data] Valkey → —",
+      "files [data/data] MinIO → —",
+      "backup [platform/platform] pgBackRest + restic → —",
+      "obs [platform/platform] Prometheus + Grafana + Loki → —",
+      "cicd [platform/platform] Forgejo Actions + Ansible → —"
+    ],
+    "flows": [
+      "request: Life of a request (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: A deployment (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Holding the internal boundaries",
+      "signals: table — Signals it is time to split",
+      "extract: timeline — Extracting a first service",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · fr": {
+    "title": "Monolithe modulaire",
+    "kicker": "Modèle : Monolithe modulaire · Auto-hébergé · 2026-08-14",
+    "groups": [
+      "app: Application",
+      "modules: Modules métier",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge",
+      "app: Application",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "web [clients/app] Interface web (rendu serveur) → lb",
+      "lb [edge/app] HAProxy / Traefik → app",
+      "app [app/app] Docker Compose on a VM → mod-core,mod-billing,mod-notify,replica,cache",
+      "mod-core [app/modules] Module — domaine principal → db,cache",
+      "mod-billing [app/modules] Module — facturation → db",
+      "mod-notify [app/modules] Module — notifications → files",
+      "jobs [app/app] systemd timers / Nomad periodic → db,files",
+      "db [data/data] PostgreSQL (Patroni) → —",
+      "replica [data/data] Streaming replica (hot standby) → —",
+      "cache [data/data] Valkey → —",
+      "files [data/data] MinIO → —",
+      "backup [platform/platform] pgBackRest + restic → —",
+      "obs [platform/platform] Prometheus + Grafana + Loki → —",
+      "cicd [platform/platform] Forgejo Actions + Ansible → —"
+    ],
+    "flows": [
+      "request: Cycle de vie d'une requête (6) web→lb→app→mod-core→db→mod-notify",
+      "deploy: Un déploiement (7) cicd→backup→db→app→lb→obs→cicd"
+    ],
+    "sections": [
+      "boundaries: cards — Tenir les frontières internes",
+      "signals: table — Signaux de découpage",
+      "extract: timeline — Extraire un premier service",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "boundaries",
+      "signals",
+      "extract",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  }
+}

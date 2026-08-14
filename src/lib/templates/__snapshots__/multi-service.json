@@ -1,0 +1,596 @@
+{
+  "agnostic · en": {
+    "title": "Multi-service architecture",
+    "kicker": "Template: Multi-service architecture · Vendor-neutral · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Business services",
+      "data: Data per service",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & gateway",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "clients [clients/edge] Client applications → cdn",
+      "cdn [edge/edge] CDN & WAF → bff",
+      "bff [edge/edge] BFF / gateway → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Service mesh → —",
+      "svc-identity [services/services] Service — identity → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — orders → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — billing → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] Inter-service bus → —",
+      "db-identity [data/data] Store — identity → —",
+      "db-catalog [data/data] Store — catalogue → —",
+      "db-order [data/data] Store — orders → —",
+      "cache [data/data] Shared cache → —",
+      "registry [platform/platform] Image registry → —",
+      "platform [platform/platform] Container platform → —",
+      "config [platform/platform] Configuration & secrets → —",
+      "trace [platform/platform] Distributed tracing → —",
+      "cicd [platform/platform] CI/CD per service → —"
+    ],
+    "flows": [
+      "order-end-to-end: An order, end to end (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: A partial failure (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Boundary rules",
+      "sync-or-event: compare — Synchronous call or event?",
+      "real-cost: table — What you need in place before splitting",
+      "resilience: cards — Resilience"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "flows",
+      "stack"
+    ]
+  },
+  "agnostic · fr": {
+    "title": "Architecture multi-services",
+    "kicker": "Modèle : Architecture multi-services · Agnostique · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Services métier",
+      "data: Données par service",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & passerelle",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "clients [clients/edge] Applications clientes → cdn",
+      "cdn [edge/edge] CDN & WAF → bff",
+      "bff [edge/edge] BFF / passerelle → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Maillage de services → —",
+      "svc-identity [services/services] Service — identité → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — commandes → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — facturation → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] Bus inter-services → —",
+      "db-identity [data/data] Base — identité → —",
+      "db-catalog [data/data] Base — catalogue → —",
+      "db-order [data/data] Base — commandes → —",
+      "cache [data/data] Cache partagé → —",
+      "registry [platform/platform] Registre d'images → —",
+      "platform [platform/platform] Plateforme de conteneurs → —",
+      "config [platform/platform] Configuration & secrets → —",
+      "trace [platform/platform] Traçage distribué → —",
+      "cicd [platform/platform] CI/CD par service → —"
+    ],
+    "flows": [
+      "order-end-to-end: Une commande de bout en bout (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: Une défaillance partielle (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Règles de frontière",
+      "sync-or-event: compare — Appel synchrone ou événement ?",
+      "real-cost: table — Ce qu'il faut avoir en place avant de découper",
+      "resilience: cards — Résilience"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · en": {
+    "title": "Multi-service architecture",
+    "kicker": "Template: Multi-service architecture · AWS · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Business services",
+      "data: Data per service",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & gateway",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "clients [clients/edge] Client applications → cdn",
+      "cdn [edge/edge] CloudFront + AWS WAF → bff",
+      "bff [edge/edge] API Gateway (HTTP API) → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Service mesh → —",
+      "svc-identity [services/services] Service — identity → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — orders → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — billing → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] EventBridge + SQS → —",
+      "db-identity [data/data] Store — identity → —",
+      "db-catalog [data/data] Store — catalogue → —",
+      "db-order [data/data] Store — orders → —",
+      "cache [data/data] Amazon ElastiCache → —",
+      "registry [platform/platform] Amazon ECR → —",
+      "platform [platform/platform] Amazon EKS → —",
+      "config [platform/platform] Parameter Store + Secrets Manager → —",
+      "trace [platform/platform] AWS X-Ray → —",
+      "cicd [platform/platform] GitHub Actions + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: An order, end to end (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: A partial failure (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Boundary rules",
+      "sync-or-event: compare — Synchronous call or event?",
+      "real-cost: table — What you need in place before splitting",
+      "resilience: cards — Resilience",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · fr": {
+    "title": "Architecture multi-services",
+    "kicker": "Modèle : Architecture multi-services · AWS · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Services métier",
+      "data: Données par service",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & passerelle",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "clients [clients/edge] Applications clientes → cdn",
+      "cdn [edge/edge] CloudFront + AWS WAF → bff",
+      "bff [edge/edge] API Gateway (HTTP API) → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Maillage de services → —",
+      "svc-identity [services/services] Service — identité → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — commandes → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — facturation → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] EventBridge + SQS → —",
+      "db-identity [data/data] Base — identité → —",
+      "db-catalog [data/data] Base — catalogue → —",
+      "db-order [data/data] Base — commandes → —",
+      "cache [data/data] Amazon ElastiCache → —",
+      "registry [platform/platform] Amazon ECR → —",
+      "platform [platform/platform] Amazon EKS → —",
+      "config [platform/platform] Parameter Store + Secrets Manager → —",
+      "trace [platform/platform] AWS X-Ray → —",
+      "cicd [platform/platform] GitHub Actions + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: Une commande de bout en bout (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: Une défaillance partielle (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Règles de frontière",
+      "sync-or-event: compare — Appel synchrone ou événement ?",
+      "real-cost: table — Ce qu'il faut avoir en place avant de découper",
+      "resilience: cards — Résilience",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · en": {
+    "title": "Multi-service architecture",
+    "kicker": "Template: Multi-service architecture · Google Cloud · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Business services",
+      "data: Data per service",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & gateway",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "clients [clients/edge] Client applications → cdn",
+      "cdn [edge/edge] Cloud CDN + Cloud Armor → bff",
+      "bff [edge/edge] API Gateway → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Service mesh → —",
+      "svc-identity [services/services] Service — identity → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — orders → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — billing → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] Cloud Pub/Sub → —",
+      "db-identity [data/data] Store — identity → —",
+      "db-catalog [data/data] Store — catalogue → —",
+      "db-order [data/data] Store — orders → —",
+      "cache [data/data] Memorystore → —",
+      "registry [platform/platform] Artifact Registry → —",
+      "platform [platform/platform] GKE Autopilot → —",
+      "config [platform/platform] Secret Manager + runtime config → —",
+      "trace [platform/platform] Cloud Trace → —",
+      "cicd [platform/platform] Cloud Build + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: An order, end to end (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: A partial failure (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Boundary rules",
+      "sync-or-event: compare — Synchronous call or event?",
+      "real-cost: table — What you need in place before splitting",
+      "resilience: cards — Resilience",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · fr": {
+    "title": "Architecture multi-services",
+    "kicker": "Modèle : Architecture multi-services · Google Cloud · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Services métier",
+      "data: Données par service",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & passerelle",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "clients [clients/edge] Applications clientes → cdn",
+      "cdn [edge/edge] Cloud CDN + Cloud Armor → bff",
+      "bff [edge/edge] API Gateway → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Maillage de services → —",
+      "svc-identity [services/services] Service — identité → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — commandes → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — facturation → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] Cloud Pub/Sub → —",
+      "db-identity [data/data] Base — identité → —",
+      "db-catalog [data/data] Base — catalogue → —",
+      "db-order [data/data] Base — commandes → —",
+      "cache [data/data] Memorystore → —",
+      "registry [platform/platform] Artifact Registry → —",
+      "platform [platform/platform] GKE Autopilot → —",
+      "config [platform/platform] Secret Manager + runtime config → —",
+      "trace [platform/platform] Cloud Trace → —",
+      "cicd [platform/platform] Cloud Build + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: Une commande de bout en bout (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: Une défaillance partielle (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Règles de frontière",
+      "sync-or-event: compare — Appel synchrone ou événement ?",
+      "real-cost: table — Ce qu'il faut avoir en place avant de découper",
+      "resilience: cards — Résilience",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · en": {
+    "title": "Multi-service architecture",
+    "kicker": "Template: Multi-service architecture · Azure · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Business services",
+      "data: Data per service",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & gateway",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "clients [clients/edge] Client applications → cdn",
+      "cdn [edge/edge] Front Door + Azure WAF → bff",
+      "bff [edge/edge] Azure API Management → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Service mesh → —",
+      "svc-identity [services/services] Service — identity → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — orders → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — billing → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] Service Bus + Event Grid → —",
+      "db-identity [data/data] Store — identity → —",
+      "db-catalog [data/data] Store — catalogue → —",
+      "db-order [data/data] Store — orders → —",
+      "cache [data/data] Azure Managed Redis → —",
+      "registry [platform/platform] Azure Container Registry → —",
+      "platform [platform/platform] Azure Kubernetes Service → —",
+      "config [platform/platform] App Configuration + Key Vault → —",
+      "trace [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: An order, end to end (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: A partial failure (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Boundary rules",
+      "sync-or-event: compare — Synchronous call or event?",
+      "real-cost: table — What you need in place before splitting",
+      "resilience: cards — Resilience",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · fr": {
+    "title": "Architecture multi-services",
+    "kicker": "Modèle : Architecture multi-services · Azure · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Services métier",
+      "data: Données par service",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & passerelle",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "clients [clients/edge] Applications clientes → cdn",
+      "cdn [edge/edge] Front Door + Azure WAF → bff",
+      "bff [edge/edge] Azure API Management → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Maillage de services → —",
+      "svc-identity [services/services] Service — identité → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — commandes → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — facturation → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] Service Bus + Event Grid → —",
+      "db-identity [data/data] Base — identité → —",
+      "db-catalog [data/data] Base — catalogue → —",
+      "db-order [data/data] Base — commandes → —",
+      "cache [data/data] Azure Managed Redis → —",
+      "registry [platform/platform] Azure Container Registry → —",
+      "platform [platform/platform] Azure Kubernetes Service → —",
+      "config [platform/platform] App Configuration + Key Vault → —",
+      "trace [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: Une commande de bout en bout (9) clients→cdn→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: Une défaillance partielle (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Règles de frontière",
+      "sync-or-event: compare — Appel synchrone ou événement ?",
+      "real-cost: table — Ce qu'il faut avoir en place avant de découper",
+      "resilience: cards — Résilience",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · en": {
+    "title": "Multi-service architecture",
+    "kicker": "Template: Multi-service architecture · Self-hosted · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Business services",
+      "data: Data per service",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & gateway",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "clients [clients/edge] Client applications → bff",
+      "bff [edge/edge] Traefik / Kong → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Service mesh → —",
+      "svc-identity [services/services] Service — identity → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — orders → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — billing → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] NATS JetStream → —",
+      "db-identity [data/data] Store — identity → —",
+      "db-catalog [data/data] Store — catalogue → —",
+      "db-order [data/data] Store — orders → —",
+      "cache [data/data] Valkey → —",
+      "registry [platform/platform] Harbor → —",
+      "platform [platform/platform] k3s / Talos → —",
+      "config [platform/platform] Consul + OpenBao → —",
+      "trace [platform/platform] Jaeger / Tempo → —",
+      "cicd [platform/platform] Forgejo Actions + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: An order, end to end (8) clients→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: A partial failure (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Boundary rules",
+      "sync-or-event: compare — Synchronous call or event?",
+      "real-cost: table — What you need in place before splitting",
+      "resilience: cards — Resilience",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · fr": {
+    "title": "Architecture multi-services",
+    "kicker": "Modèle : Architecture multi-services · Auto-hébergé · 2026-08-14",
+    "groups": [
+      "edge: Edge",
+      "services: Services métier",
+      "data: Données par service",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & passerelle",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "clients [clients/edge] Applications clientes → bff",
+      "bff [edge/edge] Traefik / Kong → svc-identity,svc-catalog,svc-order",
+      "mesh [edge/edge] Maillage de services → —",
+      "svc-identity [services/services] Service — identité → db-identity,bus",
+      "svc-catalog [services/services] Service — catalogue → db-catalog,cache,bus",
+      "svc-order [services/services] Service — commandes → db-order,svc-catalog,bus",
+      "svc-billing [services/services] Service — facturation → bus",
+      "svc-notify [services/services] Service — notifications → bus",
+      "bus [services/services] NATS JetStream → —",
+      "db-identity [data/data] Base — identité → —",
+      "db-catalog [data/data] Base — catalogue → —",
+      "db-order [data/data] Base — commandes → —",
+      "cache [data/data] Valkey → —",
+      "registry [platform/platform] Harbor → —",
+      "platform [platform/platform] k3s / Talos → —",
+      "config [platform/platform] Consul + OpenBao → —",
+      "trace [platform/platform] Jaeger / Tempo → —",
+      "cicd [platform/platform] Forgejo Actions + Argo CD → —"
+    ],
+    "flows": [
+      "order-end-to-end: Une commande de bout en bout (8) clients→bff→svc-order→svc-catalog→db-order→bus→svc-billing→svc-notify",
+      "partial-failure: Une défaillance partielle (6) svc-catalog→svc-order→mesh→bff→svc-order→trace"
+    ],
+    "sections": [
+      "rules: cards — Règles de frontière",
+      "sync-or-event: compare — Appel synchrone ou événement ?",
+      "real-cost: table — Ce qu'il faut avoir en place avant de découper",
+      "resilience: cards — Résilience",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "rules",
+      "sync-or-event",
+      "real-cost",
+      "resilience",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  }
+}

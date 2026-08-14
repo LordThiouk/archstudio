@@ -1,0 +1,598 @@
+{
+  "agnostic · en": {
+    "title": "Multi-tenant B2B SaaS",
+    "kicker": "Template: Multi-tenant B2B SaaS · Vendor-neutral · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Data",
+      "tenancy: Tenancy & security",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "app [clients/front] Customer application → gw",
+      "admin [clients/front] Internal admin console → gw",
+      "gw [edge/front] API gateway & WAF → tenant-router",
+      "tenant-router [edge/tenancy] Tenant resolution → api,auth",
+      "api [services/app] Application service → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Background workers → bus,db,files",
+      "auth [services/tenancy] Identity & SSO → —",
+      "provisioning [services/tenancy] Tenant provisioning → db,auth,billing",
+      "billing [services/tenancy] Subscriptions & usage → —",
+      "audit [services/tenancy] Audit log → —",
+      "db [data/data] Transactional database → —",
+      "cache [data/data] Cache & sessions → —",
+      "files [data/data] Per-tenant files → —",
+      "search [data/data] Search → —",
+      "bus [data/data] Event bus → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Observability → —",
+      "cicd [platform/platform] CI/CD & infrastructure as code → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding a new tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: One user request (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Three isolation models",
+      "tenancy-security: cards — Tenancy security",
+      "at-scale: table — What breaks as you grow",
+      "growth: timeline — From the first customer to the hundredth"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "flows",
+      "stack"
+    ]
+  },
+  "agnostic · fr": {
+    "title": "SaaS B2B multi-tenant",
+    "kicker": "Modèle : SaaS B2B multi-tenant · Agnostique · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Données",
+      "tenancy: Tenancy & sécurité",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "app [clients/front] Application cliente → gw",
+      "admin [clients/front] Console d'administration interne → gw",
+      "gw [edge/front] Passerelle API & WAF → tenant-router",
+      "tenant-router [edge/tenancy] Résolution du tenant → api,auth",
+      "api [services/app] Service applicatif → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Traitements de fond → bus,db,files",
+      "auth [services/tenancy] Identité & SSO → —",
+      "provisioning [services/tenancy] Provisionnement de tenant → db,auth,billing",
+      "billing [services/tenancy] Abonnements & usage → —",
+      "audit [services/tenancy] Journal d'audit → —",
+      "db [data/data] Base transactionnelle → —",
+      "cache [data/data] Cache & sessions → —",
+      "files [data/data] Fichiers par tenant → —",
+      "search [data/data] Recherche → —",
+      "bus [data/data] Bus d'événements → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Observabilité → —",
+      "cicd [platform/platform] CI/CD & infrastructure as code → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding d'un nouveau tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: Une requête utilisateur (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Trois modèles d'isolation",
+      "tenancy-security: cards — Sécurité de la tenancy",
+      "at-scale: table — Ce qui casse à l'échelle",
+      "growth: timeline — Du premier client au centième"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · en": {
+    "title": "Multi-tenant B2B SaaS",
+    "kicker": "Template: Multi-tenant B2B SaaS · AWS · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Data",
+      "tenancy: Tenancy & security",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "app [clients/front] S3 + CloudFront → gw",
+      "admin [clients/front] Internal admin console → gw",
+      "gw [edge/front] API Gateway + AWS WAF → tenant-router",
+      "tenant-router [edge/tenancy] Tenant resolution → api,auth",
+      "api [services/app] ECS Fargate → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] ECS Fargate (SQS consumers) → bus,db,files",
+      "auth [services/tenancy] Amazon Cognito → —",
+      "provisioning [services/tenancy] AWS Step Functions → db,auth,billing",
+      "billing [services/tenancy] Subscriptions & usage → —",
+      "audit [services/tenancy] CloudWatch Logs + S3 (Object Lock) → —",
+      "db [data/data] Amazon Aurora PostgreSQL → —",
+      "cache [data/data] Amazon ElastiCache → —",
+      "files [data/data] Amazon S3 (prefix per tenant) → —",
+      "search [data/data] Amazon OpenSearch Service → —",
+      "bus [data/data] Amazon EventBridge → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] AWS X-Ray → —",
+      "cicd [platform/platform] GitHub Actions + Terraform → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding a new tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: One user request (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Three isolation models",
+      "tenancy-security: cards — Tenancy security",
+      "at-scale: table — What breaks as you grow",
+      "growth: timeline — From the first customer to the hundredth",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · fr": {
+    "title": "SaaS B2B multi-tenant",
+    "kicker": "Modèle : SaaS B2B multi-tenant · AWS · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Données",
+      "tenancy: Tenancy & sécurité",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "app [clients/front] S3 + CloudFront → gw",
+      "admin [clients/front] Console d'administration interne → gw",
+      "gw [edge/front] API Gateway + AWS WAF → tenant-router",
+      "tenant-router [edge/tenancy] Résolution du tenant → api,auth",
+      "api [services/app] ECS Fargate → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] ECS Fargate (SQS consumers) → bus,db,files",
+      "auth [services/tenancy] Amazon Cognito → —",
+      "provisioning [services/tenancy] AWS Step Functions → db,auth,billing",
+      "billing [services/tenancy] Abonnements & usage → —",
+      "audit [services/tenancy] CloudWatch Logs + S3 (Object Lock) → —",
+      "db [data/data] Amazon Aurora PostgreSQL → —",
+      "cache [data/data] Amazon ElastiCache → —",
+      "files [data/data] Amazon S3 (prefix per tenant) → —",
+      "search [data/data] Amazon OpenSearch Service → —",
+      "bus [data/data] Amazon EventBridge → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] AWS X-Ray → —",
+      "cicd [platform/platform] GitHub Actions + Terraform → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding d'un nouveau tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: Une requête utilisateur (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Trois modèles d'isolation",
+      "tenancy-security: cards — Sécurité de la tenancy",
+      "at-scale: table — Ce qui casse à l'échelle",
+      "growth: timeline — Du premier client au centième",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · en": {
+    "title": "Multi-tenant B2B SaaS",
+    "kicker": "Template: Multi-tenant B2B SaaS · Google Cloud · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Data",
+      "tenancy: Tenancy & security",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "app [clients/front] Firebase Hosting → gw",
+      "admin [clients/front] Internal admin console → gw",
+      "gw [edge/front] API Gateway + Cloud Armor → tenant-router",
+      "tenant-router [edge/tenancy] Tenant resolution → api,auth",
+      "api [services/app] Cloud Run → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Cloud Run Jobs (Pub/Sub) → bus,db,files",
+      "auth [services/tenancy] Identity Platform → —",
+      "provisioning [services/tenancy] Workflows → db,auth,billing",
+      "billing [services/tenancy] Subscriptions & usage → —",
+      "audit [services/tenancy] Cloud Logging + BigQuery → —",
+      "db [data/data] Cloud SQL / AlloyDB → —",
+      "cache [data/data] Memorystore → —",
+      "files [data/data] Cloud Storage → —",
+      "search [data/data] Elastic Cloud → —",
+      "bus [data/data] Cloud Pub/Sub → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Cloud Trace → —",
+      "cicd [platform/platform] Cloud Build + Terraform → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding a new tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: One user request (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Three isolation models",
+      "tenancy-security: cards — Tenancy security",
+      "at-scale: table — What breaks as you grow",
+      "growth: timeline — From the first customer to the hundredth",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · fr": {
+    "title": "SaaS B2B multi-tenant",
+    "kicker": "Modèle : SaaS B2B multi-tenant · Google Cloud · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Données",
+      "tenancy: Tenancy & sécurité",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "app [clients/front] Firebase Hosting → gw",
+      "admin [clients/front] Console d'administration interne → gw",
+      "gw [edge/front] API Gateway + Cloud Armor → tenant-router",
+      "tenant-router [edge/tenancy] Résolution du tenant → api,auth",
+      "api [services/app] Cloud Run → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Cloud Run Jobs (Pub/Sub) → bus,db,files",
+      "auth [services/tenancy] Identity Platform → —",
+      "provisioning [services/tenancy] Workflows → db,auth,billing",
+      "billing [services/tenancy] Abonnements & usage → —",
+      "audit [services/tenancy] Cloud Logging + BigQuery → —",
+      "db [data/data] Cloud SQL / AlloyDB → —",
+      "cache [data/data] Memorystore → —",
+      "files [data/data] Cloud Storage → —",
+      "search [data/data] Elastic Cloud → —",
+      "bus [data/data] Cloud Pub/Sub → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Cloud Trace → —",
+      "cicd [platform/platform] Cloud Build + Terraform → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding d'un nouveau tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: Une requête utilisateur (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Trois modèles d'isolation",
+      "tenancy-security: cards — Sécurité de la tenancy",
+      "at-scale: table — Ce qui casse à l'échelle",
+      "growth: timeline — Du premier client au centième",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · en": {
+    "title": "Multi-tenant B2B SaaS",
+    "kicker": "Template: Multi-tenant B2B SaaS · Azure · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Data",
+      "tenancy: Tenancy & security",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "app [clients/front] Azure Static Web Apps → gw",
+      "admin [clients/front] Internal admin console → gw",
+      "gw [edge/front] API Management + Azure WAF → tenant-router",
+      "tenant-router [edge/tenancy] Tenant resolution → api,auth",
+      "api [services/app] Azure Container Apps → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Container Apps Jobs (Service Bus) → bus,db,files",
+      "auth [services/tenancy] Microsoft Entra External ID → —",
+      "provisioning [services/tenancy] Durable Functions → db,auth,billing",
+      "billing [services/tenancy] Subscriptions & usage → —",
+      "audit [services/tenancy] Azure Log Analytics → —",
+      "db [data/data] Azure Database for PostgreSQL → —",
+      "cache [data/data] Azure Managed Redis → —",
+      "files [data/data] Blob Storage (container per tenant) → —",
+      "search [data/data] Azure AI Search → —",
+      "bus [data/data] Azure Event Grid → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions + Bicep → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding a new tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: One user request (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Three isolation models",
+      "tenancy-security: cards — Tenancy security",
+      "at-scale: table — What breaks as you grow",
+      "growth: timeline — From the first customer to the hundredth",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · fr": {
+    "title": "SaaS B2B multi-tenant",
+    "kicker": "Modèle : SaaS B2B multi-tenant · Azure · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Données",
+      "tenancy: Tenancy & sécurité",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "app [clients/front] Azure Static Web Apps → gw",
+      "admin [clients/front] Console d'administration interne → gw",
+      "gw [edge/front] API Management + Azure WAF → tenant-router",
+      "tenant-router [edge/tenancy] Résolution du tenant → api,auth",
+      "api [services/app] Azure Container Apps → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Container Apps Jobs (Service Bus) → bus,db,files",
+      "auth [services/tenancy] Microsoft Entra External ID → —",
+      "provisioning [services/tenancy] Durable Functions → db,auth,billing",
+      "billing [services/tenancy] Abonnements & usage → —",
+      "audit [services/tenancy] Azure Log Analytics → —",
+      "db [data/data] Azure Database for PostgreSQL → —",
+      "cache [data/data] Azure Managed Redis → —",
+      "files [data/data] Blob Storage (container per tenant) → —",
+      "search [data/data] Azure AI Search → —",
+      "bus [data/data] Azure Event Grid → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Application Insights → —",
+      "cicd [platform/platform] GitHub Actions + Bicep → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding d'un nouveau tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: Une requête utilisateur (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Trois modèles d'isolation",
+      "tenancy-security: cards — Sécurité de la tenancy",
+      "at-scale: table — Ce qui casse à l'échelle",
+      "growth: timeline — Du premier client au centième",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · en": {
+    "title": "Multi-tenant B2B SaaS",
+    "kicker": "Template: Multi-tenant B2B SaaS · Self-hosted · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Data",
+      "tenancy: Tenancy & security",
+      "platform: Platform"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Data",
+      "platform: Platform"
+    ],
+    "components": [
+      "app [clients/front] Caddy / Nginx → gw",
+      "admin [clients/front] Internal admin console → gw",
+      "gw [edge/front] Traefik + Coraza → tenant-router",
+      "tenant-router [edge/tenancy] Tenant resolution → api,auth",
+      "api [services/app] Docker Compose / Nomad → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Worker containers (RabbitMQ) → bus,db,files",
+      "auth [services/tenancy] Keycloak / Zitadel → —",
+      "provisioning [services/tenancy] Temporal → db,auth,billing",
+      "billing [services/tenancy] Subscriptions & usage → —",
+      "audit [services/tenancy] Loki + append-only PostgreSQL → —",
+      "db [data/data] PostgreSQL (Patroni) → —",
+      "cache [data/data] Valkey → —",
+      "files [data/data] MinIO → —",
+      "search [data/data] OpenSearch / Meilisearch → —",
+      "bus [data/data] NATS JetStream → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Jaeger / Tempo → —",
+      "cicd [platform/platform] Forgejo Actions + Ansible → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding a new tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: One user request (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Three isolation models",
+      "tenancy-security: cards — Tenancy security",
+      "at-scale: table — What breaks as you grow",
+      "growth: timeline — From the first customer to the hundredth",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · fr": {
+    "title": "SaaS B2B multi-tenant",
+    "kicker": "Modèle : SaaS B2B multi-tenant · Auto-hébergé · 2026-08-14",
+    "groups": [
+      "front: Front & console",
+      "app: Application",
+      "data: Données",
+      "tenancy: Tenancy & sécurité",
+      "platform: Plateforme"
+    ],
+    "layers": [
+      "clients: Clients",
+      "edge: Edge & API",
+      "services: Services",
+      "data: Données",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "app [clients/front] Caddy / Nginx → gw",
+      "admin [clients/front] Console d'administration interne → gw",
+      "gw [edge/front] Traefik + Coraza → tenant-router",
+      "tenant-router [edge/tenancy] Résolution du tenant → api,auth",
+      "api [services/app] Docker Compose / Nomad → db,cache,files,search,bus,audit,billing",
+      "workers [services/app] Worker containers (RabbitMQ) → bus,db,files",
+      "auth [services/tenancy] Keycloak / Zitadel → —",
+      "provisioning [services/tenancy] Temporal → db,auth,billing",
+      "billing [services/tenancy] Abonnements & usage → —",
+      "audit [services/tenancy] Loki + append-only PostgreSQL → —",
+      "db [data/data] PostgreSQL (Patroni) → —",
+      "cache [data/data] Valkey → —",
+      "files [data/data] MinIO → —",
+      "search [data/data] OpenSearch / Meilisearch → —",
+      "bus [data/data] NATS JetStream → —",
+      "flags [platform/platform] Feature flags → —",
+      "obs [platform/platform] Jaeger / Tempo → —",
+      "cicd [platform/platform] Forgejo Actions + Ansible → —"
+    ],
+    "flows": [
+      "onboarding: Onboarding d'un nouveau tenant (8) admin→provisioning→db→billing→auth→bus→workers→app",
+      "request: Une requête utilisateur (6) app→gw→tenant-router→api→db→audit"
+    ],
+    "sections": [
+      "isolation: compare — Trois modèles d'isolation",
+      "tenancy-security: cards — Sécurité de la tenancy",
+      "at-scale: table — Ce qui casse à l'échelle",
+      "growth: timeline — Du premier client au centième",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "isolation",
+      "tenancy-security",
+      "at-scale",
+      "growth",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  }
+}

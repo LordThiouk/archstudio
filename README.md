@@ -38,6 +38,77 @@ data file for the standalone viewer.
 
 ---
 
+## Templates
+
+“New project” opens two steps: pick a starting point, then name it and aim it at a deployment
+target. Six templates ship with the app, in English and French:
+
+| Template | Components | What it answers |
+|---|---|---|
+| Serverless MVP | 15 | “We launch in six weeks, we are two, we do not want servers” |
+| Multi-tenant B2B SaaS | 18 | “Several customer companies on one platform, isolated” |
+| RAG — questions over documents | 17 | “Answer questions about our own corpus” |
+| Event-driven processing | 16 | “Streams, queues, decoupling, replay” |
+| Modular monolith | 14 | “One deployable application, well partitioned inside” |
+| Multi-service architecture | 19 | “Several teams, several services, each with its own data” |
+
+Each one carries components, dependencies, flows and three to four written sections — the
+comparison of tenancy isolation models, the delivery-guarantee table, the “when to leave
+serverless” thresholds. That editorial content is the point; the boxes are the easy part.
+
+**Six templates, not thirty.** A template describes an *abstract* architecture, and every
+component carries a per-target correspondence table. The target — vendor-neutral, AWS, Google
+Cloud, Azure or self-hosted — is resolved once, at creation:
+
+```
+Template (abstract)          Target           Generated document
+───────────────────          ──────           ──────────────────
+"Message queue"        +     AWS        →     Amazon SQS
+                             GCP        →     Cloud Pub/Sub
+                             Azure      →     Azure Service Bus
+                             self-hosted →    RabbitMQ / NATS JetStream
+                             neutral    →     Message queue
+```
+
+The `id` never changes, so dependencies stay valid. Resolution filters components a target has no
+equivalent for, rewires dependencies straight through the gap (and says so, on the component that
+lost a hop), drops flow steps that no longer point anywhere, and generates a *Deployment* tab
+listing the whole mapping.
+
+A component whose identity is its business domain — “Service — orders”, “Module — billing” —
+keeps its name and takes only the technologies from the target. Five service cards all reading
+“ECS Fargate” would be a worse diagram than five cards saying what they do.
+
+**A template is a starting point, not a recommendation**, and the app says so three times: in the
+creation dialog, in each template's *Not this one when* list (shown before you choose), and in
+`meta.principle` at the top of the generated document, where it is impossible to miss.
+
+**The document has no link back to the template.** No inheritance, no “update from template”
+that could overwrite someone's work. Adding a cloud means adding a column to
+`src/lib/templates/services.ts`, not writing six more templates.
+
+```
+src/lib/templates/
+  types.ts              the template contract, and the {en,fr} string helper
+  services.ts           the cross-target service table — the file to re-read when a vendor renames something
+  index.ts              registry + instantiate()
+  serverless-mvp.ts  saas-multitenant.ts  rag.ts
+  event-driven.ts    monolith.ts          multi-service.ts
+  templates.test.ts     6 templates × 5 targets × 2 languages = 60 documents
+  __snapshots__/        one digest per template, to catch silent drift
+```
+
+Service names were verified on 2026-08-14 and the date is in `services.ts`. They move — Cloud
+Functions became Cloud Run functions, Azure AI Foundry became Microsoft Foundry, Azure AD B2C is
+closing in favour of Entra External ID. Re-read that file once a year.
+
+```bash
+npm test                        # the 60 instantiations and their invariants
+UPDATE_SNAPSHOTS=1 npm test     # accept a deliberate change
+```
+
+---
+
 ## The document format
 
 Each project stores one JSON document — the same shape the viewer consumes. Its core is:
@@ -62,13 +133,14 @@ Today you author them in JSON and import. See `src/lib/types.ts` for the full co
 src/app/                  Next.js 15 App Router
   page.tsx                workspace (server) → components/Workspace
   projects/[id]/page.tsx  editor (server)    → components/Editor
-  api/                    folders, projects, export, import, revisions
+  api/                    folders, projects, templates, export, import, revisions
 src/components/           Workspace, Editor, Inspector, Icon
 src/lib/
   db.ts                   node:sqlite connection + schema
   store.ts                every query in the app lives here
   types.ts                the document contract
   defaults.ts             blank document, palette, normalisation
+  templates/              the six templates and instantiate()
   exportHtml.ts           document → self-contained HTML
 viewer/                   the standalone renderer, verbatim
 data/studio.db            your data

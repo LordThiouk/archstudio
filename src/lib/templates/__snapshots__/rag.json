@@ -1,0 +1,578 @@
+{
+  "agnostic · en": {
+    "title": "RAG — questions over documents",
+    "kicker": "Template: RAG — questions over documents · Vendor-neutral · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "answering: Answering service",
+      "quality: Platform & quality"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "inference: Inference",
+      "platform: Platform"
+    ],
+    "components": [
+      "chat [clients/answering] Conversation interface → api",
+      "api [clients/answering] Query API → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Source connectors → extract",
+      "extract [ingestion/ingestion] Extraction & OCR → chunk",
+      "chunk [ingestion/ingestion] Chunking → embed",
+      "embed [ingestion/ingestion] Embedding → vector",
+      "pipeline [ingestion/ingestion] Ingestion orchestration → connectors,docstore,meta",
+      "vector [index/index] Vector index → —",
+      "docstore [index/index] Source documents → —",
+      "meta [index/index] Metadata & access control → —",
+      "retriever [inference/answering] Retrieval & filtering → vector,meta,rerank",
+      "rerank [inference/answering] Reranking → docstore",
+      "llm [inference/answering] Generation model → —",
+      "guard [inference/answering] Guardrails & PII → —",
+      "eval [platform/quality] Evaluation & feedback → api",
+      "trace [platform/quality] Request tracing → —",
+      "cache [platform/quality] Answer cache → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingesting a document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: One question, one answer (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — The four places a RAG degrades",
+      "metrics: table — Quality metrics",
+      "rag-security: cards — Security",
+      "rag-cost: table — Cost drivers"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "flows",
+      "stack"
+    ]
+  },
+  "agnostic · fr": {
+    "title": "RAG — questions sur documents",
+    "kicker": "Modèle : RAG — questions sur documents · Agnostique · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "answering: Service de réponse",
+      "quality: Plateforme & qualité"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "inference: Inférence",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "chat [clients/answering] Interface de conversation → api",
+      "api [clients/answering] API de requêtage → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Connecteurs de sources → extract",
+      "extract [ingestion/ingestion] Extraction & OCR → chunk",
+      "chunk [ingestion/ingestion] Découpage → embed",
+      "embed [ingestion/ingestion] Vectorisation → vector",
+      "pipeline [ingestion/ingestion] Orchestration d'ingestion → connectors,docstore,meta",
+      "vector [index/index] Index vectoriel → —",
+      "docstore [index/index] Documents source → —",
+      "meta [index/index] Métadonnées & droits → —",
+      "retriever [inference/answering] Récupération & filtrage → vector,meta,rerank",
+      "rerank [inference/answering] Reclassement → docstore",
+      "llm [inference/answering] Modèle de génération → —",
+      "guard [inference/answering] Garde-fous & données personnelles → —",
+      "eval [platform/quality] Évaluation & retours → api",
+      "trace [platform/quality] Traçage des requêtes → —",
+      "cache [platform/quality] Cache de réponses → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingestion d'un document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: Une question, une réponse (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — Les quatre endroits où un RAG se dégrade",
+      "metrics: table — Métriques de qualité",
+      "rag-security: cards — Sécurité",
+      "rag-cost: table — Facteurs de coût"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · en": {
+    "title": "RAG — questions over documents",
+    "kicker": "Template: RAG — questions over documents · AWS · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "answering: Answering service",
+      "quality: Platform & quality"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "inference: Inference",
+      "platform: Platform"
+    ],
+    "components": [
+      "chat [clients/answering] Conversation interface → api",
+      "api [clients/answering] API Gateway + AWS Lambda → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Source connectors → extract",
+      "extract [ingestion/ingestion] Amazon Textract → chunk",
+      "chunk [ingestion/ingestion] Chunking → embed",
+      "embed [ingestion/ingestion] Amazon Bedrock (Titan / Cohere) → vector",
+      "pipeline [ingestion/ingestion] AWS Step Functions → connectors,docstore,meta",
+      "vector [index/index] OpenSearch Serverless (vector engine) → —",
+      "docstore [index/index] Amazon S3 → —",
+      "meta [index/index] Amazon DynamoDB → —",
+      "retriever [inference/answering] Retrieval & filtering → vector,meta,rerank",
+      "rerank [inference/answering] Bedrock Rerank → docstore",
+      "llm [inference/answering] Amazon Bedrock → —",
+      "guard [inference/answering] Bedrock Guardrails → —",
+      "eval [platform/quality] Evaluation & feedback → api",
+      "trace [platform/quality] AWS X-Ray → —",
+      "cache [platform/quality] Amazon ElastiCache → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingesting a document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: One question, one answer (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — The four places a RAG degrades",
+      "metrics: table — Quality metrics",
+      "rag-security: cards — Security",
+      "rag-cost: table — Cost drivers",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "aws · fr": {
+    "title": "RAG — questions sur documents",
+    "kicker": "Modèle : RAG — questions sur documents · AWS · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "answering: Service de réponse",
+      "quality: Plateforme & qualité"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "inference: Inférence",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "chat [clients/answering] Interface de conversation → api",
+      "api [clients/answering] API Gateway + AWS Lambda → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Connecteurs de sources → extract",
+      "extract [ingestion/ingestion] Amazon Textract → chunk",
+      "chunk [ingestion/ingestion] Découpage → embed",
+      "embed [ingestion/ingestion] Amazon Bedrock (Titan / Cohere) → vector",
+      "pipeline [ingestion/ingestion] AWS Step Functions → connectors,docstore,meta",
+      "vector [index/index] OpenSearch Serverless (vector engine) → —",
+      "docstore [index/index] Amazon S3 → —",
+      "meta [index/index] Amazon DynamoDB → —",
+      "retriever [inference/answering] Récupération & filtrage → vector,meta,rerank",
+      "rerank [inference/answering] Bedrock Rerank → docstore",
+      "llm [inference/answering] Amazon Bedrock → —",
+      "guard [inference/answering] Bedrock Guardrails → —",
+      "eval [platform/quality] Évaluation & retours → api",
+      "trace [platform/quality] AWS X-Ray → —",
+      "cache [platform/quality] Amazon ElastiCache → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingestion d'un document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: Une question, une réponse (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — Les quatre endroits où un RAG se dégrade",
+      "metrics: table — Métriques de qualité",
+      "rag-security: cards — Sécurité",
+      "rag-cost: table — Facteurs de coût",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · en": {
+    "title": "RAG — questions over documents",
+    "kicker": "Template: RAG — questions over documents · Google Cloud · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "answering: Answering service",
+      "quality: Platform & quality"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "inference: Inference",
+      "platform: Platform"
+    ],
+    "components": [
+      "chat [clients/answering] Conversation interface → api",
+      "api [clients/answering] Cloud Run → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Source connectors → extract",
+      "extract [ingestion/ingestion] Document AI → chunk",
+      "chunk [ingestion/ingestion] Chunking → embed",
+      "embed [ingestion/ingestion] Vertex AI Embeddings → vector",
+      "pipeline [ingestion/ingestion] Workflows → connectors,docstore,meta",
+      "vector [index/index] Vertex AI Vector Search → —",
+      "docstore [index/index] Cloud Storage → —",
+      "meta [index/index] Firestore → —",
+      "retriever [inference/answering] Retrieval & filtering → vector,meta,rerank",
+      "rerank [inference/answering] Vertex AI Ranking API → docstore",
+      "llm [inference/answering] Vertex AI → —",
+      "guard [inference/answering] Vertex AI safety filters → —",
+      "eval [platform/quality] Evaluation & feedback → api",
+      "trace [platform/quality] Cloud Trace → —",
+      "cache [platform/quality] Memorystore → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingesting a document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: One question, one answer (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — The four places a RAG degrades",
+      "metrics: table — Quality metrics",
+      "rag-security: cards — Security",
+      "rag-cost: table — Cost drivers",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "gcp · fr": {
+    "title": "RAG — questions sur documents",
+    "kicker": "Modèle : RAG — questions sur documents · Google Cloud · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "answering: Service de réponse",
+      "quality: Plateforme & qualité"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "inference: Inférence",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "chat [clients/answering] Interface de conversation → api",
+      "api [clients/answering] Cloud Run → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Connecteurs de sources → extract",
+      "extract [ingestion/ingestion] Document AI → chunk",
+      "chunk [ingestion/ingestion] Découpage → embed",
+      "embed [ingestion/ingestion] Vertex AI Embeddings → vector",
+      "pipeline [ingestion/ingestion] Workflows → connectors,docstore,meta",
+      "vector [index/index] Vertex AI Vector Search → —",
+      "docstore [index/index] Cloud Storage → —",
+      "meta [index/index] Firestore → —",
+      "retriever [inference/answering] Récupération & filtrage → vector,meta,rerank",
+      "rerank [inference/answering] Vertex AI Ranking API → docstore",
+      "llm [inference/answering] Vertex AI → —",
+      "guard [inference/answering] Vertex AI safety filters → —",
+      "eval [platform/quality] Évaluation & retours → api",
+      "trace [platform/quality] Cloud Trace → —",
+      "cache [platform/quality] Memorystore → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingestion d'un document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: Une question, une réponse (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — Les quatre endroits où un RAG se dégrade",
+      "metrics: table — Métriques de qualité",
+      "rag-security: cards — Sécurité",
+      "rag-cost: table — Facteurs de coût",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · en": {
+    "title": "RAG — questions over documents",
+    "kicker": "Template: RAG — questions over documents · Azure · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "answering: Answering service",
+      "quality: Platform & quality"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "inference: Inference",
+      "platform: Platform"
+    ],
+    "components": [
+      "chat [clients/answering] Conversation interface → api",
+      "api [clients/answering] Azure Container Apps → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Source connectors → extract",
+      "extract [ingestion/ingestion] Azure AI Document Intelligence → chunk",
+      "chunk [ingestion/ingestion] Chunking → embed",
+      "embed [ingestion/ingestion] Microsoft Foundry → vector",
+      "pipeline [ingestion/ingestion] Durable Functions → connectors,docstore,meta",
+      "vector [index/index] Azure AI Search → —",
+      "docstore [index/index] Azure Blob Storage → —",
+      "meta [index/index] Azure Cosmos DB → —",
+      "retriever [inference/answering] Retrieval & filtering → vector,meta,rerank",
+      "rerank [inference/answering] Azure AI Search semantic ranker → docstore",
+      "llm [inference/answering] Microsoft Foundry → —",
+      "guard [inference/answering] Azure AI Content Safety → —",
+      "eval [platform/quality] Evaluation & feedback → api",
+      "trace [platform/quality] Application Insights → —",
+      "cache [platform/quality] Azure Managed Redis → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingesting a document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: One question, one answer (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — The four places a RAG degrades",
+      "metrics: table — Quality metrics",
+      "rag-security: cards — Security",
+      "rag-cost: table — Cost drivers",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "azure · fr": {
+    "title": "RAG — questions sur documents",
+    "kicker": "Modèle : RAG — questions sur documents · Azure · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "answering: Service de réponse",
+      "quality: Plateforme & qualité"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "inference: Inférence",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "chat [clients/answering] Interface de conversation → api",
+      "api [clients/answering] Azure Container Apps → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Connecteurs de sources → extract",
+      "extract [ingestion/ingestion] Azure AI Document Intelligence → chunk",
+      "chunk [ingestion/ingestion] Découpage → embed",
+      "embed [ingestion/ingestion] Microsoft Foundry → vector",
+      "pipeline [ingestion/ingestion] Durable Functions → connectors,docstore,meta",
+      "vector [index/index] Azure AI Search → —",
+      "docstore [index/index] Azure Blob Storage → —",
+      "meta [index/index] Azure Cosmos DB → —",
+      "retriever [inference/answering] Récupération & filtrage → vector,meta,rerank",
+      "rerank [inference/answering] Azure AI Search semantic ranker → docstore",
+      "llm [inference/answering] Microsoft Foundry → —",
+      "guard [inference/answering] Azure AI Content Safety → —",
+      "eval [platform/quality] Évaluation & retours → api",
+      "trace [platform/quality] Application Insights → —",
+      "cache [platform/quality] Azure Managed Redis → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingestion d'un document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: Une question, une réponse (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — Les quatre endroits où un RAG se dégrade",
+      "metrics: table — Métriques de qualité",
+      "rag-security: cards — Sécurité",
+      "rag-cost: table — Facteurs de coût",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · en": {
+    "title": "RAG — questions over documents",
+    "kicker": "Template: RAG — questions over documents · Self-hosted · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "answering: Answering service",
+      "quality: Platform & quality"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & data",
+      "inference: Inference",
+      "platform: Platform"
+    ],
+    "components": [
+      "chat [clients/answering] Conversation interface → api",
+      "api [clients/answering] Docker Compose / Nomad → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Source connectors → extract",
+      "extract [ingestion/ingestion] Apache Tika + Tesseract → chunk",
+      "chunk [ingestion/ingestion] Chunking → embed",
+      "embed [ingestion/ingestion] Text Embeddings Inference → vector",
+      "pipeline [ingestion/ingestion] Temporal → connectors,docstore,meta",
+      "vector [index/index] Qdrant / pgvector → —",
+      "docstore [index/index] MinIO → —",
+      "meta [index/index] MongoDB → —",
+      "retriever [inference/answering] Retrieval & filtering → vector,meta,rerank",
+      "rerank [inference/answering] bge-reranker (TEI) → docstore",
+      "llm [inference/answering] vLLM → —",
+      "guard [inference/answering] Llama Guard + Presidio → —",
+      "eval [platform/quality] Evaluation & feedback → api",
+      "trace [platform/quality] Jaeger / Tempo → —",
+      "cache [platform/quality] Valkey → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingesting a document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: One question, one answer (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — The four places a RAG degrades",
+      "metrics: table — Quality metrics",
+      "rag-security: cards — Security",
+      "rag-cost: table — Cost drivers",
+      "deployment: table — Deployment"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  },
+  "selfhosted · fr": {
+    "title": "RAG — questions sur documents",
+    "kicker": "Modèle : RAG — questions sur documents · Auto-hébergé · 2026-08-14",
+    "groups": [
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "answering: Service de réponse",
+      "quality: Plateforme & qualité"
+    ],
+    "layers": [
+      "clients: Clients",
+      "ingestion: Ingestion",
+      "index: Index & données",
+      "inference: Inférence",
+      "platform: Plateforme"
+    ],
+    "components": [
+      "chat [clients/answering] Interface de conversation → api",
+      "api [clients/answering] Docker Compose / Nomad → retriever,llm,guard,cache,trace",
+      "connectors [ingestion/ingestion] Connecteurs de sources → extract",
+      "extract [ingestion/ingestion] Apache Tika + Tesseract → chunk",
+      "chunk [ingestion/ingestion] Découpage → embed",
+      "embed [ingestion/ingestion] Text Embeddings Inference → vector",
+      "pipeline [ingestion/ingestion] Temporal → connectors,docstore,meta",
+      "vector [index/index] Qdrant / pgvector → —",
+      "docstore [index/index] MinIO → —",
+      "meta [index/index] MongoDB → —",
+      "retriever [inference/answering] Récupération & filtrage → vector,meta,rerank",
+      "rerank [inference/answering] bge-reranker (TEI) → docstore",
+      "llm [inference/answering] vLLM → —",
+      "guard [inference/answering] Llama Guard + Presidio → —",
+      "eval [platform/quality] Évaluation & retours → api",
+      "trace [platform/quality] Jaeger / Tempo → —",
+      "cache [platform/quality] Valkey → —"
+    ],
+    "flows": [
+      "ingest-doc: Ingestion d'un document (7) connectors→pipeline→extract→chunk→embed→vector→meta",
+      "ask: Une question, une réponse (8) chat→api→meta→vector→rerank→llm→guard→trace"
+    ],
+    "sections": [
+      "degradation: cards — Les quatre endroits où un RAG se dégrade",
+      "metrics: table — Métriques de qualité",
+      "rag-security: cards — Sécurité",
+      "rag-cost: table — Facteurs de coût",
+      "deployment: table — Déploiement"
+    ],
+    "tabs": [
+      "overview",
+      "architecture",
+      "degradation",
+      "metrics",
+      "rag-security",
+      "rag-cost",
+      "deployment",
+      "flows",
+      "stack"
+    ]
+  }
+}

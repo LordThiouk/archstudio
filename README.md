@@ -40,6 +40,19 @@ which direction. The same panel ships inside the exported HTML.
 
 ![The preview with a component panel open, showing role, technologies, responsibilities and callers](screenshots/preview-component.png)
 
+**Past about two dozen components the diagram reorganises itself.** Each layer splits into one
+column per scope instead of one long wrapping row, and the cards drop to their icon and name so
+twice as many fit — both switchable from the toolbar, and both settable up front with
+`ui.architecture.cluster` and `ui.architecture.compact`. The sheet also gains a scale: **Fit**
+finds the largest size at which the whole thing is on screen at once, Ctrl (or ⌘) and the wheel
+zooms, dragging the paper pans it, and the last button takes the diagram full screen — with its
+toolbar, because a full screen you cannot filter or zoom is a poster. Zooming out reflows rather
+than shrinking away from the edge of the frame, so a smaller scale means more components per row
+and not just smaller type.
+Filtering by scope takes the emptied columns out of the sheet rather than fading them, so the
+drawing actually gets shorter when you narrow it. Printing ignores all of it and lays the
+diagram out whole, at 1:1.
+
 ---
 
 ## What it does

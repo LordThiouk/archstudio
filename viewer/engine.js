@@ -65,7 +65,10 @@ const LABELS = {
     resultsPlural: 'results', empty: 'Nothing matches this filter.',
     infraNote: 'The bottom layer is not wired with arrows: it supports every component above it.',
     exploreScope: 'Explore this scope', dimension: 'Dimension', builtWith: 'Built with',
-    layers: 'layers', technologiesN: 'Technologies', groupsN: 'Scopes'
+    layers: 'layers', technologiesN: 'Technologies', groupsN: 'Scopes',
+    compact: 'Compact', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit',
+    zoomHint: 'Ctrl + wheel = zoom · drag = pan',
+    fullscreen: 'Full screen', exitFullscreen: 'Leave full screen'
   },
   fr: {
     searchPlaceholder: 'Rechercher un composant, une techno…',
@@ -80,7 +83,10 @@ const LABELS = {
     results: 'résultat', resultsPlural: 'résultats', empty: 'Aucun résultat pour ce filtre.',
     infraNote: "La dernière couche n’est pas reliée par des flèches : elle supporte l’ensemble des composants au-dessus.",
     exploreScope: 'Explorer ce périmètre', dimension: 'Dimension', builtWith: 'Propulsé par',
-    layers: 'couches', technologiesN: 'Technologies', groupsN: 'Périmètres'
+    layers: 'couches', technologiesN: 'Technologies', groupsN: 'Périmètres',
+    compact: 'Compact', zoomIn: 'Zoomer', zoomOut: 'Dézoomer', fit: 'Ajuster',
+    zoomHint: 'Ctrl + molette = zoom · glisser = déplacer',
+    fullscreen: 'Plein écran', exitFullscreen: 'Quitter le plein écran'
   }
 };
 
@@ -260,6 +266,24 @@ const SUPPORT_LAYER =
 
 const LAYER_INDEX = Object.fromEntries(DATA.layers.map((l, i) => [l.id, i]));
 
+/* ------------------------------------------------------------- density
+ *
+ * A node is 212 px wide, so a 1440 px sheet holds about six per row: a layer
+ * with more than that wraps, and once it wraps the reading order is the order
+ * of the array — scopes interleaved at random and edges crossing the whole
+ * sheet. Past that point the diagram is reorganised rather than merely drawn:
+ * each layer is split into one column per scope, and the nodes drop their
+ * technology pills so that twice as many fit on a row.
+ *
+ * Both are readerside conveniences with an authored default, in the shape
+ * `ui.supportLayer` already uses: an explicit boolean wins, otherwise the
+ * document decides for itself. The reader can still flip the density from the
+ * toolbar — what is authored is only where it starts. */
+const DENSE = DATA.components.length >= 24
+  || DATA.layers.some(l => DATA.components.filter(c => c.layer === l.id).length > 8);
+const ARCH_OPTS = DATA.ui.architecture || {};
+const CLUSTER = ARCH_OPTS.cluster == null ? DENSE : !!ARCH_OPTS.cluster;
+
 /* ------------------------------------------------------------------ theme */
 function injectTheme() {
   const t = DATA.theme;
@@ -310,7 +334,8 @@ function buildTabs() {
 }
 
 const TABS = buildTabs();
-let state = { tab: TABS[0]?.id, group: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all' };
+let state = { tab: TABS[0]?.id, group: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all',
+  compact: ARCH_OPTS.compact == null ? DENSE : !!ARCH_OPTS.compact };
 
 /* ======================================================================== *
  * VIEW: OVERVIEW
@@ -395,22 +420,59 @@ function renderArchitecture() {
       ${isAll ? '' : `<i style="background:${gvar(id)}"></i>`}${esc(isAll ? T.allScopes : G[id].name)}</button>`;
   }).join('');
 
-  const layers = DATA.layers.map(l => {
-    const nodes = DATA.components.filter(c => c.layer === l.id);
-    if (!nodes.length) return '';
-    return `<div class="layer" data-layer="${esc(l.id)}">
-      <div class="layer-head"><b>${esc(l.name)}</b>${l.desc ? `<em>${esc(l.desc)}</em>` : ''}</div>
-      <div class="nodes">${nodes.map(nodeHTML).join('')}</div></div>`;
-  }).join('');
+  const layers = DATA.layers.map(layerHTML).join('');
 
-  const s = DATA.ui.architecture || {};
+  const s = ARCH_OPTS;
   return `
     <div class="sec-title"><h2>${esc(s.title || T.architecture)}</h2></div>
     ${s.subtitle ? `<p class="sec-sub">${rich(s.subtitle)}</p>` : ''}
-    <div class="filters">${chips}<span class="hintline">${T.hintDiagram}</span></div>
-    <div class="diagram" id="diagram"><svg id="edges"></svg>${layers}</div>
-    ${edgeKeyHTML()}
+    <div class="archwrap" id="archwrap">
+      <div class="filters">${chips}
+        <span class="hintline">${T.hintDiagram} · ${T.zoomHint}</span>
+        <div class="tools">
+          <button class="chip" id="density" aria-pressed="${state.compact}">${T.compact}</button>
+          <div class="zoombar">
+            <button class="zb" id="zout" aria-label="${esc(T.zoomOut)}" title="${esc(T.zoomOut)}">
+              <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+            <span class="zval" id="zlabel">100%</span>
+            <button class="zb" id="zin" aria-label="${esc(T.zoomIn)}" title="${esc(T.zoomIn)}">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="zb zfit" id="zfit">${T.fit}</button>
+          </div>
+          ${FULLSCREEN_OK ? `<button class="zb solo" id="zfull"
+            aria-label="${esc(T.fullscreen)}" title="${esc(T.fullscreen)}">${FS_ICO.on}</button>` : ''}
+        </div>
+      </div>
+      <div class="diagram" id="diagram">
+        <div class="canvas${state.compact ? ' compact' : ''}" id="canvas"><svg id="edges"></svg>${layers}</div>
+      </div>
+      ${edgeKeyHTML()}
+    </div>
     ${SUPPORT_LAYER ? `<div style="height:14px"></div><div class="note">${T.infraNote}</div>` : ''}`;
+}
+
+/* A layer is one row of the sheet. Past the density threshold it becomes a row
+ * of columns, one per scope present in that layer — which is the same set of
+ * nodes in a reading order, and turns most dependencies into short local
+ * curves instead of arcs across the whole sheet. A layer holding a single
+ * scope keeps the plain row: a column header naming the only thing there is
+ * would be noise. */
+function layerHTML(l) {
+  const nodes = DATA.components.filter(c => c.layer === l.id);
+  if (!nodes.length) return '';
+  const head = `<div class="layer-head"><b>${esc(l.name)}</b>${l.desc ? `<em>${esc(l.desc)}</em>` : ''}</div>`;
+  const here = DATA.groups.filter(g => nodes.some(c => c.group === g.id));
+
+  const body = (CLUSTER && here.length > 1)
+    ? `<div class="clusters">${here.map(g => {
+        const own = nodes.filter(c => c.group === g.id);
+        return `<div class="cluster" data-group="${esc(g.id)}" style="--c:${gvar(g.id)}">
+          <div class="cluster-head">${esc(g.short)}<span>${own.length}</span></div>
+          <div class="nodes">${own.map(nodeHTML).join('')}</div></div>`;
+      }).join('')}</div>`
+    : `<div class="nodes">${nodes.map(nodeHTML).join('')}</div>`;
+
+  return `<div class="layer" data-layer="${esc(l.id)}">${head}${body}</div>`;
 }
 
 /* The key for the line styles, drawn only for the kinds this document uses. A
@@ -436,9 +498,9 @@ function nodeHTML(c) {
 }
 
 function bindArchitecture() {
-  $$('#v-architecture .chip').forEach(b => b.onclick = () => {
+  $$('#v-architecture .chip[data-group]').forEach(b => b.onclick = () => {
     state.group = b.dataset.group;
-    $$('#v-architecture .chip').forEach(x => x.setAttribute('aria-pressed', x.dataset.group === state.group));
+    $$('#v-architecture .chip[data-group]').forEach(x => x.setAttribute('aria-pressed', x.dataset.group === state.group));
     applyFilter();
   });
   $$('#v-architecture .node').forEach(n => {
@@ -446,6 +508,14 @@ function bindArchitecture() {
     n.onmouseenter = () => setFocus(n.dataset.id);
     n.onmouseleave = () => setFocus(null);
   });
+  $('#density').onclick = () => {
+    state.compact = !state.compact;
+    $('#density').setAttribute('aria-pressed', state.compact);
+    $('#canvas').classList.toggle('compact', state.compact);
+    applyZoom();
+    drawEdges();
+  };
+  bindZoom();
 }
 
 function matches(c) {
@@ -461,7 +531,217 @@ function applyFilter() {
     const el = $('#n-' + CSS.escape(c.id));
     if (el) el.classList.toggle('dim', !matches(c));
   });
+  /* A filter that only fades leaves the sheet as tall and as wide as it was,
+   * which on a dense diagram is most of the complaint: you asked for one scope
+   * and you are still looking past four. So once the document is dense, a
+   * column — or a whole layer — with nothing left in it leaves the flow
+   * instead of sitting there at 16 % opacity. */
+  if (DENSE) {
+    $$('#v-architecture .cluster, #v-architecture .layer').forEach(el => {
+      const nodes = $$('.node', el);
+      el.classList.toggle('gone', nodes.length > 0 && nodes.every(n => n.classList.contains('dim')));
+    });
+  }
+  applyZoom();
   drawEdges();
+}
+
+/* ======================================================================== *
+ * ZOOM & PAN
+ * ======================================================================== *
+ * The sheet is HTML flow, not an absolutely positioned canvas, so the two
+ * directions of zoom do not want the same mechanism — and each is given the
+ * one that fits.
+ *
+ * Out, below 100 %, uses `zoom`: it scales the layout itself, so the sheet
+ * still resolves to exactly the width of the frame and reflows into it. More
+ * nodes land on each row instead of the drawing shrinking away from the right
+ * edge, the type stays crisp, and there is nothing to pan sideways to.
+ *
+ * In, above 100 %, uses `transform`: the layout is left alone and the frame
+ * scrolls over a magnified sheet, which is what you want when you are reading
+ * one corner of it. (A `transform` cannot do the job below 100 % — the
+ * untransformed box still counts towards the scroll container's width, so the
+ * frame would offer a horizontal scrollbar over empty paper.)
+ *
+ * Edge geometry stays in sheet units throughout: both mechanisms scale what
+ * getBoundingClientRect reports, so one division by the factor puts every
+ * measurement back into the SVG's own coordinates. */
+const ZMIN = 0.4, ZMAX = 2, ZSTEP = 0.1;
+let zoom = 1;
+const clampZoom = z => Math.min(ZMAX, Math.max(ZMIN, Math.round(z * 100) / 100));
+
+/* Firefox only learned `zoom` in 126, and an exported document outlives the
+ * browser it was written on. Where it is missing the transform does both
+ * directions: the sheet then shrinks away from the right edge instead of
+ * reflowing into it — a worse view, but a true one, and the edges still land
+ * on their nodes because both mechanisms scale what a rect reports. */
+const HAS_ZOOM = !!(window.CSS && CSS.supports && CSS.supports('zoom', '0.5'));
+
+/** Geometry and chrome only, no redraw — fitZoom probes the layout with this. */
+function applyZoom(z) {
+  if (z != null) zoom = clampZoom(z);
+  const cv = $('#canvas'), dia = $('#diagram');
+  if (!cv || !dia) return;
+  const reflow = HAS_ZOOM && zoom < 1;
+  cv.style.zoom = reflow ? String(zoom) : '';
+  cv.style.transform = zoom === 1 || reflow ? '' : `scale(${zoom})`;
+  const lab = $('#zlabel');
+  if (lab) lab.textContent = Math.round(zoom * 100) + '%';
+  dia.classList.toggle('pannable',
+    dia.scrollHeight > dia.clientHeight + 1 || dia.scrollWidth > dia.clientWidth + 1);
+}
+
+/** Zoom about a point in the frame — the pointer for a wheel, the middle otherwise. */
+function setZoom(z, anchor) {
+  const dia = $('#diagram');
+  const next = clampZoom(z);
+  if (!dia || next === zoom) return;
+  const box = dia.getBoundingClientRect();
+  const ax = anchor ? anchor.x : box.width / 2;
+  const ay = anchor ? anchor.y : box.height / 2;
+  const cx = (dia.scrollLeft + ax) / zoom, cy = (dia.scrollTop + ay) / zoom;
+  applyZoom(next);
+  dia.scrollLeft = cx * next - ax;
+  dia.scrollTop = cy * next - ay;
+  drawEdges();
+}
+
+/** The largest scale at or below 100 % whose whole sheet fits the frame.
+ *
+ * Scaling reflows, so the height at a given factor cannot be calculated — it
+ * has to be tried. Seven layout passes on a click is cheap; a wrong answer on
+ * a button called "fit" is not. Two measurements that look right and are not:
+ * `dia.clientHeight`, which collapses onto the sheet as soon as the sheet is
+ * short enough and would then answer yes to anything, and `cv.scrollHeight`,
+ * which Chrome leaves unreflowed under `zoom`. The ceiling comes from the
+ * frame's own max-height, and the height from the sheet's painted box.
+ *
+ * Full screen is the exception: there the frame is a flex child with a height
+ * of its own and no max-height at all, so clientHeight is the honest answer
+ * and the only one available. */
+function fitZoom() {
+  const dia = $('#diagram'), cv = $('#canvas');
+  if (!dia || !cv) return;
+  const avail = fsElement() === $('#archwrap')
+    ? dia.clientHeight
+    : parseFloat(getComputedStyle(dia).maxHeight);
+  if (!avail) { setZoom(1); return; }          /* no frame to fit (small screens) */
+  const lo = Math.round(ZMIN * 100), step = Math.round(ZSTEP * 100);
+  for (let pct = 100; pct >= lo; pct -= step) {
+    applyZoom(pct / 100);
+    if (cv.getBoundingClientRect().height <= avail + 1) break;
+  }
+  dia.scrollLeft = 0; dia.scrollTop = 0;
+  drawEdges();
+}
+
+function bindZoom() {
+  const dia = $('#diagram');
+  if (!dia) return;
+  $('#zin').onclick = () => setZoom(zoom + ZSTEP);
+  $('#zout').onclick = () => setZoom(zoom - ZSTEP);
+  $('#zfit').onclick = fitZoom;
+  const full = $('#zfull');
+  if (full) full.onclick = toggleFullscreen;
+
+  /* Plain wheel stays a scroll; ctrl/⌘ — which is also what a trackpad pinch
+   * sends — zooms the sheet instead of the page. */
+  dia.addEventListener('wheel', e => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const r = dia.getBoundingClientRect();
+    setZoom(zoom - Math.sign(e.deltaY) * ZSTEP, { x: e.clientX - r.left, y: e.clientY - r.top });
+  }, { passive: false });
+
+  /* Drag anywhere that is not a node: the frame scrolls under the pointer.
+   * Capture is taken only once the drag starts, so a click on a node is still
+   * a click on a node. */
+  let on = false, sx = 0, sy = 0, sl = 0, st = 0;
+  dia.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.target.closest('.node') || !dia.classList.contains('pannable')) return;
+    on = true; sx = e.clientX; sy = e.clientY; sl = dia.scrollLeft; st = dia.scrollTop;
+    dia.setPointerCapture(e.pointerId);
+    dia.classList.add('dragging');
+  });
+  dia.addEventListener('pointermove', e => {
+    if (!on) return;
+    dia.scrollLeft = sl - (e.clientX - sx);
+    dia.scrollTop = st - (e.clientY - sy);
+  });
+  const stop = e => {
+    if (!on) return;
+    on = false;
+    dia.classList.remove('dragging');
+    if (dia.hasPointerCapture(e.pointerId)) dia.releasePointerCapture(e.pointerId);
+  };
+  dia.addEventListener('pointerup', stop);
+  dia.addEventListener('pointercancel', stop);
+}
+
+/* ======================================================================== *
+ * FULL SCREEN
+ * ======================================================================== *
+ * The frame is a compromise with the page around it, and full screen is the
+ * way out of that compromise: on a dense sheet it is the difference between
+ * reading half the drawing and all of it.
+ *
+ * What goes full screen is the toolbar and the diagram together, not the
+ * diagram on its own — the scope filter and the scale live in that bar, and a
+ * full screen you cannot filter or zoom is a poster. Everything outside the
+ * fullscreen element stops being painted entirely, which is also why the
+ * detail sheet, fixed to the viewport at the far end of the document, has to
+ * travel into the subtree and come back out again. */
+const FS_ICO = {
+  on:  '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5"/></svg>',
+  off: '<svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 20v-5h5M20 9h-5V4M4 15h5v5"/></svg>'
+};
+const FULLSCREEN_OK = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+let zoomBeforeFs = null;
+
+function toggleFullscreen() {
+  const wrap = $('#archwrap');
+  if (!wrap) return;
+  const go = fsElement()
+    ? (document.exitFullscreen || document.webkitExitFullscreen)
+    : (wrap.requestFullscreen || wrap.webkitRequestFullscreen);
+  if (!go) return;
+  /* The prefixed implementations return nothing; the standard one returns a
+   * promise that rejects when the browser refuses. An unhandled rejection in
+   * an exported file is a console error the reader never asked for. */
+  const run = go.call(fsElement() ? document : wrap);
+  if (run && run.catch) run.catch(() => {});
+}
+
+function onFullscreenChange() {
+  const wrap = $('#archwrap');
+  if (!wrap) return;
+  const on = fsElement() === wrap;
+  wrap.classList.toggle('fs', on);
+
+  const host = on ? wrap : document.body;
+  host.appendChild($('#scrim'));
+  host.appendChild($('#drawer'));
+
+  const btn = $('#zfull');
+  if (btn) {
+    const label = on ? T.exitFullscreen : T.fullscreen;
+    btn.innerHTML = on ? FS_ICO.off : FS_ICO.on;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+  }
+
+  /* Entering is a "show me all of it" gesture, so the new room is spent on
+   * fitting the sheet; leaving hands back the scale the reader had chosen. */
+  requestAnimationFrame(() => {
+    if (on) { zoomBeforeFs = zoom; fitZoom(); }
+    else {
+      applyZoom(zoomBeforeFs == null ? zoom : zoomBeforeFs);
+      zoomBeforeFs = null;
+      drawEdges();
+    }
+  });
 }
 
 let focused = null;
@@ -484,11 +764,17 @@ function setFocus(id) {
 }
 
 function drawEdges() {
-  const svg = $('#edges'), dia = $('#diagram');
-  if (!svg || !dia) return;
-  const box = dia.getBoundingClientRect();
-  svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
-  svg.style.height = box.height + 'px';
+  const svg = $('#edges'), cv = $('#canvas');
+  if (!svg || !cv) return;
+  /* Every rect below is measured through the canvas transform, so it comes
+   * back multiplied by the scale — including the canvas's own. Dividing by it
+   * once puts the whole computation back in sheet units, where the curvature
+   * constants and the viewBox already live. */
+  const sc = zoom || 1;
+  const box = cv.getBoundingClientRect();
+  const W = box.width / sc, H = box.height / sc;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.style.height = H + 'px';
   const css = getComputedStyle(document.documentElement);
   const col = {}; DATA.groups.forEach(g => col[g.id] = css.getPropertyValue(g.var).trim());
   let out = '';
@@ -497,8 +783,8 @@ function drawEdges() {
     const ea = $('#n-' + CSS.escape(a)), eb = $('#n-' + CSS.escape(b));
     if (!ea || !eb || ea.classList.contains('dim') || eb.classList.contains('dim')) return;
     const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
-    const x1 = ra.left - box.left + ra.width / 2;
-    const x2 = rb.left - box.left + rb.width / 2;
+    const x1 = (ra.left - box.left + ra.width / 2) / sc;
+    const x2 = (rb.left - box.left + rb.width / 2) / sc;
     const la = LAYER_INDEX[C[a].layer], lb = LAYER_INDEX[C[b].layer];
 
     /* Three geometries: down the layers (the common case), back up, and
@@ -506,12 +792,12 @@ function drawEdges() {
      * the curve loops back on itself and reads as a knot. */
     let y1, y2, k1, k2;
     if (la === lb) {
-      y1 = ra.bottom - box.top; y2 = rb.bottom - box.top;
+      y1 = (ra.bottom - box.top) / sc; y2 = (rb.bottom - box.top) / sc;
       k1 = 30; k2 = 30;
     } else {
       const up = la > lb;
-      y1 = (up ? ra.top : ra.bottom) - box.top;
-      y2 = (up ? rb.bottom : rb.top) - box.top;
+      y1 = ((up ? ra.top : ra.bottom) - box.top) / sc;
+      y2 = ((up ? rb.bottom : rb.top) - box.top) / sc;
       const k = (up ? -1 : 1) * Math.max(24, Math.abs(y2 - y1) * .5);
       k1 = k; k2 = -k;
     }
@@ -830,7 +1116,9 @@ function setTab(id) {
   state.tab = id;
   $$('#tabs .tab').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === id));
   $$('.view').forEach(v => v.classList.toggle('active', v.id === 'v-' + id));
-  if (id === 'architecture') requestAnimationFrame(() => requestAnimationFrame(drawEdges));
+  /* The diagram was display:none until now, so everything measured while it
+   * was hidden came back as zero — scale and curves are both recomputed. */
+  if (id === 'architecture') requestAnimationFrame(() => requestAnimationFrame(() => { applyZoom(); drawEdges(); }));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -880,9 +1168,33 @@ function boot() {
   $('#printBtn').onclick = () => window.print();
 
   let rt;
-  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawEdges, 120); });
-  window.addEventListener('load', () => requestAnimationFrame(drawEdges));
-  setTimeout(drawEdges, 200);
+  const redraw = () => { applyZoom(); drawEdges(); };
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(redraw, 120); });
+  window.addEventListener('load', () => requestAnimationFrame(redraw));
+  setTimeout(redraw, 200);
+
+  /* Bound to the document once, not per render: the event is not raised on the
+   * element that asked for it, and re-binding it on every mount would stack up
+   * handlers pointing at diagrams that no longer exist. */
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+  /* Paper is one long sheet, not a frame: the stylesheet drops the scroll box
+   * and the transform, so the curves have to be recomputed unscaled — and put
+   * back afterwards, because the reader is still on the page they printed. */
+  let heldZoom = null;
+  window.addEventListener('beforeprint', () => {
+    if (zoom === 1) return;
+    heldZoom = zoom;
+    applyZoom(1);
+    drawEdges();
+  });
+  window.addEventListener('afterprint', () => {
+    if (heldZoom == null) return;
+    applyZoom(heldZoom);
+    heldZoom = null;
+    drawEdges();
+  });
 
   /* deep link: #c/<component-id> */
   if (location.hash.startsWith('#c/')) {

@@ -344,7 +344,12 @@ step at all**: three `@dnd-kit` packages, `next`, `react`, `react-dom`, and noth
 (`npm install` still lands 27 packages and does compile-or-fetch native binaries — `sharp` and,
 on macOS, `fsevents` — but those are Next's, not the database's.) The cost is hand-written SQL and
 an API Node still marks experimental. Every query is in `src/lib/store.ts`; if you outgrow it,
-that one file is what you rewrite. **Requires Node ≥ 22.5.**
+that one file is what you rewrite.
+
+**Requires Node ≥ 22.13** — not 22.5, which is when `node:sqlite` landed *behind*
+`--experimental-sqlite`. It was unflagged in 22.13.0, and on anything older the app dies on the
+first import with `No such built-in module: node:sqlite`. CI runs the suite on 22.13 as well as
+on current, so that floor is a tested number rather than a remembered one.
 
 **Revisions.** Every save older than five minutes since the last snapshot writes one. The cap of
 30 per project applies to automatic snapshots only: a named checkpoint is never pruned, and the

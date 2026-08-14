@@ -49,6 +49,27 @@ export interface Group {
 
 export interface Layer { id: string; name: string; desc?: string }
 
+/* How a caller reaches a callee. `sync` is the default reading and is left
+ * unset rather than written out, so a document that never says anything about
+ * its edges exports exactly as it did before this field existed. */
+export type LinkKind = 'sync' | 'async' | 'batch';
+
+/** What a dependency *is*, beyond the fact that it exists.
+ *
+ * "Who calls whom" is the cheap half of an architecture review; "how, and does
+ * a failure propagate" is the half that decides anything. `deps` stays the
+ * single source of truth for whether an edge exists — a `Link` only annotates
+ * one that already does, and normalisation drops any that does not. */
+export interface Link {
+  /** The callee's component id. Must appear in the same component's `deps`. */
+  to: string;
+  kind?: LinkKind;
+  /** How it travels — "REST/HTTPS", "gRPC", "SQL", "Kafka", "S3 API". */
+  protocol?: string;
+  /** Anything the two fields above cannot say: "read replica", "nightly 02:00". */
+  note?: string;
+}
+
 export interface Component {
   id: string;
   name: string;
@@ -62,6 +83,7 @@ export interface Component {
   features?: string[];
   notes?: string[];
   deps?: string[];
+  links?: Link[];
 }
 
 export interface Technology {
@@ -170,9 +192,14 @@ export interface ProjectSummary extends ProjectRecord {
   groupCount: number;
 }
 
+/** A snapshot of a project's document.
+ *
+ * `label` is what separates the two kinds: an automatic snapshot has none, a
+ * checkpoint the user named has one — and a named checkpoint is never pruned. */
 export interface RevisionRecord {
   id: string;
   projectId: string;
   label: string | null;
   createdAt: string;
+  componentCount: number;
 }

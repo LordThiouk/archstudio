@@ -246,6 +246,8 @@ a.paper-btn { border-bottom-width: 1px; }
 }
 .paper-sheets { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
 .paper-deps { font-family: var(--mono); font-size: 10px; }
+/* How a dependency travels, next to the name it qualifies. */
+.paper-how { font-style: normal; color: var(--ink-3); }
 
 /* ------------------------------------------------------------------ diagram */
 
@@ -317,6 +319,19 @@ a.paper-btn { border-bottom-width: 1px; }
   background: transparent; border: 1px solid var(--line-2);
 }
 .paper-legend i { width: 8px; height: 8px; border-radius: 0; }
+
+/* The key for the edge line styles. Same atoms as the screen, transposed: mono
+   for what the machine knows, neutral ink because an edge takes its colour
+   from the caller's scope and the key claims none. Outside `.paper-frame`, so
+   the page-fit transform never shrinks it below reading size.
+   `paper-` prefixed, like everything else here: the editor ships its own
+   `.edgekey` for a 246 px rail and both stylesheets load on this route. */
+.paper-edgekey { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 0; }
+.paper-edgekey span {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-2);
+}
+.paper-edgekey svg { width: 30px; height: 8px; flex: none; overflow: visible; }
 
 /* ------------------------------------------------------------------- tables */
 

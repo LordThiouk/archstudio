@@ -12,8 +12,29 @@ npm run dev          # http://localhost:3000
 ```
 
 That is the whole setup. No database server, no accounts, no cloud. A SQLite file appears at
-`data/studio.db` on first run, seeded with two example architectures so the editor has something
-to open.
+`data/studio.db` on first run, seeded with one example architecture in an *Examples* folder so
+the editor has something to open. Delete the folder and it is gone for good.
+
+---
+
+## Screenshots
+
+The editor — layers as rows, scopes in the left rail, and the inspector editing whatever is
+selected. Here it holds the document's own fields: name, headline, introduction, principle,
+language, theme.
+
+![The ArchStudio editor: a layered architecture diagram with the document inspector open on the right](screenshots/editor.png)
+
+The **Preview** tab renders the exported file itself, in an iframe. Hovering a component dims
+everything it does not touch, so a dependency reads at a glance — here, the worker and the three
+data stores it writes to.
+
+![The preview tab with a component hovered: its dependencies stay lit while the rest of the diagram fades](screenshots/preview-dependencies.png)
+
+Clicking one opens its panel: role, technologies, responsibilities, and who depends on it in
+which direction. The same panel ships inside the exported HTML.
+
+![The preview with a component panel open, showing role, technologies, responsibilities and callers](screenshots/preview-component.png)
 
 ---
 
@@ -28,11 +49,25 @@ dependency. The inspector on the right edits whatever is selected — name, scop
 technologies, role, responsibilities, dependencies. Nothing has a Save button: edits persist
 700 ms after you stop typing.
 
+**Dependencies say how, not just who.** Open a dependency in the inspector and it takes a
+protocol, a note, and one of three kinds — synchronous, asynchronous, batch. The kind is drawn
+rather than written: a solid line waits for its answer, a dashed one is queued, a dotted one is
+scheduled. It is the *stroke* and not the colour because colour already means scope, and a dash
+survives a monochrome print. All of it is optional, and an edge nobody has annotated draws
+exactly as it always did.
+
+**History** — every save older than five minutes since the last one writes a snapshot. The
+**History** button lists them and, for each, what changed *since* it: components added and
+removed, renames, moves between layers, edges gained and lost, sections and chapters. Name a
+version (“sent to the client”) and it is kept for good — the 30-snapshot cap only ever prunes
+automatic ones. Restoring writes a *Before restore* snapshot first, so a restore is itself
+undoable.
+
 **Preview** — the preview tab is not a re-implementation. It renders, in an iframe, byte-for-byte
 the file you get when you click Export. One renderer, no drift between what you see and what you
 ship.
 
-**Export** — a single self-contained HTML file (~235 KB, no external requests) you can email,
+**Export** — a single self-contained HTML file (235–240 KB, no external requests) you can email,
 attach to a ticket, commit, or host anywhere. "No external requests" includes the typefaces:
 Archivo and Space Mono are inlined as base64, which is most of that weight and the reason the
 file looks like the studio on a machine that has never heard of either. Also exports raw JSON,
@@ -138,6 +173,10 @@ Five rules hold the whole thing together, and each one is written where it is en
    counts, timestamps. Prose is Archivo, on screen and on paper alike.
 4. **Circles mean "a node in a graph"** — the mark, an edge endpoint, a flow step. Everything else
    is square, including the scope swatches.
+   **The stroke between them says how the call travels** — solid waits, dashed is queued, dotted
+   is scheduled. The endpoints never change: direction must not get quieter because a call is
+   asynchronous. The table is `src/lib/links.ts`, mirrored by hand in `viewer/engine.js`, which
+   ships inside the export and cannot import it.
 5. **Paper does not copy hover, focus, or shadow.** `--shadow` stays a token so the printed sheet
    can set it to `none` rather than delete the rules that use it.
 
@@ -190,6 +229,11 @@ Each project stores one JSON document — the same shape the viewer consumes. It
   *support* and drawn without edges, so the infrastructure row does not turn into spaghetti.
 - **components** — anything nameable: an app, an API, a database, a bucket, a vendor.
 - **deps** — who calls whom. Direction matters: caller → callee.
+- **links** — optional, and only ever a *description* of a dependency `deps` already declares:
+  `{ to, kind, protocol, note }`. `deps` stays the single source of truth for whether an edge
+  exists, so the two cannot disagree — normalisation drops any link whose target is not in
+  `deps`, and an edge nobody annotated has no entry at all. That is what keeps a document
+  written before this field existed exporting byte-for-byte as it did.
 
 Beyond that the format carries `flows`, `technologies` and editorial `sections`
 (`compare`, `cards`, `timeline`, `table`, `text`), all edited from the **Content** tab, plus the
@@ -271,12 +315,14 @@ src/app/                  Next.js 15 App Router
   projects/[id]/page.tsx  editor (server)    → components/Editor
   projects/[id]/document/ the printable design document — plan, renderer, print CSS
   api/                    folders, projects, templates, export, import, revisions
-src/components/           Workspace, Editor, Inspector, Icon, Brand (the mark)
+src/components/           Workspace, Editor, Inspector, History, Icon, Brand (the mark)
 src/lib/
   db.ts                   node:sqlite connection + schema
   store.ts                every query in the app lives here
   types.ts                the document contract
   defaults.ts             blank document, palette, normalisation
+  links.ts                the dependency-kind table — stroke, labels, legend
+  diff.ts                 two documents → what changed, in words
   templates/              the six templates and instantiate()
   document/               the ADD outline (plan.ts) and its chapter preset
   exportHtml.ts           document → self-contained HTML
@@ -293,13 +339,21 @@ the things we query and reorder.
 
 **Why `node:sqlite` and not Prisma.** Prisma downloads a ~20 MB query engine at install time and
 needs a `generate` step — real friction for a tool whose pitch is "clone and run". `node:sqlite`
-ships inside Node 22.5+, so `npm install` pulls six packages and nothing native. The cost is
-hand-written SQL and an API Node still marks experimental. Every query is in `src/lib/store.ts`;
-if you outgrow it, that one file is what you rewrite. **Requires Node ≥ 22.5.**
+ships inside Node 22.5+, so the database layer costs **six production dependencies and no install
+step at all**: three `@dnd-kit` packages, `next`, `react`, `react-dom`, and nothing for storage.
+(`npm install` still lands 27 packages and does compile-or-fetch native binaries — `sharp` and,
+on macOS, `fsevents` — but those are Next's, not the database's.) The cost is hand-written SQL and
+an API Node still marks experimental. Every query is in `src/lib/store.ts`; if you outgrow it,
+that one file is what you rewrite. **Requires Node ≥ 22.5.**
 
-**Revisions.** Every save older than five minutes since the last snapshot writes one, capped at
-30 per project. The API is live at `GET/POST /api/projects/:id/revisions`; there is no UI for it
-yet.
+**Revisions.** Every save older than five minutes since the last snapshot writes one. The cap of
+30 per project applies to automatic snapshots only: a named checkpoint is never pruned, and the
+*Before restore* snapshots a restore leaves behind keep their own ceiling of five. Snapshots are
+ordered `created_at DESC, rowid DESC` — `datetime('now')` has one-second granularity, so naming a
+checkpoint during an autosave otherwise leaves two rows in the same second with no defined order.
+The full surface is `GET/POST/PATCH/DELETE /api/projects/:id/revisions`, driven by the **History**
+button in the editor. What that panel shows is computed by `src/lib/diff.ts`, which turns two
+documents into sentences rather than a JSON diff.
 
 ---
 
@@ -322,7 +376,6 @@ session check in the API routes; the data model does not need to change.
 ## Roadmap
 
 - Diagram placeholders for the document chapters that have none — network topology, CI/CD pipeline
-- Revision history UI — the data is already there
 - Keyboard navigation on the canvas, and undo/redo
 - Optional auth for shared installs
 - Multi-select and bulk move on the canvas

@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Mark, Wordmark } from '@/components/Brand';
 import { PALETTE } from '@/lib/defaults';
+import { dashFor, describeLink, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
   Architecture, CardItem, CardsSection, CompareSection, Component, Flow,
@@ -177,6 +178,12 @@ function Intro({ doc }: { doc: Architecture }) {
 /* ------------------------------------------------------------------ diagram */
 
 function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
+  const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
+  /* The line-style key sits outside `.paper-frame` on purpose: the frame is
+   * scaled by a transform to fit the page, and a legend shrunk to 67 % of an
+   * already small type size stops being readable. */
+  const kinds = kindsInUse(doc.components);
+
   return (
     <figure className="paper-figure">
       <PaperDiagram doc={doc} />
@@ -188,6 +195,19 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
           </li>
         ))}
       </ul>
+      {!!kinds.length && (
+        <div className="paper-edgekey">
+          {kinds.map(k => (
+            <span key={k}>
+              <svg viewBox="0 0 34 8" aria-hidden="true">
+                <path d="M1 4h32" fill="none" stroke="currentColor" strokeWidth="1.6"
+                  strokeLinecap="round" strokeDasharray={LINK_DASH[k] || undefined} />
+              </svg>
+              {LINK_KIND_LABELS[k][lang]}
+            </span>
+          ))}
+        </div>
+      )}
     </figure>
   );
 }
@@ -237,13 +257,18 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
       }
       /* Filled disc at the caller, open circle at the callee — the mark's
        * grammar, and the only thing carrying direction once hover is gone.
-       * Grouped so the open circle's paper fill still punches through the
-       * line, and slightly stronger than on screen: at the print scale of
-       * .67 a 30 %-opacity endpoint disappears into the paper. */
+       * The stroke breaks for a queued or batched call, which is the one
+       * distinction paper can carry as well as the screen: it is geometry,
+       * not a hover state. Grouped so the open circle's paper fill still
+       * punches through the line, and slightly stronger than on screen: at
+       * the print scale of .67 a 30 %-opacity endpoint disappears into the
+       * paper. */
       const col = colour(c.group);
+      const dash = dashFor(linkOf(c, dep)?.kind);
       out += `<g opacity=".45">`
            + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
-           + `stroke="${col}" stroke-width="1.2" stroke-linecap="round"/>`
+           + `stroke="${col}" stroke-width="1.2" stroke-linecap="round"`
+           + `${dash ? ` stroke-dasharray="${dash}"` : ''}/>`
            + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${col}"/>`
            + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${col}" stroke-width="1.5"/>`
            + `</g>`;
@@ -325,6 +350,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
   const groupName = (id: string) => doc.groups.find(g => g.id === id)?.name || id;
   const colour = (id: string) => doc.groups.find(g => g.id === id)?.color || '#94A3B8';
   const named = (id: string) => doc.components.find(c => c.id === id)?.name || id;
+  const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
   const detailed = doc.components.filter(c => c.features?.length || c.notes?.length || c.deps?.length);
 
   return (
@@ -364,7 +390,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
         <>
           <h3 className="paper-h3">{T.detail}</h3>
           <div className="paper-sheets">
-            {detailed.map(c => <Sheet key={c.id} comp={c} named={named} colour={colour} T={T} />)}
+            {detailed.map(c => <Sheet key={c.id} comp={c} named={named} colour={colour} T={T} lang={lang} />)}
           </div>
         </>
       )}
@@ -372,8 +398,9 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
   );
 }
 
-function Sheet({ comp, named, colour, T }: {
-  comp: Component; named: (id: string) => string; colour: (id: string) => string; T: Strings;
+function Sheet({ comp, named, colour, T, lang }: {
+  comp: Component; named: (id: string) => string; colour: (id: string) => string;
+  T: Strings; lang: 'en' | 'fr';
 }) {
   return (
     <div className="paper-card" style={{ ['--c' as string]: colour(comp.group) }}>
@@ -385,8 +412,22 @@ function Sheet({ comp, named, colour, T }: {
       {!!comp.features?.length && (
         <ul className="paper-bullets">{comp.features.map((f, i) => <li key={i} {...rich(f)} />)}</ul>
       )}
+      {/* On paper the dash grammar has no hover to fall back on, so each
+        * dependency also states how it travels in words. The diagram and this
+        * line say the same thing twice on purpose: one for the eye, one for
+        * the reader who is quoting the document in a meeting. */}
       {!!comp.deps?.length && (
-        <p className="paper-deps"><b>{T.dependsOn} :</b> {comp.deps.map(named).join(', ')}</p>
+        <p className="paper-deps"><b>{T.dependsOn} :</b>{' '}
+          {comp.deps.map((id, i) => {
+            const how = describeLink(linkOf(comp, id), lang);
+            return (
+              <span key={id}>
+                {i > 0 && ', '}{named(id)}
+                {how && <em className="paper-how"> ({how})</em>}
+              </span>
+            );
+          })}
+        </p>
       )}
       {!!comp.notes?.length && (
         <p className="paper-note">{comp.notes.map((n, i) => <span key={i} {...rich(n)} />)}</p>

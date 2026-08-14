@@ -696,6 +696,73 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   .tpl-detail { grid-template-columns: 1fr; }
 }
 
+/* The key for the edge line styles, in the palette rail. Stacked rather than
+   wrapped: at 246 px two entries per row would break mid-label. Neutral ink —
+   an edge takes its colour from the caller's scope, and colouring the key
+   would claim one it does not have. */
+.edgekey { display: flex; flex-direction: column; gap: 7px; padding: 2px 6px; }
+.edgekey span {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+}
+.edgekey svg { width: 34px; height: 8px; flex: none; overflow: visible; }
+
+/* ------------------------------------------------------------------ history */
+/* One box, two scrollers. The list and the diff share the frame's height rather
+   than each setting their own, so the panel never ends on a column that stops
+   half a screen before the other. */
+.hist {
+  display: grid; grid-template-columns: 224px 1fr; gap: 0;
+  border: 1px solid var(--line-2); height: 52vh; min-height: 260px; overflow: hidden;
+}
+.hist-list { border-right: 1px solid var(--line); background: var(--panel-2); overflow-y: auto; min-height: 0; }
+.histrow {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; font: inherit;
+  color: var(--ink-2); background: transparent; border: 0; border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent; padding: 9px 12px; cursor: pointer;
+}
+.histrow:hover { background: var(--panel-3); color: var(--ink); }
+/* Teal marks the row you are acting on — the same rule the canvas selection
+   follows, so selection never has to compete with a scope colour. */
+.histrow.on { border-left-color: var(--brand); background: var(--panel); color: var(--ink); }
+.histrow .when { font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; }
+.histrow b { font-size: 12px; font-weight: 600; color: var(--brand-ink); }
+.histrow .at { font-family: var(--mono); font-size: 10px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.hist-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.hist-paneh {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.hist-paneh > div:first-child { flex: 1; min-width: 0; }
+.hist-paneh b { display: block; font-size: 13.5px; letter-spacing: -.02em; }
+.hist-paneh span { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 3px; }
+.hist-acts { display: flex; align-items: center; gap: 6px; flex: none; }
+
+.hist-diff { flex: 1; overflow-y: auto; min-height: 0; padding: 4px 14px 16px; }
+.hist-diff p.muted { margin: 12px 0 0; color: var(--ink-3); font-size: 12.5px; }
+.diffgroup { margin-bottom: 10px; }
+.diffgroup:last-child { margin-bottom: 0; }
+.diffgroup .sect-label { margin-bottom: 2px; }
+.diffrow { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; font-size: 12.5px; line-height: 1.45; }
+.diffrow .what { color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.diffrow em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+/* Square, and carrying a glyph as well as a colour: the three kinds have to
+   survive both a monochrome print and a reader who cannot separate red from
+   green, and a circle here would read as a node in the graph. */
+.dkind {
+  flex: none; width: 15px; height: 15px; display: grid; place-items: center; align-self: center;
+  font-family: var(--mono); font-size: 11px; font-style: normal; line-height: 1;
+  border: 1px solid var(--line-2); color: var(--ink-3); background: var(--panel);
+}
+.dkind.added { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.dkind.removed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+
+@media (max-width: 720px) {
+  .hist { grid-template-columns: 1fr; grid-template-rows: 30% 1fr; }
+  .hist-list { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+
 .menu-pop {
   position: absolute; top: 30px; right: 6px; background: var(--panel); border: 1px solid var(--ink);
   border-radius: 0; box-shadow: var(--shadow-lg); padding: 4px; z-index: 40; min-width: 168px;

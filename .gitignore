@@ -10,3 +10,8 @@ data/*.db-wal
 *.log
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Third-party reference material kept locally and never redistributed.
+# The brackets are escaped: unescaped, `[External]` is a character class and
+# the rule would silently match nothing.
+\[External\]*

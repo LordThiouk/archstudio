@@ -9,7 +9,9 @@ import {
 import { Icon } from './Icon';
 import Inspector from './Inspector';
 import ContentEditor from './ContentEditor';
+import History from './History';
 import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
+import { dashFor, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
 
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
@@ -25,6 +27,7 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [link, setLink] = useState<{ from: string; x: number; y: number } | null>(null);
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
+  const [history, setHistory] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const first = useRef(true);
@@ -180,6 +183,11 @@ export default function Editor({ project }: { project: ProjectWithData }) {
               <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>Preview</button>
             </div>
 
+            <button className="btn" onClick={() => setHistory(true)}
+              title="Earlier versions, and what changed since each one">
+              <Icon name="clock" size={15} />History
+            </button>
+
             <a className="btn" href={`/projects/${project.id}/document`} target="_blank" rel="noreferrer"
               title="The same document, linear and numbered — print it to PDF from there">
               <Icon name="file" size={15} />Document
@@ -237,6 +245,18 @@ export default function Editor({ project }: { project: ProjectWithData }) {
       </DragOverlay>
 
       {link && <LinkLine link={link} />}
+
+      {history && (
+        <History projectId={project.id} doc={doc} dirty={save !== 'saved'}
+          onClose={() => setHistory(false)}
+          onRestore={data => {
+            /* The restore already wrote the document server-side. Adopting it
+             * here keeps the canvas, the inspector and the preview in step —
+             * the autosave that follows is a no-op against what is on disk. */
+            setDoc(data);
+            setSelected(s => (data.components.some(c => c.id === s) ? s : null));
+          }} />
+      )}
     </DndContext>
   );
 }
@@ -276,19 +296,26 @@ function LinkLine({ link }: { link: { from: string; x: number; y: number } }) {
  * diagram this dense turns into lint — this reads at a glance and survives
  * printing at 67 %.
  *
+ * The stroke carries the second question: `dash` is empty for a synchronous or
+ * unannotated call, and breaks the line for one that is queued or batched. It
+ * is the stroke and not the colour because colour already means scope, and a
+ * dash still reads in monochrome. The endpoints stay solid — direction must
+ * not get quieter just because the call is asynchronous.
+ *
  * The group is faded as a unit rather than per shape: compositing the group
  * first is what lets the open circle's paper fill still punch through the
  * line inside it, which is the whole point of the open circle.
  *
  * Kept in step with `drawEdges` in viewer/engine.js and `PaperDiagram` in the
- * document renderer — three surfaces, one grammar. */
+ * document renderer — three surfaces, one grammar, one table in lib/links.ts. */
 function edgeGlyph(
   x1: number, y1: number, k1: number, x2: number, y2: number, k2: number,
-  colour: string, opacity: number, width: number
+  colour: string, opacity: number, width: number, dash = ''
 ) {
   return `<g opacity="${opacity}">`
     + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
-    + `stroke="${colour}" stroke-width="${width}" stroke-linecap="round"/>`
+    + `stroke="${colour}" stroke-width="${width}" stroke-linecap="round"`
+    + `${dash ? ` stroke-dasharray="${dash}"` : ''}/>`
     + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${colour}"/>`
     + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${colour}" stroke-width="1.5"/>`
     + `</g>`;
@@ -333,7 +360,8 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
       }
       const active = selected === c.id || selected === dep;
       const colour = groupColor(c.group).light;
-      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, active ? 1 : .34, active ? 2 : 1.2);
+      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, active ? 1 : .34, active ? 2 : 1.2,
+        dashFor(linkOf(c, dep)?.kind));
     }));
     setEdges(out);
   }, [doc, selected, groupColor]);
@@ -466,7 +494,14 @@ function Palette({ doc, patch, onAdd }: {
         Scopes<span className="spacer" />
         <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add scope"
           onClick={() => {
-            if (doc.groups.length >= 6) { alert('Six scopes is the readable maximum.'); return; }
+            /* Derived from the palette, not typed as a literal: there are five
+             * hues, and a sixth scope would be handed `PALETTE[0]` again —
+             * two scopes with one colour, which is the thing the palette is
+             * built to prevent. */
+            if (doc.groups.length >= PALETTE.length) {
+              alert(`${PALETTE.length} scopes is the maximum — a sixth would reuse the first colour.`);
+              return;
+            }
             const name = prompt('Scope name');
             if (!name?.trim()) return;
             patch(d => {
@@ -529,7 +564,32 @@ function Palette({ doc, patch, onAdd }: {
         </div>
       ))}
 
+      <EdgeLegend doc={doc} />
     </aside>
+  );
+}
+
+/* Only drawn once the document actually annotates an edge. A legend explaining
+ * three line styles on a diagram that uses one is furniture. */
+function EdgeLegend({ doc }: { doc: Architecture }) {
+  const kinds = kindsInUse(doc.components);
+  if (!kinds.length) return null;
+
+  return (
+    <>
+      <div className="sect-label">Dependencies</div>
+      <div className="edgekey">
+        {kinds.map(k => (
+          <span key={k}>
+            <svg viewBox="0 0 34 8" aria-hidden="true">
+              <path d="M1 4h32" fill="none" stroke="currentColor" strokeWidth="1.6"
+                strokeLinecap="round" strokeDasharray={LINK_DASH[k] || undefined} />
+            </svg>
+            {LINK_KIND_LABELS[k].en}
+          </span>
+        ))}
+      </div>
+    </>
   );
 }
 

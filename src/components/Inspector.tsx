@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, slugify } from '@/lib/defaults';
-import type { Architecture, Component } from '@/lib/types';
+import { LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkOf, shortLink } from '@/lib/links';
+import type { Architecture, Component, Link, LinkKind } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 
@@ -130,13 +131,10 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
       <div className="field">
         <span>Depends on ({outbound.length})</span>
         {outbound.length === 0 && <div className="hint">Drag the dot under a card onto another card to create a dependency.</div>}
-        <div className="chiprow">
+        <div className="cardlist">
           {outbound.map(t => (
-            <span className="tagchip" key={t.id} style={{ borderColor: colourOf(t.group) }}>
-              <i style={{ width: 7, height: 7, borderRadius: 4, background: colourOf(t.group), display: 'inline-block' }} />
-              <button style={{ color: 'var(--ink)', padding: 0 }} onClick={() => onSelect(t.id)}>{t.name}</button>
-              <button onClick={() => set(c => { c.deps = (c.deps || []).filter(x => x !== t.id); })}>×</button>
-            </span>
+            <LinkRow key={t.id} comp={comp} target={t} colour={colourOf(t.group)}
+              set={set} onSelect={onSelect} />
           ))}
         </div>
         <select className="select" style={{ marginTop: 6 }} value=""
@@ -152,12 +150,18 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         <div className="field">
           <span>Used by ({inbound.length})</span>
           <div className="chiprow">
-            {inbound.map(t => (
-              <span className="tagchip" key={t.id}>
-                <i style={{ width: 7, height: 7, borderRadius: 4, background: colourOf(t.group), display: 'inline-block' }} />
-                <button style={{ color: 'var(--ink)', padding: 0 }} onClick={() => onSelect(t.id)}>{t.name}</button>
-              </span>
-            ))}
+            {inbound.map(t => {
+              /* The annotation lives on the caller, so an incoming edge reads
+               * its description from the other end rather than from here. */
+              const how = shortLink(linkOf(t, comp.id));
+              return (
+                <span className="tagchip" key={t.id}>
+                  <i style={{ width: 7, height: 7, borderRadius: 4, background: colourOf(t.group), display: 'inline-block' }} />
+                  <button style={{ color: 'var(--ink)', padding: 0 }} onClick={() => onSelect(t.id)}>{t.name}</button>
+                  {how && <em className="mono" style={{ fontStyle: 'normal', color: 'var(--ink-3)', fontSize: 10 }}>{how}</em>}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -178,6 +182,87 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         <Icon name="trash" size={15} />Delete component
       </button>
     </>
+  );
+}
+
+/* One outgoing dependency, collapsed to its summary until you open it.
+ *
+ * The row has to stay readable at 246 px, so the three fields hide behind the
+ * twist and the head carries what they add up to — "SQL · async". A dependency
+ * nobody has annotated shows nothing extra, which is also what it draws on the
+ * canvas: a plain solid edge. */
+function LinkRow({ comp, target, colour, set, onSelect }: {
+  comp: Component; target: Component; colour: string;
+  set: (fn: (c: Component) => void) => void; onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const link = linkOf(comp, target.id);
+  const summary = shortLink(link);
+
+  /* Links are keyed by target, so an edit is an upsert and clearing every
+   * field removes the row — normalisation would drop an empty one anyway, and
+   * leaving it would make the next diff report a change nobody made. */
+  const edit = (patch: Partial<Link>) => set(c => {
+    const links = [...(c.links || [])];
+    const i = links.findIndex(l => l.to === target.id);
+    const next: Link = { ...(i >= 0 ? links[i] : { to: target.id }), ...patch };
+    if (!next.kind && !next.protocol?.trim() && !next.note?.trim()) {
+      c.links = links.filter(l => l.to !== target.id);
+    } else if (i >= 0) { links[i] = next; c.links = links; }
+    else c.links = [...links, next];
+  });
+
+  return (
+    <div className={`elist${open ? ' open' : ''}`}>
+      <div className="elist-head">
+        <button className="iconbtn twist" onClick={() => setOpen(o => !o)}
+          aria-expanded={open} aria-label={open ? 'Collapse' : 'Describe this dependency'}>
+          <Icon name="chevron" size={13} />
+        </button>
+        <span className="elist-name">
+          <i style={{ width: 8, height: 8, background: colour, display: 'inline-block', marginRight: 7 }} />
+          <button style={{ border: 0, background: 'transparent', font: 'inherit', color: 'var(--ink)', padding: 0, cursor: 'pointer' }}
+            onClick={() => onSelect(target.id)} title="Select this component">{target.name}</button>
+          {summary && <em className="mono"> {summary}</em>}
+        </span>
+        <button className="iconbtn" title="Remove this dependency"
+          onClick={() => set(c => {
+            c.deps = (c.deps || []).filter(x => x !== target.id);
+            c.links = (c.links || []).filter(l => l.to !== target.id);
+          })}><Icon name="trash" size={13} /></button>
+      </div>
+
+      {open && (
+        <div className="elist-body">
+          <div className="field">
+            <span>How it travels</span>
+            <div className="radio-row">
+              {LINK_KINDS.map(k => (
+                <button key={k} className={`radio${link?.kind === k ? ' on' : ''}`}
+                  title={LINK_KIND_BLURBS[k]}
+                  onClick={() => edit({ kind: link?.kind === k ? undefined : k })}>
+                  <i /> {LINK_KIND_LABELS[k].en}
+                </button>
+              ))}
+            </div>
+            <div className="hint">
+              {link?.kind ? LINK_KIND_BLURBS[link.kind as LinkKind]
+                : 'Unset draws a solid edge and reads as synchronous.'}
+            </div>
+          </div>
+
+          <label className="field"><span>Protocol</span>
+            <input className="input" value={link?.protocol || ''} placeholder="REST/HTTPS, gRPC, SQL, Kafka…"
+              onChange={e => edit({ protocol: e.target.value })} />
+          </label>
+
+          <label className="field" style={{ marginBottom: 0 }}><span>Note</span>
+            <input className="input" value={link?.note || ''} placeholder="Read replica, at-least-once, nightly 02:00…"
+              onChange={e => edit({ note: e.target.value })} />
+          </label>
+        </div>
+      )}
+    </div>
   );
 }
 

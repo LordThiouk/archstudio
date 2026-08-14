@@ -130,6 +130,14 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
 .legend i{width:10px;height:10px;border-radius:0;display:inline-block;margin-right:7px;vertical-align:-1px}
 
+/* The key for the edge line styles. Mono, because the three kinds are
+   something the document states rather than something it argues, and neutral:
+   an edge takes its colour from the caller's scope, so colouring the key would
+   claim a scope it does not have. */
+.edgekey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.edgekey span{display:inline-flex;align-items:center;gap:7px}
+.edgekey svg{width:34px;height:8px;flex:none;overflow:visible}
+
 /* ---------- Filters ---------- */
 .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
 .chip{
@@ -213,6 +221,10 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 /* Rule 4: a related component is a node in the graph, so its dot is round. */
 .rel button i{width:9px;height:9px;border-radius:50%;flex:none}
 .rel button em{font-style:normal;margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+/* A note is prose, not a machine fact, so it drops to its own line in the
+   body face rather than being squeezed into the mono slot on the right. */
+.rel button{flex-wrap:wrap}
+.rel button em.lnote{margin-left:0;flex-basis:100%;font-family:inherit;font-size:11px;color:var(--ink-2);line-height:1.45}
 
 /* ---------- Pôles comparison ---------- */
 .poles{display:grid;grid-template-columns:1fr 1fr;gap:18px}

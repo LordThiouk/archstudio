@@ -1,4 +1,5 @@
-import type { Architecture, Group, Section, SectionType } from './types';
+import { LINK_KINDS, linkIsEmpty } from './links';
+import type { Architecture, Group, Link, Section, SectionType } from './types';
 
 /* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
  * h = 200, 250, 290, 340, 150, lifted to L .72 / C .12 on a marine ground.
@@ -97,15 +98,19 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
   const layerIds = new Set(doc.layers.map(l => l.id));
   const compIds = new Set(doc.components.map(c => c.id));
 
-  doc.components = doc.components.map(c => ({
-    ...c,
-    group: groupIds.has(c.group) ? c.group : doc.groups[0].id,
-    layer: layerIds.has(c.layer) ? c.layer : doc.layers[0].id,
-    tech: c.tech || [],
-    features: c.features || [],
-    notes: c.notes || [],
-    deps: (c.deps || []).filter(d => compIds.has(d) && d !== c.id)
-  }));
+  doc.components = doc.components.map(c => {
+    const deps = (c.deps || []).filter(d => compIds.has(d) && d !== c.id);
+    return {
+      ...c,
+      group: groupIds.has(c.group) ? c.group : doc.groups[0].id,
+      layer: layerIds.has(c.layer) ? c.layer : doc.layers[0].id,
+      tech: c.tech || [],
+      features: c.features || [],
+      notes: c.notes || [],
+      deps,
+      links: normalizeLinks(c.links, deps)
+    };
+  });
 
   /* A step pointing at a deleted component would crash the viewer, so those go.
    * A flow with no steps left is kept: it is almost always one being authored,
@@ -113,6 +118,35 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
   doc.flows = doc.flows.map(f => ({ ...f, steps: (f.steps || []).filter(s => compIds.has(s.component)) }));
 
   return doc;
+}
+
+/** Keep only the annotations that describe a dependency this component still
+ *  has: one per target, none empty, no invented kinds.
+ *
+ *  `deps` decides which edges exist and `links` only describes them, so the
+ *  two can never disagree — deleting a dependency takes its annotation with
+ *  it, and an import carrying a link to nowhere loses it here rather than
+ *  surfacing as a phantom row in the inspector. Returns `undefined` when
+ *  nothing survives, so a document that uses none of this exports exactly as
+ *  it did before the field existed. */
+function normalizeLinks(links: Link[] | undefined, deps: string[]): Link[] | undefined {
+  if (!links?.length) return undefined;
+  const allowed = new Set(deps);
+  const seen = new Set<string>();
+  const out: Link[] = [];
+
+  for (const l of links) {
+    if (!l || typeof l.to !== 'string' || !allowed.has(l.to) || seen.has(l.to)) continue;
+    const clean: Link = { to: l.to };
+    if (l.kind && LINK_KINDS.includes(l.kind)) clean.kind = l.kind;
+    if (l.protocol?.trim()) clean.protocol = l.protocol.trim();
+    if (l.note?.trim()) clean.note = l.note.trim();
+    if (linkIsEmpty(clean)) continue;
+    seen.add(l.to);
+    out.push(clean);
+  }
+
+  return out.length ? out : undefined;
 }
 
 /* ---------------------------------------------------------------- sections */

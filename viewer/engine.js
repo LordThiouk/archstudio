@@ -153,6 +153,18 @@ function normalize(raw) {
       if (!cById[x]) { warn(`component "${c.id}": dependency "${x}" does not exist — dropped`); return false; }
       return true;
     });
+    /* A link only annotates an edge that exists. One pointing anywhere else is
+     * a phantom: it would never be drawn, but it would show up in the detail
+     * sheet as a dependency the diagram does not have. */
+    if (c.links) {
+      c.links = c.links.filter(l => {
+        if (!l || !c.deps.includes(l.to)) {
+          warn(`component "${c.id}": link to "${l && l.to}" has no matching dependency — dropped`);
+          return false;
+        }
+        return true;
+      });
+    }
   });
 
   d.flows.forEach(f => {
@@ -183,11 +195,36 @@ const { d: DATA, gById: G, lById: L, cById: C } = normalize(RAW);
 const T = Object.assign({}, LABELS.en, LABELS[DATA.lang] || {}, DATA.i18n || {});
 const gvar = id => `var(${(G[id] || DATA.groups[0]).var})`;
 
-/* edges */
+/* edges
+ *
+ * An edge carries an optional annotation, held on the caller in `links` and
+ * keyed by callee. `deps` still decides which edges exist; a link only says
+ * how the call travels. Unannotated stays solid, so every document written
+ * before this field existed draws exactly as it always did.
+ *
+ * MIRROR of LINK_DASH in src/lib/links.ts — this file ships inside the export
+ * and cannot import it. Change both together. */
+const LINK_DASH = { sync: '', async: '6 4', batch: '1.5 3.5' };
+const LINK_KIND_LABELS = {
+  en: { sync: 'synchronous', async: 'asynchronous', batch: 'batch' },
+  fr: { sync: 'synchrone', async: 'asynchrone', batch: 'batch' }
+};
+const linkOf = (c, to) => (c.links || []).find(l => l.to === to);
+const dashFor = kind => (kind && LINK_DASH[kind]) || '';
+const describeLink = link => {
+  if (!link) return '';
+  const kinds = LINK_KIND_LABELS[DATA.lang] || LINK_KIND_LABELS.en;
+  return [link.protocol, link.kind ? kinds[link.kind] : null].filter(Boolean).join(' · ');
+};
+
 const EDGES = [];
 DATA.components.forEach(c => c.deps.forEach(x => EDGES.push([c.id, x])));
 const INBOUND = {};
 EDGES.forEach(([a, b]) => { (INBOUND[b] = INBOUND[b] || []).push(a); });
+
+/** Which kinds this document actually uses — the legend is drawn only for them. */
+const KINDS_IN_USE = ['sync', 'async', 'batch'].filter(k =>
+  DATA.components.some(c => (c.links || []).some(l => l.kind === k)));
 
 /* The bottom layer is treated as "support" and drawn without edges — but only
  * when there are enough layers for that to be a sensible reading. On a 2- or
@@ -350,7 +387,21 @@ function renderArchitecture() {
     ${s.subtitle ? `<p class="sec-sub">${rich(s.subtitle)}</p>` : ''}
     <div class="filters">${chips}<span class="hintline">${T.hintDiagram}</span></div>
     <div class="diagram" id="diagram"><svg id="edges"></svg>${layers}</div>
+    ${edgeKeyHTML()}
     ${SUPPORT_LAYER ? `<div style="height:14px"></div><div class="note">${T.infraNote}</div>` : ''}`;
+}
+
+/* The key for the line styles, drawn only for the kinds this document uses. A
+ * diagram whose edges are all solid needs no explanation of what solid means. */
+function edgeKeyHTML() {
+  if (!KINDS_IN_USE.length) return '';
+  const kinds = LINK_KIND_LABELS[DATA.lang] || LINK_KIND_LABELS.en;
+  return `<div class="edgekey">${KINDS_IN_USE.map(k => {
+    const dash = LINK_DASH[k];
+    return `<span><svg viewBox="0 0 34 8" aria-hidden="true"><path d="M1 4h32" fill="none"
+      stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+      ${dash ? `stroke-dasharray="${dash}"` : ''}/></svg>${esc(kinds[k])}</span>`;
+  }).join('')}</div>`;
 }
 
 function nodeHTML(c) {
@@ -444,13 +495,17 @@ function drawEdges() {
     }
     /* A filled disc where the caller is, an open circle where the callee
      * answers — the mark's own grammar, so direction reads without an
-     * arrowhead. Grouped so the fade in applyFilter takes the endpoints with
-     * the line, and so the open circle's paper fill still punches through. */
+     * arrowhead. The stroke breaks when the call is queued or batched, which
+     * is the one thing a curve cannot say and a colour must not be spent on.
+     * Grouped so the fade in applyFilter takes the endpoints with the line,
+     * and so the open circle's paper fill still punches through. */
     const colour = col[C[a].group];
+    const dash = dashFor((linkOf(C[a], b) || {}).kind);
     out += `<g class="edge" opacity=".3" data-a="${esc(a)}" data-b="${esc(b)}">`
          + `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} C${x1.toFixed(1)},${(y1 + k1).toFixed(1)} `
          + `${x2.toFixed(1)},${(y2 + k2).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" `
-         + `stroke="${colour}" stroke-width="1.2" stroke-linecap="round"></path>`
+         + `stroke="${colour}" stroke-width="1.2" stroke-linecap="round"`
+         + `${dash ? ` stroke-dasharray="${dash}"` : ''}></path>`
          + `<circle cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="3.5" fill="${colour}"></circle>`
          + `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="3" style="fill:var(--panel)" `
          + `stroke="${colour}" stroke-width="1.5"></circle>`
@@ -692,8 +747,17 @@ function openDrawer(id) {
     <h3>${esc(c.name)}</h3>
     <div class="sub">${esc(layer ? layer.name : '')}${c.url ? ` · <span class="mono">${esc(c.url)}</span>` : ''}</div>`;
 
-  const relBtns = (arr, dir) => arr.map(x =>
-    `<button data-open="${esc(x.id)}"><i style="background:${gvar(x.group)}"></i>${esc(x.name)}<em>${dir}</em></button>`).join('');
+  /* An outgoing edge reads its annotation from this component; an incoming one
+   * reads it from the caller, because that is where the link is stored. The
+   * label replaces the bare direction word when there is something to say —
+   * "REST/HTTPS · synchronous" tells you the direction too. */
+  const relBtns = (arr, dir, incoming) => arr.map(x => {
+    const link = incoming ? linkOf(x, c.id) : linkOf(c, x.id);
+    const how = describeLink(link);
+    const note = link && link.note;
+    return `<button data-open="${esc(x.id)}"><i style="background:${gvar(x.group)}"></i>${esc(x.name)}`
+      + `<em>${esc(how || dir)}</em>${note ? `<em class="lnote">${esc(note)}</em>` : ''}</button>`;
+  }).join('');
 
   $('#db').style.setProperty('--c', col);
   $('#db').innerHTML = `
@@ -701,8 +765,8 @@ function openDrawer(id) {
     ${c.tech.length ? `<h4>${T.technologies}</h4><div class="taglist">${c.tech.map(t => `<span class="tag k">${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.features.length ? `<h4>${T.responsibilities}</h4><ul>${c.features.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}
     ${c.notes.length ? `<h4>${T.notes}</h4><ul>${c.notes.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}
-    ${outs.length ? `<h4>${T.dependsOn}</h4><div class="rel">${relBtns(outs, T.outgoing)}</div>` : ''}
-    ${ins.length ? `<h4>${T.usedBy}</h4><div class="rel">${relBtns(ins, T.incoming)}</div>` : ''}`;
+    ${outs.length ? `<h4>${T.dependsOn}</h4><div class="rel">${relBtns(outs, T.outgoing, false)}</div>` : ''}
+    ${ins.length ? `<h4>${T.usedBy}</h4><div class="rel">${relBtns(ins, T.incoming, true)}</div>` : ''}`;
 
   $('#drawer').classList.add('on'); $('#scrim').classList.add('on');
   $('#dclose').onclick = closeDrawer;

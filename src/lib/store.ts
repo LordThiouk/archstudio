@@ -4,10 +4,21 @@ import type {
   Architecture, FolderRecord, ProjectRecord, ProjectSummary, ProjectWithData, RevisionRecord
 } from './types';
 
-/** Snapshots kept per project. Oldest are pruned past this. */
+/** Automatic snapshots kept per project. Oldest are pruned past this. */
 const REVISION_CAP = 30;
 /** Minimum gap between two automatic snapshots of the same project. */
 const REVISION_INTERVAL_MS = 5 * 60_000;
+/* `created_at` is `datetime('now')` — one-second granularity, so naming a
+ * checkpoint during an autosave puts two rows in the same second and their
+ * order becomes arbitrary. `rowid` is monotonic per insert and breaks the tie
+ * the way a reader expects: last written, first shown. */
+const NEWEST_FIRST = 'created_at DESC, rowid DESC';
+
+/** The label a restore leaves behind, so the restore itself can be undone. */
+const RESTORE_LABEL = 'Before restore';
+/** How many of those to keep. They are machine-written, so they get a ceiling
+ *  of their own rather than the exemption a hand-named checkpoint gets. */
+const RESTORE_CAP = 5;
 
 /* ------------------------------------------------------------------ folders */
 
@@ -191,9 +202,27 @@ export function duplicateProject(id: string): ProjectWithData | null {
 
 /* ---------------------------------------------------------------- revisions */
 
+/** Write a snapshot of `document` and prune the project back to the cap. */
+function writeSnapshot(projectId: string, document: Architecture, label: string | null): string {
+  const id = uid('r_');
+  db.prepare('INSERT INTO revisions (id, project_id, data, label) VALUES (?, ?, ?, ?)')
+    .run(id, projectId, JSON.stringify(document), label);
+
+  /* Only unlabelled snapshots are pruned. A checkpoint someone named — "sent to
+   * the client", "before the Azure rewrite" — is the one thing in this table
+   * worth keeping, and an afternoon of autosaves would otherwise push it out. */
+  db.prepare(
+    `DELETE FROM revisions WHERE project_id = ? AND label IS NULL AND id NOT IN
+     (SELECT id FROM revisions WHERE project_id = ? AND label IS NULL
+      ORDER BY ${NEWEST_FIRST} LIMIT ?)`
+  ).run(projectId, projectId, REVISION_CAP);
+
+  return id;
+}
+
 function maybeSnapshot(projectId: string, previous: Architecture): void {
   const last = db.prepare(
-    'SELECT created_at FROM revisions WHERE project_id = ? ORDER BY created_at DESC LIMIT 1'
+    `SELECT created_at FROM revisions WHERE project_id = ? ORDER BY ${NEWEST_FIRST} LIMIT 1`
   ).get(projectId) as { created_at?: string } | undefined;
 
   if (last?.created_at) {
@@ -201,31 +230,72 @@ function maybeSnapshot(projectId: string, previous: Architecture): void {
     if (age < REVISION_INTERVAL_MS) return;
   }
 
-  db.prepare('INSERT INTO revisions (id, project_id, data) VALUES (?, ?, ?)')
-    .run(uid('r_'), projectId, JSON.stringify(previous));
+  writeSnapshot(projectId, previous, null);
+}
 
-  db.prepare(
-    `DELETE FROM revisions WHERE project_id = ? AND id NOT IN
-     (SELECT id FROM revisions WHERE project_id = ? ORDER BY created_at DESC LIMIT ?)`
-  ).run(projectId, projectId, REVISION_CAP);
+/** Snapshot the project as it stands now, on demand and whatever the interval. */
+export function createRevision(projectId: string, label?: string): RevisionRecord | null {
+  const current = getProject(projectId);
+  if (!current) return null;
+  const id = writeSnapshot(projectId, current.data, label?.trim() || null);
+  return listRevisions(projectId).find(r => r.id === id) ?? null;
 }
 
 export function listRevisions(projectId: string): RevisionRecord[] {
   const rows = db.prepare(
-    'SELECT id, project_id, label, created_at FROM revisions WHERE project_id = ? ORDER BY created_at DESC'
+    `SELECT id, project_id, label, created_at, data FROM revisions WHERE project_id = ? ORDER BY ${NEWEST_FIRST}`
   ).all(projectId);
   return plainAll<Record<string, unknown>>(rows)
-    .map(o => ({
-      id: o.id as string, projectId: o.project_id as string,
-      label: (o.label ?? null) as string | null, createdAt: o.created_at as string
-    }));
+    .map(o => {
+      let componentCount = 0;
+      try { componentCount = (JSON.parse(o.data as string) as Architecture).components?.length ?? 0; }
+      catch { /* a corrupt snapshot should still be listed, and restorable */ }
+      return {
+        id: o.id as string, projectId: o.project_id as string,
+        label: (o.label ?? null) as string | null, createdAt: o.created_at as string,
+        componentCount
+      };
+    });
 }
 
-export function restoreRevision(projectId: string, revisionId: string): ProjectWithData | null {
+/** The document a snapshot holds — what the history panel diffs against. */
+export function getRevisionData(projectId: string, revisionId: string): Architecture | null {
   const row = db.prepare('SELECT data FROM revisions WHERE id = ? AND project_id = ?')
     .get(revisionId, projectId) as { data?: string } | undefined;
   if (!row?.data) return null;
-  return updateProject(projectId, { data: JSON.parse(row.data) });
+  return normalizeArchitecture(JSON.parse(row.data));
+}
+
+/** Name a snapshot, or clear its name with an empty string. */
+export function labelRevision(projectId: string, revisionId: string, label: string): RevisionRecord | null {
+  db.prepare('UPDATE revisions SET label = ? WHERE id = ? AND project_id = ?')
+    .run(label.trim() || null, revisionId, projectId);
+  return listRevisions(projectId).find(r => r.id === revisionId) ?? null;
+}
+
+export function deleteRevision(projectId: string, revisionId: string): void {
+  db.prepare('DELETE FROM revisions WHERE id = ? AND project_id = ?').run(revisionId, projectId);
+}
+
+export function restoreRevision(projectId: string, revisionId: string): ProjectWithData | null {
+  const data = getRevisionData(projectId, revisionId);
+  if (!data) return null;
+
+  /* Restoring is itself an edit, and the most destructive one the app offers.
+   * The current document is snapshotted unconditionally first — going through
+   * `maybeSnapshot` would skip it inside the five-minute window, which is
+   * exactly when a restore is most likely to be a misclick. */
+  const current = getProject(projectId);
+  if (current) {
+    writeSnapshot(projectId, current.data, RESTORE_LABEL);
+    db.prepare(
+      `DELETE FROM revisions WHERE project_id = ? AND label = ? AND id NOT IN
+       (SELECT id FROM revisions WHERE project_id = ? AND label = ?
+        ORDER BY ${NEWEST_FIRST} LIMIT ?)`
+    ).run(projectId, RESTORE_LABEL, projectId, RESTORE_LABEL, RESTORE_CAP);
+  }
+
+  return updateProject(projectId, { data });
 }
 
 /* -------------------------------------------------------------------- seed */

@@ -253,9 +253,8 @@ function DocumentForm({ doc, patch }: { doc: Architecture; patch: Patch }) {
 
       <div className="insp-sep" />
       <div className="hint">
-        Flows, the tech-stack table and editorial sections are part of the document format but are
-        not yet editable here — import a JSON file that contains them and they render in the
-        preview and the export untouched.
+        Key figures, flows, the tech-stack table and the editorial sections are edited in the
+        <b> Content</b> tab, at the top of the window.
       </div>
     </>
   );

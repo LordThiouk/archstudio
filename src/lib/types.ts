@@ -87,6 +87,34 @@ export interface Section {
   [extra: string]: unknown;
 }
 
+/* The payload of each section type, mirroring the viewer's renderers. The index
+ * signature on `Section` keeps these structurally compatible, so a section can
+ * be narrowed to the shape its `type` promises. */
+
+export interface CardItem { group?: string; icon?: string; title: string; body?: string; bullets?: string[] }
+export interface CardsSection extends Section { type: 'cards'; items: CardItem[] }
+
+export interface TimelinePhase { group?: string; period?: string; title: string; bullets?: string[] }
+export interface TimelineSection extends Section {
+  type: 'timeline'; lineTitle?: string; items: TimelinePhase[]; aside?: CardItem[];
+}
+
+export interface TableColumn { label: string; width?: string; group?: string }
+export interface TableSection extends Section { type: 'table'; columns: TableColumn[]; rows: string[][] }
+
+export interface ComparePole {
+  group?: string; kicker?: string; title: string; short?: string; pitch?: string;
+  rows?: string[][]; bullets?: string[];
+}
+export interface CompareTable { title?: string; subtitle?: string; firstColumn?: string; rows: string[][] }
+export interface CompareCard { group?: string; title: string; subtitle?: string; bullets?: string[]; note?: string }
+export interface CompareSection extends Section {
+  type: 'compare'; columns: ComparePole[]; table?: CompareTable; cards?: CompareCard[];
+}
+
+export interface TextBlock { group?: string; title?: string; body?: string | string[] }
+export interface TextSection extends Section { type: 'text'; blocks: TextBlock[] }
+
 export interface Architecture {
   meta: Meta;
   theme: Theme;

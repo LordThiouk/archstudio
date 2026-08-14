@@ -8,10 +8,12 @@ import {
 } from '@dnd-kit/core';
 import { Icon } from './Icon';
 import Inspector from './Inspector';
+import ContentEditor from './ContentEditor';
 import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
 
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
+type Mode = 'edit' | 'content' | 'preview';
 
 export default function Editor({ project }: { project: ProjectWithData }) {
   const router = useRouter();
@@ -19,7 +21,7 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const [name, setName] = useState(project.name);
   const [save, setSave] = useState<SaveState>('saved');
   const [selected, setSelected] = useState<string | null>(null);
-  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [mode, setMode] = useState<Mode>('edit');
   const [dragId, setDragId] = useState<string | null>(null);
   const [link, setLink] = useState<{ from: string; x: number; y: number } | null>(null);
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
@@ -164,7 +166,8 @@ export default function Editor({ project }: { project: ProjectWithData }) {
             <div style={{ flex: 1 }} />
 
             <div className="segmented">
-              <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>Edit</button>
+              <button aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>Diagram</button>
+              <button aria-pressed={mode === 'content'} onClick={() => setMode('content')}>Content</button>
               <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>Preview</button>
             </div>
 
@@ -178,6 +181,8 @@ export default function Editor({ project }: { project: ProjectWithData }) {
 
           {mode === 'preview' ? (
             <PreviewPane projectId={project.id} version={doc} saveState={save} />
+          ) : mode === 'content' ? (
+            <ContentEditor doc={doc} patch={patch} />
           ) : (
             <div className="editor-body">
               <Palette doc={doc} patch={patch} onAdd={() => addComponent(doc.layers[0].id)} />

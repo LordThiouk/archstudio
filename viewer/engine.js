@@ -485,13 +485,13 @@ function renderFlows() {
           ${f.sub ? `<span class="mono" style="font-size:11.5px;color:var(--ink-3)">${esc(f.sub)}</span>` : ''}</div>
         <div style="height:14px"></div>
         <div class="steps">${steps}</div>
-        <div class="playbar">
+        ${f.steps.length ? `<div class="playbar">
           <button class="btn" id="prev"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg>${T.prev}</button>
           <button class="btn primary" id="next">${T.next}<svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
           <button class="btn" id="play"></button>
           <div class="progress"><i></i></div>
           <span id="stepcount" style="font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums"></span>
-        </div>
+        </div>` : `<div class="empty" style="padding:24px 12px">${T.empty}</div>`}
       </div>
       <div class="card pad" style="--c:${gvar(f.group)}">
         <h3 style="font-size:14px;margin-bottom:10px">${T.involved}</h3>
@@ -510,13 +510,15 @@ function bindFlows() {
   $$('#v-flows [data-flow]').forEach(b => b.onclick = () => { stopPlay(); state.flow = b.dataset.flow; state.step = 0; mount('flows'); });
   $$('#v-flows [data-open]').forEach(b => b.onclick = () => openDrawer(b.dataset.open));
   $$('#v-flows .step').forEach(s => s.onclick = () => { stopPlay(); state.step = +s.dataset.i; updateFlow(); });
+  /* A flow being authored may have no step yet, and then there is no playbar. */
+  if (!f.steps.length) return;
   $('#prev').onclick = () => { stopPlay(); state.step = Math.max(0, state.step - 1); updateFlow(); };
   $('#next').onclick = () => { stopPlay(); state.step = Math.min(f.steps.length - 1, state.step + 1); updateFlow(); };
   $('#play').onclick = () => togglePlay(f.steps.length);
   updateFlow();
 }
 function updateFlow() {
-  const f = DATA.flows.find(x => x.id === state.flow); if (!f) return;
+  const f = DATA.flows.find(x => x.id === state.flow); if (!f || !f.steps.length) return;
   $$('#v-flows .step').forEach((s, i) => s.classList.toggle('on', i <= state.step));
   const bar = $('#v-flows .progress i'); if (bar) bar.style.width = ((state.step + 1) / f.steps.length * 100).toFixed(1) + '%';
   const cnt = $('#stepcount'); if (cnt) cnt.textContent = `${state.step + 1}/${f.steps.length}`;

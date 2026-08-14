@@ -1,4 +1,4 @@
-import type { Architecture, Group } from './types';
+import type { Architecture, Group, Section, SectionType } from './types';
 
 /* Categorical palette validated for colour-vision deficiency on both surfaces:
  * OKLCH lightness band, chroma floor, adjacent-pair CVD ΔE ≥ 8, contrast ≥ 3:1. */
@@ -86,11 +86,35 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
     deps: (c.deps || []).filter(d => compIds.has(d) && d !== c.id)
   }));
 
-  doc.flows = doc.flows
-    .map(f => ({ ...f, steps: (f.steps || []).filter(s => compIds.has(s.component)) }))
-    .filter(f => f.steps.length);
+  /* A step pointing at a deleted component would crash the viewer, so those go.
+   * A flow with no steps left is kept: it is almost always one being authored,
+   * and dropping it here would delete the user's work on the next autosave. */
+  doc.flows = doc.flows.map(f => ({ ...f, steps: (f.steps || []).filter(s => compIds.has(s.component)) }));
 
   return doc;
+}
+
+/* ---------------------------------------------------------------- sections */
+
+export const SECTION_TYPES: { type: SectionType; label: string; blurb: string }[] = [
+  { type: 'cards',    label: 'Cards',     blurb: 'A grid of titled cards with bullet points — the workhorse.' },
+  { type: 'timeline', label: 'Timeline',  blurb: 'Dated phases down a line, with optional cards alongside.' },
+  { type: 'table',    label: 'Table',     blurb: 'Free-form rows and columns, e.g. risks and their mitigations.' },
+  { type: 'compare',  label: 'Compare',   blurb: 'Two or more poles side by side, plus a comparison table.' },
+  { type: 'text',     label: 'Text',      blurb: 'Prose blocks — the least structured of the five.' }
+];
+
+/** A new section of `type`, with an id unique within `taken`. */
+export function blankSection(type: SectionType, taken: Iterable<string>): Section {
+  const label = SECTION_TYPES.find(s => s.type === type)?.label ?? 'Section';
+  const base = { id: slugify(label, taken), tab: label, type, title: label, subtitle: '' };
+  switch (type) {
+    case 'cards':    return { ...base, items: [] };
+    case 'timeline': return { ...base, lineTitle: '', items: [], aside: [] };
+    case 'table':    return { ...base, columns: [{ label: 'Column' }, { label: 'Column' }], rows: [] };
+    case 'compare':  return { ...base, columns: [] };
+    case 'text':     return { ...base, blocks: [] };
+  }
 }
 
 /** Turn a display name into a stable, URL-safe id, unique within `taken`. */

@@ -320,6 +320,124 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 
 .previewframe { flex: 1; border: 0; width: 100%; background: var(--bg); }
 
+/* ------------------------------------------------------- content editors */
+/* The wide surface behind the Content tab: everything the canvas cannot say. */
+
+.content-body { flex: 1; display: flex; overflow: hidden; }
+.content-rail {
+  width: 212px; flex: none; border-right: 1px solid var(--line); background: var(--panel);
+  overflow-y: auto; padding: 12px 10px 30px;
+}
+.railitem {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 10px; margin-bottom: 2px;
+  border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 12.5px;
+  color: var(--ink-2); cursor: pointer; text-align: left;
+}
+.railitem:hover { background: var(--panel-3); color: var(--ink); }
+.railitem.on { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); font-weight: 640; }
+.railitem span { flex: 1; min-width: 0; }
+.railitem em {
+  font-style: normal; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums;
+}
+.railitem svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+.content-main { flex: 1; overflow-y: auto; padding: 24px 28px 100px; }
+.cpanel { max-width: 880px; margin: 0 auto; }
+.cpanel-head {
+  display: flex; align-items: flex-start; gap: 16px; margin-bottom: 22px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line);
+}
+.cpanel-head h2 { font-size: 18px; }
+.cpanel-head p { margin: 4px 0 0; font-size: 13px; color: var(--ink-2); }
+.cpanel-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.typepick .select { min-width: 156px; }
+
+.cgroup { margin-bottom: 28px; }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+
+.cardlist { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.cardlist > .btn { align-self: flex-start; }
+.cardlist-empty {
+  padding: 16px; border: 1px dashed var(--line-2); border-radius: 10px;
+  color: var(--ink-3); font-size: 12.5px; text-align: center;
+}
+
+.elist { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.elist.open { border-color: var(--line-2); background: var(--panel); box-shadow: var(--shadow); }
+.elist-head { display: flex; align-items: center; gap: 4px; padding: 5px 6px 5px 4px; }
+.elist-name {
+  flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; font: inherit;
+  font-size: 12.5px; font-weight: 620; color: var(--ink); cursor: pointer; padding: 4px 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.elist-name em { color: var(--ink-3); font-weight: 500; }
+.twist svg { transition: transform .15s; }
+.elist.open .twist svg { transform: rotate(90deg); }
+.elist-body { padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+.elist-body .cgroup:last-child { margin-bottom: 0; }
+
+.count {
+  font-size: 10.5px; font-weight: 650; color: var(--ink-3); background: var(--panel-3);
+  border-radius: 999px; padding: 2px 8px; white-space: nowrap; flex: none;
+}
+
+.cellgrid { display: grid; gap: 5px; align-items: start; }
+.cellgrid .gh {
+  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 700; padding-bottom: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.tablist { display: flex; flex-direction: column; gap: 4px; }
+.tabrow {
+  display: flex; align-items: center; gap: 9px; padding: 6px 9px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2);
+}
+.tabrow.off { opacity: .55; }
+.tabrow b { font-size: 12.5px; }
+.tabrow .id { font-size: 11px; color: var(--ink-3); }
+.tabrow .kind {
+  margin-left: auto; font-size: 10.5px; font-weight: 650; color: var(--ink-3);
+  background: var(--panel-3); border-radius: 999px; padding: 2px 8px;
+}
+.tabrow .kind.section { color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.eye {
+  width: 26px; height: 26px; flex: none; border: 0; border-radius: 7px; background: transparent;
+  color: var(--ink-3); display: grid; place-items: center; cursor: pointer;
+}
+.eye:hover { background: var(--panel-3); }
+.eye.on { color: var(--brand); }
+.eye svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+.scopepick { display: flex; align-items: center; gap: 8px; }
+.scopepick i { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+
+.pickchip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600;
+  padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line-2);
+  background: var(--panel-2); color: var(--ink-2); cursor: pointer;
+}
+.pickchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.pickchip.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--ink); }
+
+.warnbox {
+  display: flex; align-items: flex-start; gap: 9px; margin-bottom: 12px; padding: 10px 12px;
+  border-radius: 9px; font-size: 12.5px; color: var(--ink-2);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+}
+.warnbox svg { flex: none; margin-top: 1px; fill: none; stroke: var(--danger); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+.iconbtn:disabled { opacity: .3; cursor: not-allowed; }
+.iconbtn:disabled:hover { background: transparent; color: var(--ink-2); }
+.iconbtn.danger:hover { color: var(--danger); }
+
+@media (max-width: 820px) {
+  .content-rail { display: none; }
+  .frow { grid-template-columns: 1fr; }
+  .content-main { padding: 18px 14px 80px; }
+}
+
 /* --------------------------------------------------------------- overlays */
 .modal-scrim {
   position: fixed; inset: 0; background: rgba(8, 14, 26, .45); backdrop-filter: blur(2px);

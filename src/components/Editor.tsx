@@ -155,7 +155,7 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const groupColor = useCallback((gid: string) => {
     const i = doc.groups.findIndex(g => g.id === gid);
     const g = doc.groups[i] || doc.groups[0];
-    return { light: g?.color || PALETTE[i % 6], dark: g?.colorDark || PALETTE_DARK[i % 6] };
+    return { light: g?.color || PALETTE[i % PALETTE.length], dark: g?.colorDark || PALETTE_DARK[i % PALETTE_DARK.length] };
   }, [doc.groups]);
 
   return (
@@ -258,12 +258,40 @@ function LinkLine({ link }: { link: { from: string; x: number; y: number } }) {
   const r = src.getBoundingClientRect();
   const x1 = r.left + r.width / 2, y1 = r.bottom;
   return (
+    /* The edge you are dragging, in the grammar it will settle into: you are
+       holding the caller, and the open end is looking for something to answer. */
     <svg className="linkline">
       <path d={`M${x1},${y1} C${x1},${y1 + 40} ${link.x},${link.y - 40} ${link.x},${link.y}`}
         fill="none" stroke="var(--brand)" strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" />
-      <circle cx={link.x} cy={link.y} r="4" fill="var(--brand)" />
+      <circle cx={x1} cy={y1} r="4" fill="var(--brand)" />
+      <circle cx={link.x} cy={link.y} r="3.5" style={{ fill: 'var(--panel)' }}
+        stroke="var(--brand)" strokeWidth="2" />
     </svg>
   );
+}
+
+/* One dependency, drawn the way the mark draws it: a filled disc where the
+ * caller is, an open circle where the callee answers. The direction of an
+ * edge is the only thing a curve cannot say by itself, and an arrowhead in a
+ * diagram this dense turns into lint — this reads at a glance and survives
+ * printing at 67 %.
+ *
+ * The group is faded as a unit rather than per shape: compositing the group
+ * first is what lets the open circle's paper fill still punch through the
+ * line inside it, which is the whole point of the open circle.
+ *
+ * Kept in step with `drawEdges` in viewer/engine.js and `PaperDiagram` in the
+ * document renderer — three surfaces, one grammar. */
+function edgeGlyph(
+  x1: number, y1: number, k1: number, x2: number, y2: number, k2: number,
+  colour: string, opacity: number, width: number
+) {
+  return `<g opacity="${opacity}">`
+    + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
+    + `stroke="${colour}" stroke-width="${width}" stroke-linecap="round"/>`
+    + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${colour}"/>`
+    + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${colour}" stroke-width="1.5"/>`
+    + `</g>`;
 }
 
 /* -------------------------------------------------------------------- canvas */
@@ -305,8 +333,7 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
       }
       const active = selected === c.id || selected === dep;
       const colour = groupColor(c.group).light;
-      out += `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
-           + `stroke="${colour}" stroke-width="${active ? 2 : 1.2}" stroke-opacity="${active ? .85 : .2}" stroke-linecap="round"/>`;
+      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, active ? 1 : .34, active ? 2 : 1.2);
     }));
     setEdges(out);
   }, [doc, selected, groupColor]);
@@ -446,7 +473,7 @@ function Palette({ doc, patch, onAdd }: {
               const i = d.groups.length;
               d.groups.push({
                 id: slugify(name, d.groups.map(g => g.id)), name: name.trim(), short: name.trim(),
-                color: PALETTE[i % 6], colorDark: PALETTE_DARK[i % 6]
+                color: PALETTE[i % PALETTE.length], colorDark: PALETTE_DARK[i % PALETTE_DARK.length]
               });
               return d;
             });
@@ -454,7 +481,7 @@ function Palette({ doc, patch, onAdd }: {
       </div>
       {doc.groups.map((g, i) => (
         <div className="grouprow" key={g.id}>
-          <input type="color" className="swatch" value={g.color || PALETTE[i % 6]}
+          <input type="color" className="swatch" value={g.color || PALETTE[i % PALETTE.length]}
             title="Scope colour"
             onChange={e => patch(d => { const x = d.groups.find(y => y.id === g.id); if (x) x.color = e.target.value; return d; })} />
           <input value={g.name}

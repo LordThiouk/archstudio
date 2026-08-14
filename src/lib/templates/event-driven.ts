@@ -15,7 +15,7 @@ export const eventDriven: Template = {
     fr: 'La messagerie asynchrone achète l\'indépendance entre ce qui produit et ce qui réagit. Elle la facture en difficulté de débogage, aussi ce modèle consacre l\'essentiel de son attention à ce qui tourne mal : doublons, ordre, messages empoisonnés et rejeu.'
   },
   icon: 'route',
-  accent: '#D97706',
+  accent: '#BE6E52',
   accentDark: '#C08018',
   supportedTargets: ['agnostic', 'aws', 'gcp', 'azure', 'selfhosted'],
 

@@ -8,22 +8,72 @@ import type { Architecture } from './types';
  * behaviour, no drift. */
 
 const VIEWER_DIR = path.join(process.cwd(), 'viewer');
+const FONT_DIR = path.join(process.cwd(), 'public', 'fonts');
+
+/* Archivo and Space Mono, inlined. "No external requests" has to include the
+ * typography or the identity is the first thing to fall off the page when the
+ * file is opened on a machine that does not have the faces installed — which
+ * is every machine. Six subsets, base64, about 140 KB: the price of the export
+ * looking like the studio wherever it lands.
+ *
+ * The unicode-ranges are Google's own; latin covers French and the Western
+ * European accents, latin-ext the Central European ones. Both are shipped, so
+ * a document does not switch typeface mid-word. */
+const FONT_FACES: { file: string; family: string; weight: string; subset: 'latin' | 'latin-ext' }[] = [
+  { file: 'archivo-latin.woff2', family: 'Archivo', weight: '400 800', subset: 'latin' },
+  { file: 'archivo-latin-ext.woff2', family: 'Archivo', weight: '400 800', subset: 'latin-ext' },
+  { file: 'space-mono-400-latin.woff2', family: 'Space Mono', weight: '400', subset: 'latin' },
+  { file: 'space-mono-400-latin-ext.woff2', family: 'Space Mono', weight: '400', subset: 'latin-ext' },
+  { file: 'space-mono-700-latin.woff2', family: 'Space Mono', weight: '700', subset: 'latin' },
+  { file: 'space-mono-700-latin-ext.woff2', family: 'Space Mono', weight: '700', subset: 'latin-ext' }
+];
+
+const UNICODE_RANGE = {
+  latin:
+    'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, ' +
+    'U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD',
+  'latin-ext':
+    'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, ' +
+    'U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, ' +
+    'U+2C60-2C7F, U+A720-A7FF'
+} as const;
+
+function fontCss(): string {
+  return FONT_FACES.map(f => {
+    const b64 = fs.readFileSync(path.join(FONT_DIR, f.file)).toString('base64');
+    return `@font-face{font-family:'${f.family}';font-style:normal;font-weight:${f.weight};`
+      + `font-display:swap;src:url(data:font/woff2;base64,${b64}) format('woff2');`
+      + `unicode-range:${UNICODE_RANGE[f.subset]}}`;
+  }).join('\n');
+}
 
 let cache: { css: string; js: string; mtime: number } | null = null;
 
 function viewerAssets() {
   const cssPath = path.join(VIEWER_DIR, 'style.css');
   const jsPath = path.join(VIEWER_DIR, 'engine.js');
-  const mtime = Math.max(fs.statSync(cssPath).mtimeMs, fs.statSync(jsPath).mtimeMs);
+  const fontMtimes = FONT_FACES.map(f => fs.statSync(path.join(FONT_DIR, f.file)).mtimeMs);
+  const mtime = Math.max(fs.statSync(cssPath).mtimeMs, fs.statSync(jsPath).mtimeMs, ...fontMtimes);
   if (!cache || cache.mtime !== mtime) {
     cache = {
-      css: fs.readFileSync(cssPath, 'utf8'),
+      css: `${fontCss()}\n\n${fs.readFileSync(cssPath, 'utf8')}`,
       js: fs.readFileSync(jsPath, 'utf8'),
       mtime
     };
   }
   return cache;
 }
+
+/* The mark, as a favicon: the same three shapes, with the open circle filled
+ * flat instead of stroked. At 16 px a 4-unit ring closes up into a smudge, so
+ * what survives is the contrast between full and empty — which is the whole
+ * point of the sign. Kept in sync by hand with src/components/Brand.tsx. */
+const FAVICON =
+  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'>"
+  + "<rect width='192' height='192' fill='%2316140F'/>"
+  + "<path d='M32 96H160' stroke='%23FAF6EE' stroke-width='12'/>"
+  + "<circle cx='48' cy='96' r='30' fill='%23E0A040'/>"
+  + "<circle cx='146' cy='96' r='26' fill='%23FAF6EE'/></svg>";
 
 /** `</script>` inside the JSON payload would close the tag early. */
 const safeJson = (doc: Architecture) =>
@@ -43,7 +93,7 @@ export function buildStandaloneHtml(doc: Architecture): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <meta name="generator" content="Architecture Studio">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='19' font-size='20'>◆</text></svg>">
+<link rel="icon" href="${FAVICON}">
 <style>
 ${css}
 </style>

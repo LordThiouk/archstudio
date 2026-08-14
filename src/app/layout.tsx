@@ -1,10 +1,21 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+/* The mark at favicon size: the open circle is filled flat rather than
+ * stroked, because at 16 px a ring closes into a smudge and what has to
+ * survive is the contrast between full and empty. Kept in sync by hand with
+ * `Mark` in src/components/Brand.tsx and `FAVICON` in src/lib/exportHtml.ts. */
+const FAVICON =
+  "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'>"
+  + "<rect width='192' height='192' fill='%2316140F'/>"
+  + "<path d='M32 96H160' stroke='%23FAF6EE' stroke-width='12'/>"
+  + "<circle cx='48' cy='96' r='30' fill='%23E0A040'/>"
+  + "<circle cx='146' cy='96' r='26' fill='%23FAF6EE'/></svg>";
+
 export const metadata: Metadata = {
-  title: 'Architecture Studio',
-  description: 'Author, organise and share interactive software-architecture documentation.',
-  icons: { icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='19' font-size='20'>\u25C6</text></svg>" }
+  title: 'ArchStudio',
+  description: 'Draw the architecture once. Send the document.',
+  icons: { icon: FAVICON }
 };
 
 /* Applies the stored theme before first paint so there is no flash. */

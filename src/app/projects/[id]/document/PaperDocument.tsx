@@ -17,6 +17,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
+import { Mark, Wordmark } from '@/components/Brand';
+import { PALETTE } from '@/lib/defaults';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
   Architecture, CardItem, CardsSection, CompareSection, Component, Flow,
@@ -107,6 +109,8 @@ function Cover({ doc, project, T }: { doc: Architecture; project: ProjectWithDat
   const m = doc.meta;
   return (
     <section className="paper-cover">
+      {/* The studio signs the sheet it generated — the mark, then the rule. */}
+      <div className="paper-brand"><Mark size={22} /><Wordmark /></div>
       {m.kicker && <div className="paper-kicker">{m.kicker}</div>}
       <h1 className="paper-title">{m.title || m.name || project.name}</h1>
       {m.tagline && <p className="paper-tagline">{m.tagline}</p>}
@@ -195,7 +199,7 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
   const [height, setHeight] = useState(0);
 
   const colour = useCallback(
-    (gid: string) => doc.groups.find(g => g.id === gid)?.color || '#28519F',
+    (gid: string) => doc.groups.find(g => g.id === gid)?.color || PALETTE[0],
     [doc.groups]
   );
 
@@ -231,8 +235,18 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
         const k = (up ? -1 : 1) * Math.max(24, Math.abs(y2 - y1) * .5);
         k1 = k; k2 = -k;
       }
-      out += `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
-           + `stroke="${colour(c.group)}" stroke-width="1.2" stroke-opacity=".28" stroke-linecap="round"/>`;
+      /* Filled disc at the caller, open circle at the callee — the mark's
+       * grammar, and the only thing carrying direction once hover is gone.
+       * Grouped so the open circle's paper fill still punches through the
+       * line, and slightly stronger than on screen: at the print scale of
+       * .67 a 30 %-opacity endpoint disappears into the paper. */
+      const col = colour(c.group);
+      out += `<g opacity=".45">`
+           + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
+           + `stroke="${col}" stroke-width="1.2" stroke-linecap="round"/>`
+           + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${col}"/>`
+           + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${col}" stroke-width="1.5"/>`
+           + `</g>`;
     }));
 
     setEdges(out);
@@ -446,7 +460,7 @@ function SectionBody({ doc, section }: { doc: Architecture; section: Section }) 
 /* Every card carries a scope colour, falling back to the first scope — the
  * viewer does the same, and a chip with no colour is a chip with no meaning. */
 const scopeColour = (doc: Architecture, id?: string) =>
-  doc.groups.find(g => g.id === id)?.color || doc.groups[0]?.color || 'var(--brand)';
+  doc.groups.find(g => g.id === id)?.color || doc.groups[0]?.color || PALETTE[0];
 
 function Cards({ doc, items }: { doc: Architecture; items: CardItem[] }) {
   return (

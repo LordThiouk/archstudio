@@ -15,8 +15,8 @@ export const saasMultitenant: Template = {
     fr: 'Toute la conception tient sur une question : où le tenant est-il résolu, et où la donnée est-elle filtrée ? Ces deux points réglés, le reste est de l\'architecture applicative ordinaire.'
   },
   icon: 'users',
-  accent: '#28519F',
-  accentDark: '#5B8DEF',
+  accent: '#4F8AC6',
+  accentDark: '#67AAED',
   supportedTargets: ['agnostic', 'aws', 'gcp', 'azure', 'selfhosted'],
 
   whenToUse: [

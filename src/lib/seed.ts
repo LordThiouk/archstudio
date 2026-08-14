@@ -10,13 +10,13 @@ import type { Architecture } from './types';
 export function ensureSeed(): void {
   if (!isEmpty() || listFolders().length) return;
 
-  const examples = createFolder('Examples', null, '#0E9F6E');
+  const examples = createFolder('Examples', null, '#1F9B82');
 
   createProject({
     name: 'Acme — two platforms',
     folderId: examples.id,
     description: 'The reference example: a consumer platform and a business platform on separate stacks.',
-    accent: '#28519F',
+    accent: '#4F8AC6',
     data: demo as unknown as Architecture
   });
 }

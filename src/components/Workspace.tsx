@@ -7,7 +7,8 @@ import {
   useDraggable, useDroppable, type DragEndEvent, type DragStartEvent
 } from '@dnd-kit/core';
 import { Icon } from './Icon';
-import { FOLDER_COLORS } from '@/lib/defaults';
+import { Lockup } from './Brand';
+import { FOLDER_COLORS, PALETTE } from '@/lib/defaults';
 /* `templates/types` carries no template bodies — importing the registry here
  * would ship every template's editorial content to the browser. */
 import { LANGS, TARGETS, TARGET_LABELS } from '@/lib/templates/types';
@@ -142,11 +143,7 @@ export default function Workspace({
       <div className="shell">
         <aside className="sidebar">
           <div className="sidebar-head">
-            <div className="logo"><Icon name="cube" size={17} /></div>
-            <div>
-              <b>Architecture Studio</b>
-              <span>{projects.length} project{projects.length === 1 ? '' : 's'}</span>
-            </div>
+            <Lockup size={26} sub={`${projects.length} project${projects.length === 1 ? '' : 's'}`} />
           </div>
 
           <div className="sidebar-scroll">
@@ -226,8 +223,8 @@ export default function Workspace({
       <DragOverlay dropAnimation={null}>
         {dragging && (
           <div className="pcard" style={{ width: 268, cursor: 'grabbing', boxShadow: 'var(--shadow-lg)' }}>
-            <div className="accent" style={{ background: `color-mix(in srgb, ${dragging.accent || '#28519F'} 15%, transparent)` }}>
-              <Icon name="cube" size={14} style={{ stroke: dragging.accent || '#28519F' }} />
+            <div className="accent" style={{ background: dragging.accent || PALETTE[0] }}>
+              <Icon name="cube" size={14} style={{ stroke: '#FAF6EE' }} />
             </div>
             <b>{dragging.name}</b>
           </div>
@@ -336,15 +333,15 @@ function ProjectCard({ project, folders, onOpen, onChanged }: {
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
   const [menu, setMenu] = useState(false);
-  const accent = project.accent || '#28519F';
+  const accent = project.accent || PALETTE[0];
   const folder = folders.find(f => f.id === project.folderId);
 
   return (
     <div ref={setNodeRef} {...listeners} {...attributes}
       className={`pcard${isDragging ? ' dragging' : ''}`}
       onClick={() => !menu && onOpen()}>
-      <div className="accent" style={{ background: `color-mix(in srgb, ${accent} 15%, transparent)` }}>
-        <Icon name="cube" size={14} style={{ stroke: accent }} />
+      <div className="accent" style={{ background: accent }}>
+        <Icon name="cube" size={14} style={{ stroke: '#FAF6EE' }} />
       </div>
       <b>{project.name}</b>
       {project.description && <p>{project.description}</p>}

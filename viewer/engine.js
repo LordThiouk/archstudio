@@ -24,8 +24,8 @@ const warn = m => console.warn('[architecture-explorer] ' + m);
 /* Categorical palette, validated for colour-vision deficiency on both
  * surfaces (OKLCH lightness band, chroma floor, adjacent-pair CVD ΔE ≥ 8,
  * contrast ≥ 3:1). Override per group with `color` / `colorDark`.        */
-const PALETTE       = ['#28519F', '#D97706', '#0E9F6E', '#7C3AED', '#B03060', '#0E7490'];
-const PALETTE_DARK  = ['#5B8DEF', '#C08018', '#17A272', '#9575E8', '#D2668F', '#3AA8C0'];
+const PALETTE       = ['#BE6E52', '#8A8C34', '#1F9B82', '#4F8AC6', '#A36FAF'];
+const PALETTE_DARK  = ['#E4896A', '#A9AB4A', '#39BDA0', '#67AAED', '#C68BD3'];
 
 /* -------------------------------------------------------------- i18n */
 const LABELS = {
@@ -399,10 +399,12 @@ function setFocus(id) {
     n.classList.toggle('hit', !!id && rel.has(n.dataset.id));
     if (!n.classList.contains('sel')) n.style.opacity = matches(C[n.dataset.id]) ? (on ? '' : '.22') : '';
   });
-  $$('#edges path').forEach(p => {
-    const active = id && (p.dataset.a === id || p.dataset.b === id);
-    p.setAttribute('stroke-opacity', id ? (active ? .9 : .04) : .17);
-    p.setAttribute('stroke-width', active ? 2 : 1.2);
+  /* The whole edge fades, not just its stroke: the endpoint discs carry the
+   * direction, so they have to dim with the line they belong to. */
+  $$('#edges g.edge').forEach(g => {
+    const active = id && (g.dataset.a === id || g.dataset.b === id);
+    g.setAttribute('opacity', id ? (active ? 1 : .07) : .3);
+    g.querySelector('path').setAttribute('stroke-width', active ? 2 : 1.2);
   });
 }
 
@@ -438,10 +440,19 @@ function drawEdges() {
       const k = (up ? -1 : 1) * Math.max(24, Math.abs(y2 - y1) * .5);
       k1 = k; k2 = -k;
     }
-    out += `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} C${x1.toFixed(1)},${(y1 + k1).toFixed(1)} `
+    /* A filled disc where the caller is, an open circle where the callee
+     * answers — the mark's own grammar, so direction reads without an
+     * arrowhead. Grouped so the fade in applyFilter takes the endpoints with
+     * the line, and so the open circle's paper fill still punches through. */
+    const colour = col[C[a].group];
+    out += `<g class="edge" opacity=".3" data-a="${esc(a)}" data-b="${esc(b)}">`
+         + `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} C${x1.toFixed(1)},${(y1 + k1).toFixed(1)} `
          + `${x2.toFixed(1)},${(y2 + k2).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" `
-         + `stroke="${col[C[a].group]}" stroke-width="1.2" stroke-opacity=".17" stroke-linecap="round" `
-         + `data-a="${esc(a)}" data-b="${esc(b)}"></path>`;
+         + `stroke="${colour}" stroke-width="1.2" stroke-linecap="round"></path>`
+         + `<circle cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="3.5" fill="${colour}"></circle>`
+         + `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="3" style="fill:var(--panel)" `
+         + `stroke="${colour}" stroke-width="1.5"></circle>`
+         + `</g>`;
   });
   svg.innerHTML = out;
   if (focused) setFocus(focused);

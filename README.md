@@ -1,8 +1,10 @@
-# Architecture Studio
+# ArchStudio
 
-**A self-hosted studio for architecture documentation. Organise many architectures in folders,
+**Draw the architecture once. Send the document.**
+
+A self-hosted studio for architecture documentation. Organise many architectures in folders,
 build each one by dragging components onto layers, and export a self-contained HTML file anyone
-can open.**
+can open.
 
 ```bash
 npm install
@@ -30,9 +32,11 @@ technologies, role, responsibilities, dependencies. Nothing has a Save button: e
 the file you get when you click Export. One renderer, no drift between what you see and what you
 ship.
 
-**Export** — a single self-contained HTML file (~65 KB, no external requests) you can email,
-attach to a ticket, commit, or host anywhere. Also exports raw JSON, and an `architecture.js`
-data file for the standalone viewer.
+**Export** — a single self-contained HTML file (~235 KB, no external requests) you can email,
+attach to a ticket, commit, or host anywhere. "No external requests" includes the typefaces:
+Archivo and Space Mono are inlined as base64, which is most of that weight and the reason the
+file looks like the studio on a machine that has never heard of either. Also exports raw JSON,
+and an `architecture.js` data file for the standalone viewer.
 
 **Document** — the same architecture as a numbered, printable design document. Print it from the
 browser to get a PDF.
@@ -112,12 +116,68 @@ UPDATE_SNAPSHOTS=1 npm test     # accept a deliberate change
 
 ---
 
+## The identity
+
+*Atelier* — an engineer's tool drawn like a workshop instrument. Black ink on ivory paper, one
+warm colour, monospace for everything the machine knows. Square corners, hairline rules, no
+gradients, no shadows.
+
+**The mark is a node and its dependency** — the smallest sentence the product can say. The filled
+disc is the service that calls; the open circle is the one that answers. It is not decoration:
+every edge the app draws, on the canvas, in the exported viewer and on the printed page, ends in
+those same two shapes. That is how direction reads without an arrowhead, and it is the only thing
+still carrying direction once hover is gone.
+
+Five rules hold the whole thing together, and each one is written where it is enforced:
+
+1. **A scope colour never touches a border.** It lives on the icon chip and the technology pills.
+   Borders stay neutral — five scopes in a row would otherwise be five frames shouting.
+2. **Ochre is reserved for what you can act on.** Primary actions, selection, the focused field,
+   links, the principle callout. No scope uses ochre, or selection would be ambiguous.
+3. **Monospace says only what the machine knows.** Technologies, paths, ids, chapter numbers,
+   counts, timestamps. Prose is Archivo, on screen and on paper alike.
+4. **Circles mean "a node in a graph"** — the mark, an edge endpoint, a flow step. Everything else
+   is square, including the scope swatches.
+5. **Paper does not copy hover, focus, or shadow.** `--shadow` stays a token so the printed sheet
+   can set it to `none` rather than delete the rules that use it.
+
+| Token | | |
+|---|---|---|
+| Ink | `#16140F` | text, rules, the mark |
+| Paper | `#FAF6EE` | surfaces, cards, the printed page |
+| Calque | `#E4E0D6` | the canvas ground, the app background |
+| Ochre | `#B26A18` | the single accent — actions and selection only |
+| Scopes | `oklch(0.62 0.11 h)` | h = 40, 110, 175, 250, 320 |
+
+```
+src/app/globals.css        the token block — the source of truth for the values
+src/components/Brand.tsx   the mark's geometry, and the wordmark
+viewer/style.css           the same tokens, for the export and the preview
+.../document/document.css  the same tokens again, for the printed sheet
+public/fonts/              Archivo and Space Mono, self-hosted, six subsets
+```
+
+Three stylesheets carry the same block rather than sharing one, because the viewer has to survive
+being torn out of the app and mailed as a single file. When you change a value, change it in all
+three — `globals.css` is the one to copy from.
+
+**One known trade-off, measured rather than assumed.** Holding lightness constant across the five
+scope hues is what makes the palette flat and even, and it is also what costs it its
+colour-vision-deficiency separation: adjacent pairs sit at a comfortable ΔE 11.7 for normal
+vision but fall to 2.6 under deuteranopia and 1.4 under tritanopia. Restoring ΔE ≥ 7 needs a
+lightness spread of about 0.12, which is a different palette rather than a tweak. Scope is never
+carried by colour alone in either medium — the diagram labels every card, and the legend and the
+inventory table both name the scope in text — so this degrades rather than fails. The numbers and
+the knob are in `src/lib/defaults.ts`.
+
+---
+
 ## The document format
 
 Each project stores one JSON document — the same shape the viewer consumes. Its core is:
 
-- **groups** — scopes of responsibility, one colour each. Three to five works; six is the ceiling
-  before colours stop being distinguishable.
+- **groups** — scopes of responsibility, one colour each. Five is the ceiling: the palette is one
+  hue circle at fixed lightness and chroma, so a sixth group wraps onto the first hue.
 - **layers** — horizontal bands, top to bottom. From four layers up, the last one is treated as
   *support* and drawn without edges, so the infrastructure row does not turn into spaghetti.
 - **components** — anything nameable: an app, an API, a database, a bucket, a vendor.
@@ -203,7 +263,7 @@ src/app/                  Next.js 15 App Router
   projects/[id]/page.tsx  editor (server)    → components/Editor
   projects/[id]/document/ the printable design document — plan, renderer, print CSS
   api/                    folders, projects, templates, export, import, revisions
-src/components/           Workspace, Editor, Inspector, Icon
+src/components/           Workspace, Editor, Inspector, Icon, Brand (the mark)
 src/lib/
   db.ts                   node:sqlite connection + schema
   store.ts                every query in the app lives here
@@ -213,6 +273,7 @@ src/lib/
   document/               the ADD outline (plan.ts) and its chapter preset
   exportHtml.ts           document → self-contained HTML
 viewer/                   the standalone renderer, verbatim
+public/fonts/             Archivo + Space Mono, self-hosted and inlined into exports
 data/studio.db            your data
 ```
 

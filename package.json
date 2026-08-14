@@ -2,7 +2,7 @@
   "name": "architecture-studio",
   "version": "1.0.0",
   "private": true,
-  "description": "Self-hosted studio to author, organise and share interactive software-architecture documentation.",
+  "description": "Draw the architecture once. Send the document.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",

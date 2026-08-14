@@ -1,9 +1,27 @@
 import type { Architecture, Group, Section, SectionType } from './types';
 
-/* Categorical palette validated for colour-vision deficiency on both surfaces:
- * OKLCH lightness band, chroma floor, adjacent-pair CVD ΔE ≥ 8, contrast ≥ 3:1. */
-export const PALETTE = ['#28519F', '#D97706', '#0E9F6E', '#7C3AED', '#B03060', '#0E7490'];
-export const PALETTE_DARK = ['#5B8DEF', '#C08018', '#17A272', '#9575E8', '#D2668F', '#3AA8C0'];
+/* The Atelier scope palette: five hues on one circle, `oklch(0.62 0.11 h)` for
+ * h = 40, 110, 175, 250, 320, lifted to L .72 / C .12 on an ink ground. Equal
+ * lightness and equal chroma are the point — no scope dominates the diagram,
+ * and every chip clears 3:1 against paper, so the printed page survives with
+ * background graphics on.
+ *
+ * Five, not six. A sixth group wraps to the first hue and the two become
+ * indistinguishable, which is the honest ceiling for a categorical palette
+ * built by hue rotation alone.
+ *
+ * Known trade-off, measured rather than assumed: holding lightness constant is
+ * what costs this palette its colour-vision-deficiency separation. Adjacent
+ * pairs are a comfortable ΔE 11.7 (OKLab×100) for normal vision, but fall to
+ * 2.6 under deuteranopia (40°/110°) and 1.4 under tritanopia (175°/250°).
+ * Restoring ΔE ≥ 7 needs a lightness spread of about 0.12 across the five,
+ * which is a different palette, not a tweak. Scope is never carried by colour
+ * alone in either medium — the diagram labels every card, and the legend and
+ * the inventory table both name the scope in text — so this degrades rather
+ * than fails. Vary the L values below if you need the separation more than the
+ * flatness. */
+export const PALETTE = ['#BE6E52', '#8A8C34', '#1F9B82', '#4F8AC6', '#A36FAF'];
+export const PALETTE_DARK = ['#E4896A', '#A9AB4A', '#39BDA0', '#67AAED', '#C68BD3'];
 
 export const ICON_KEYS = [
   'cube', 'mobile', 'web', 'globe', 'scan', 'server', 'hub', 'plug', 'users', 'folder',
@@ -12,7 +30,9 @@ export const ICON_KEYS = [
   'cog', 'clock', 'flag', 'alert', 'key', 'layers', 'terminal', 'ai'
 ] as const;
 
-export const FOLDER_COLORS = ['#28519F', '#D97706', '#0E9F6E', '#7C3AED', '#B03060', '#0E7490', '#64748B'];
+/* Folders are workspace furniture, not scopes, so the set ends on a neutral
+ * rather than reaching for a sixth hue the scope palette does not have. */
+export const FOLDER_COLORS = [...PALETTE, '#7A7263'];
 
 export function paintGroups(groups: Group[]): Group[] {
   return groups.map((g, i) => ({
@@ -33,7 +53,7 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
       intro: '',
       facts: []
     },
-    theme: { brand: '#28519F', brandDark: '#5B8DEF', logo: 'cube' },
+    theme: { brand: '#B26A18', brandDark: '#E0A040', logo: 'cube' },
     ui: {
       defaultTheme: 'light',
       views: { overview: true, architecture: true, flows: true, stack: true }

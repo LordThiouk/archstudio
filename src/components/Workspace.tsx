@@ -224,7 +224,7 @@ export default function Workspace({
         {dragging && (
           <div className="pcard" style={{ width: 268, cursor: 'grabbing', boxShadow: 'var(--shadow-lg)' }}>
             <div className="accent" style={{ background: dragging.accent || PALETTE[0] }}>
-              <Icon name="cube" size={14} style={{ stroke: '#FAF6EE' }} />
+              <Icon name="cube" size={14} style={{ stroke: 'var(--on-fill)' }} />
             </div>
             <b>{dragging.name}</b>
           </div>
@@ -341,7 +341,7 @@ function ProjectCard({ project, folders, onOpen, onChanged }: {
       className={`pcard${isDragging ? ' dragging' : ''}`}
       onClick={() => !menu && onOpen()}>
       <div className="accent" style={{ background: accent }}>
-        <Icon name="cube" size={14} style={{ stroke: '#FAF6EE' }} />
+        <Icon name="cube" size={14} style={{ stroke: 'var(--on-fill)' }} />
       </div>
       <b>{project.name}</b>
       {project.description && <p>{project.description}</p>}

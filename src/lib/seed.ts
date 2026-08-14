@@ -10,7 +10,7 @@ import type { Architecture } from './types';
 export function ensureSeed(): void {
   if (!isEmpty() || listFolders().length) return;
 
-  const examples = createFolder('Examples', null, '#1F9B82');
+  const examples = createFolder('Examples', null, '#0099A0');
 
   createProject({
     name: 'Acme — two platforms',

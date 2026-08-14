@@ -15,8 +15,8 @@ export const multiService: Template = {
     fr: 'Les services découpent une organisation, pas du code. Le diagramme rend visible la règle que le texte ne montre jamais : aucune flèche ne va d\'un service vers la base d\'un autre.'
   },
   icon: 'hub',
-  accent: '#7A7263',
-  accentDark: '#3AA8C0',
+  accent: '#6B8296',
+  accentDark: '#8CA1B2',
   supportedTargets: ['agnostic', 'aws', 'gcp', 'azure', 'selfhosted'],
 
   whenToUse: [

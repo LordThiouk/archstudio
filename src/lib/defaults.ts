@@ -1,27 +1,28 @@
 import type { Architecture, Group, Section, SectionType } from './types';
 
-/* The Atelier scope palette: five hues on one circle, `oklch(0.62 0.11 h)` for
- * h = 40, 110, 175, 250, 320, lifted to L .72 / C .12 on an ink ground. Equal
- * lightness and equal chroma are the point — no scope dominates the diagram,
- * and every chip clears 3:1 against paper, so the printed page survives with
- * background graphics on.
+/* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
+ * h = 200, 250, 290, 340, 150, lifted to L .72 / C .12 on a marine ground.
+ * Equal lightness and equal chroma are the point — no scope dominates the
+ * diagram, and every chip clears 3:1 against white (3.45–3.84), so the printed
+ * page survives with background graphics on.
  *
  * Five, not six. A sixth group wraps to the first hue and the two become
  * indistinguishable, which is the honest ceiling for a categorical palette
  * built by hue rotation alone.
  *
- * Known trade-off, measured rather than assumed: holding lightness constant is
- * what costs this palette its colour-vision-deficiency separation. Adjacent
- * pairs are a comfortable ΔE 11.7 (OKLab×100) for normal vision, but fall to
- * 2.6 under deuteranopia (40°/110°) and 1.4 under tritanopia (175°/250°).
- * Restoring ΔE ≥ 7 needs a lightness spread of about 0.12 across the five,
- * which is a different palette, not a tweak. Scope is never carried by colour
- * alone in either medium — the diagram labels every card, and the legend and
- * the inventory table both name the scope in text — so this degrades rather
- * than fails. Vary the L values below if you need the separation more than the
- * flatness. */
-export const PALETTE = ['#BE6E52', '#8A8C34', '#1F9B82', '#4F8AC6', '#A36FAF'];
-export const PALETTE_DARK = ['#E4896A', '#A9AB4A', '#39BDA0', '#67AAED', '#C68BD3'];
+ * Known trade-off, measured rather than assumed. Two things work against
+ * separation here: lightness is held constant, and the five hues sit on a cool
+ * arc rather than the full circle, which puts 250° and 290° only 40° apart.
+ * Adjacent pairs measure ΔE 7.4 (OKLab×100) for normal vision, falling to 1.4
+ * under deuteranopia and 1.9 under protanopia — both at 250°/290° — and 2.4
+ * under tritanopia at 200°/250°. Widening the arc or spreading lightness is a
+ * different palette, not a tweak. Scope is never carried by colour alone in
+ * either medium — the diagram labels every card, and the legend and the
+ * inventory table both name the scope in text — so this degrades rather than
+ * fails. Change the hues or the L values below if you need the separation more
+ * than the cool cast. */
+export const PALETTE = ['#0099A0', '#4F8AC6', '#857AC4', '#B26B9B', '#519962'];
+export const PALETTE_DARK = ['#14BBC2', '#67AAED', '#A497EA', '#D686BC', '#69BA7C'];
 
 export const ICON_KEYS = [
   'cube', 'mobile', 'web', 'globe', 'scan', 'server', 'hub', 'plug', 'users', 'folder',
@@ -32,7 +33,7 @@ export const ICON_KEYS = [
 
 /* Folders are workspace furniture, not scopes, so the set ends on a neutral
  * rather than reaching for a sixth hue the scope palette does not have. */
-export const FOLDER_COLORS = [...PALETTE, '#7A7263'];
+export const FOLDER_COLORS = [...PALETTE, '#6B8296'];
 
 export function paintGroups(groups: Group[]): Group[] {
   return groups.map((g, i) => ({
@@ -53,7 +54,7 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
       intro: '',
       facts: []
     },
-    theme: { brand: '#B26A18', brandDark: '#E0A040', logo: 'cube' },
+    theme: { brand: '#0E7C8A', brandDark: '#00E5FF', logo: 'cube' },
     ui: {
       defaultTheme: 'light',
       views: { overview: true, architecture: true, flows: true, stack: true }

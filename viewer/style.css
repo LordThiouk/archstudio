@@ -15,25 +15,30 @@
  * and that includes its typography. */
 
 :root{
-  --brand:#B26A18; --brand-deep:#8F5412; --brand-ink:#9C5D14;
-  --brand-soft:color-mix(in srgb,#B26A18 8%,transparent);
-  --p1:#BE6E52; --p2:#8A8C34; --p3:#1F9B82; --p4:#4F8AC6; --p5:#A36FAF;
-  --bg:#E4E0D6; --panel:#FAF6EE; --panel-2:#F5F0E5; --panel-3:#EFEADD;
-  --ink:#16140F; --ink-2:#4B463C; --ink-3:#9C9484;
-  --line:#E4DCCB; --line-2:#D8CEBA; --line-3:#D2C8B4;
+  --brand:#0E7C8A; --brand-deep:#0B6470; --brand-ink:#0B6470;
+  --brand-soft:color-mix(in srgb,#0E7C8A 8%,transparent);
+  --accent:#0E7C8A; --cyan:#00E5FF; --on-fill:#FFFFFF;
+  --p1:#0099A0; --p2:#4F8AC6; --p3:#857AC4; --p4:#B26B9B; --p5:#519962;
+  --bg:#EEF3F6; --panel:#FFFFFF; --panel-2:#F5F8FA; --panel-3:#F0F5F8;
+  --ink:#0B1B2B; --ink-2:#3D566B; --ink-3:#8CA1B2;
+  --line:#E7EEF2; --line-2:#DCE5EB; --line-3:#D3DEE5;
   --shadow:none;
-  --shadow-lg:0 24px 60px rgba(22,20,15,.24);
+  --shadow-lg:0 24px 60px rgba(11,27,43,.22);
   --sans:Archivo,'Helvetica Neue',Helvetica,Arial,sans-serif;
   --mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --r:0px;
 }
+/* On marine, cyan takes over from teal: it is the one ground cyan is allowed
+   on, and teal at this lightness sinks into the navy. Fills go light, so
+   `--on-fill` — what sits on top of a filled chip — flips to ink. */
 html[data-theme="dark"]{
-  --brand:#E0A040; --brand-deep:#C98A2E; --brand-ink:#E8B265;
-  --brand-soft:color-mix(in srgb,#E0A040 14%,transparent);
-  --p1:#E4896A; --p2:#A9AB4A; --p3:#39BDA0; --p4:#67AAED; --p5:#C68BD3;
-  --bg:#16140F; --panel:#1E1B15; --panel-2:#24201A; --panel-3:#2C2720;
-  --ink:#FAF6EE; --ink-2:#C7BFAE; --ink-3:#948C7C;
-  --line:#322D24; --line-2:#453E32; --line-3:#4E4638;
+  --brand:#00E5FF; --brand-deep:#4DEDFF; --brand-ink:#6FF0FF;
+  --brand-soft:color-mix(in srgb,#00E5FF 14%,transparent);
+  --accent:#00E5FF; --cyan:#00E5FF; --on-fill:#0B1B2B;
+  --p1:#14BBC2; --p2:#67AAED; --p3:#A497EA; --p4:#D686BC; --p5:#69BA7C;
+  --bg:#0B1B2B; --panel:#10263A; --panel-2:#142D42; --panel-3:#1A3650;
+  --ink:#FFFFFF; --ink-2:#C3D0DA; --ink-3:#8CA1B2;
+  --line:#1C3549; --line-2:#274459; --line-3:#2F4E64;
   --shadow:none;
   --shadow-lg:0 24px 60px rgba(0,0,0,.6);
 }
@@ -59,7 +64,7 @@ header{
 }
 .hwrap{max-width:1440px;margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
-/* The document's own icon, on ink — the app's ochre belongs to actions. */
+/* The document's own icon, on ink — the app's teal belongs to actions. */
 .logo{width:30px;height:30px;border-radius:0;background:var(--ink);display:grid;place-items:center;flex:none}
 .logo svg{width:17px;height:17px;fill:none;stroke:var(--panel);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .brand b{font-size:16px;letter-spacing:-.035em;display:block;font-weight:800}
@@ -121,7 +126,7 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 
 /* ---------- Distribution bar ---------- */
 .distbar{display:flex;gap:2px;height:34px;border-radius:0;overflow:hidden;margin:14px 0 10px}
-.distbar > div{display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:#FAF6EE}
+.distbar > div{display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--on-fill)}
 .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
 .legend i{width:10px;height:10px;border-radius:0;display:inline-block;margin-right:7px;vertical-align:-1px}
 
@@ -164,7 +169,7 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .node:hover{border-color:var(--ink-3)}
 .node .nh{display:flex;align-items:center;gap:9px}
 .node .ic{width:20px;height:20px;border-radius:0;background:var(--c);display:grid;place-items:center;flex:none}
-.node .ic svg{width:12px;height:12px;stroke:#FAF6EE;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.node .ic svg{width:12px;height:12px;stroke:var(--on-fill);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .node .nm{font-size:13px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
 .node .tech{margin-top:9px;display:flex;flex-wrap:wrap;gap:5px}
 .node .tech span{
@@ -174,7 +179,7 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 }
 .node .url{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .node.dim{opacity:.16}
-/* Selection and hit are ochre, because they are the reader acting — rule 2.
+/* Selection and hit are teal, because they are the reader acting — rule 2.
    The 1 px of padding given back keeps the row from shifting. */
 .node.hit{border:2px solid var(--ink);padding:11px 12px}
 .node.sel{border:2px solid var(--brand);padding:11px 12px}
@@ -213,7 +218,7 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .poles{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .pole-card{border-radius:0;border:1px solid var(--line-2);background:var(--panel);box-shadow:var(--shadow);overflow:hidden}
 /* The scope colour is a band, flat — no gradient, no glare. */
-.pole-card .top{padding:18px 22px;background:var(--c);color:#FAF6EE;position:relative}
+.pole-card .top{padding:18px 22px;background:var(--c);color:var(--on-fill);position:relative}
 .pole-card .top .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.85;font-weight:400}
 .pole-card .top h3{font-size:21px;margin:8px 0 5px}
 .pole-card .top p{margin:0;font-size:13px;opacity:.94}
@@ -242,20 +247,20 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .step.on{opacity:1}
 /* Rule 4: a step is a node on a line — round, like the mark. */
 .step .n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:700;background:var(--panel);border:1.5px solid var(--line-2);color:var(--ink-3);position:relative;transition:.22s}
-.step.on .n{background:var(--c);border-color:var(--c);color:#FAF6EE}
+.step.on .n{background:var(--c);border-color:var(--c);color:var(--on-fill)}
 .step .n:after{content:"";position:absolute;top:32px;left:50%;width:1px;height:calc(100% + 18px);background:var(--line-2)}
 .step:last-child .n:after{display:none}
 .step .tx b{font-size:13.5px;display:block;margin-bottom:2px;font-weight:700}
 .step .tx p{margin:0;font-size:12.5px;color:var(--ink-2)}
 .step .tx .who{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;font-weight:400;padding:3px 8px;border-radius:0;background:color-mix(in srgb,var(--c) 14%,transparent);color:color-mix(in srgb,var(--c) 70%,var(--ink));margin-top:7px}
 .step .tx .who svg{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.rel-item .ic svg{width:12px;height:12px;fill:none;stroke:#FAF6EE;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rel-item .ic svg{width:12px;height:12px;fill:none;stroke:var(--on-fill);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .rel-item:hover{border-color:var(--ink)!important}
 .playbar{display:flex;gap:8px;align-items:center;margin-top:18px}
 .btn{border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);background:var(--panel);color:var(--ink);padding:7px 14px;border-radius:0;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.12s;display:inline-flex;align-items:center;gap:7px}
 .btn:hover{border-color:var(--ink);background:var(--panel-3)}
-.btn.primary{background:var(--brand);border-color:var(--brand);color:#FAF6EE}
-.btn.primary:hover{background:var(--brand-deep);border-color:var(--brand-deep);color:#FAF6EE}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-fill)}
+.btn.primary:hover{background:var(--brand-deep);border-color:var(--brand-deep);color:var(--on-fill)}
 .btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .progress{height:2px;background:var(--line-2);border-radius:0;overflow:hidden;flex:1}
 .progress i{display:block;height:100%;background:var(--c);border-radius:0;transition:width .3s}
@@ -276,7 +281,7 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .cols3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
 .icard h3{font-size:15px;display:flex;align-items:center;gap:10px;margin-bottom:11px}
 .icard h3 .ic{width:24px;height:24px;border-radius:0;background:var(--c);display:grid;place-items:center;flex:none}
-.icard h3 .ic svg{width:13px;height:13px;stroke:#FAF6EE;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.icard h3 .ic svg{width:13px;height:13px;stroke:var(--on-fill);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .icard ul{margin:0;padding-left:17px;font-size:12.8px;color:var(--ink-2)}
 .icard ul li{margin-bottom:6px}
 .icard ul li b{color:var(--ink);font-weight:700}
@@ -291,7 +296,7 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .risk > div:nth-child(even){color:var(--ink-2)}
 .risk .hd{background:transparent;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-3);font-weight:400;border-bottom-color:var(--ink)}
 /* The note is the one place a left border is part of the system, and the one
-   place ochre appears in prose — it is always something the reader must act on. */
+   place teal appears in prose — it is always something the reader must act on. */
 .note{border-left:2px solid var(--brand);background:color-mix(in srgb,var(--brand) 7%,transparent);padding:12px 16px;border-radius:0;font-size:13px;color:var(--ink-2)}
 .note b{color:var(--ink)}
 .empty{padding:40px;text-align:center;color:var(--ink-3);font-size:13.5px}
@@ -335,5 +340,5 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .textblock p{margin:0 0 10px}
 .textblock p:last-child{margin-bottom:0}
 .groupbar{display:flex;gap:2px;height:34px;border-radius:0;overflow:hidden;margin:14px 0 10px}
-.groupbar>div{display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:#FAF6EE;min-width:22px}
+.groupbar>div{display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--on-fill);min-width:22px}
 .kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:0;padding:1px 5px;color:var(--ink-2);background:var(--panel-2)}

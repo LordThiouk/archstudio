@@ -118,9 +118,9 @@ UPDATE_SNAPSHOTS=1 npm test     # accept a deliberate change
 
 ## The identity
 
-*Atelier* — an engineer's tool drawn like a workshop instrument. Black ink on ivory paper, one
-warm colour, monospace for everything the machine knows. Square corners, hairline rules, no
-gradients, no shadows.
+*Atelier* — an engineer's tool drawn like a workshop instrument, on the TonuxCorp colours.
+Marine ink on white paper, one teal for action, monospace for everything the machine knows.
+Square corners, hairline rules, no gradients, no shadows.
 
 **The mark is a node and its dependency** — the smallest sentence the product can say. The filled
 disc is the service that calls; the open circle is the one that answers. It is not decoration:
@@ -132,8 +132,8 @@ Five rules hold the whole thing together, and each one is written where it is en
 
 1. **A scope colour never touches a border.** It lives on the icon chip and the technology pills.
    Borders stay neutral — five scopes in a row would otherwise be five frames shouting.
-2. **Ochre is reserved for what you can act on.** Primary actions, selection, the focused field,
-   links, the principle callout. No scope uses ochre, or selection would be ambiguous.
+2. **Teal is reserved for what you can act on.** Primary actions, selection, the focused field,
+   links, the principle callout. No scope uses teal, or selection would be ambiguous.
 3. **Monospace says only what the machine knows.** Technologies, paths, ids, chapter numbers,
    counts, timestamps. Prose is Archivo, on screen and on paper alike.
 4. **Circles mean "a node in a graph"** — the mark, an edge endpoint, a flow step. Everything else
@@ -143,11 +143,18 @@ Five rules hold the whole thing together, and each one is written where it is en
 
 | Token | | |
 |---|---|---|
-| Ink | `#16140F` | text, rules, the mark |
-| Paper | `#FAF6EE` | surfaces, cards, the printed page |
-| Calque | `#E4E0D6` | the canvas ground, the app background |
-| Ochre | `#B26A18` | the single accent — actions and selection only |
-| Scopes | `oklch(0.62 0.11 h)` | h = 40, 110, 175, 250, 320 |
+| Ink | `#0B1B2B` | text, rules, the mark |
+| Paper | `#FFFFFF` | surfaces, cards, the printed page |
+| Calque | `#EEF3F6` | the canvas ground, the app background |
+| Teal | `#0E7C8A` | the single accent — actions and selection only |
+| Cyan | `#00E5FF` | **marine ground only, never on white** |
+| Scopes | `oklch(0.62 0.11 h)` | h = 200, 250, 290, 340, 150 |
+
+Cyan is the one colour with a hard rule attached, and the rule is arithmetic: it sits at 1.5:1
+against white and 11.3:1 against ink. So it is the inverted mark, the app icon, and the accent the
+dark theme uses — teal at that lightness sinks into the navy and stops reading as actionable.
+What sits *on top* of a filled chip flips with the theme, which is why it is a token (`--on-fill`)
+rather than a literal: white on paper, ink on marine.
 
 ```
 src/app/globals.css        the token block — the source of truth for the values
@@ -161,14 +168,15 @@ Three stylesheets carry the same block rather than sharing one, because the view
 being torn out of the app and mailed as a single file. When you change a value, change it in all
 three — `globals.css` is the one to copy from.
 
-**One known trade-off, measured rather than assumed.** Holding lightness constant across the five
-scope hues is what makes the palette flat and even, and it is also what costs it its
-colour-vision-deficiency separation: adjacent pairs sit at a comfortable ΔE 11.7 for normal
-vision but fall to 2.6 under deuteranopia and 1.4 under tritanopia. Restoring ΔE ≥ 7 needs a
-lightness spread of about 0.12, which is a different palette rather than a tweak. Scope is never
-carried by colour alone in either medium — the diagram labels every card, and the legend and the
-inventory table both name the scope in text — so this degrades rather than fails. The numbers and
-the knob are in `src/lib/defaults.ts`.
+**One known trade-off, measured rather than assumed.** Two things work against the scope
+palette's separation: lightness is held constant, which is what makes it flat and even, and the
+five hues sit on a cool arc rather than the full circle, which leaves 250° and 290° only 40°
+apart. Adjacent pairs measure ΔE 7.4 (OKLab×100) for normal vision, falling to 1.4 under
+deuteranopia and 1.9 under protanopia — both at 250°/290° — and 2.4 under tritanopia at
+200°/250°. Widening the arc or spreading lightness is a different palette rather than a tweak.
+Scope is never carried by colour alone in either medium — the diagram labels every card, and the
+legend and the inventory table both name the scope in text — so this degrades rather than fails.
+The numbers and the knob are in `src/lib/defaults.ts`.
 
 ---
 

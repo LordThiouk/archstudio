@@ -12,7 +12,7 @@
  * which the identity already sets to `none` on screen, so on this page the
  * token exists only to hold that line.
  *
- * Two more things the identity asks of paper. Ochre stays reserved for what
+ * Two more things the identity asks of paper. Teal stays reserved for what
  * the reader must act on, which on a printed page is exactly one thing: the
  * principle callout that says this document describes a starting point. And
  * Space Mono still says only what the machine knows — chapter numbers, page
@@ -44,7 +44,7 @@
 }
 .paper-bar-name { font-size: 13px; font-weight: 700; letter-spacing: -.02em; }
 /* The reminder that background graphics must stay on. Without them the scope
-   colours vanish and the legend points at nothing, so it is ochre. */
+   colours vanish and the legend points at nothing, so it is teal. */
 .paper-bar-hint {
   flex: 1;
   min-width: 0;
@@ -71,26 +71,28 @@
 }
 a.paper-btn { border-bottom-width: 1px; }
 .paper-btn:hover { background: var(--panel-3); border-color: var(--ink); }
-.paper-btn.primary { background: var(--brand); border-color: var(--brand); color: #FAF6EE; }
+.paper-btn.primary { background: var(--brand); border-color: var(--brand); color: #FFFFFF; }
 
 /* --------------------------------------------------------------------- page */
 
 .paper {
-  /* `--brand` is overwritten from the document's own theme; `--ochre` is not,
+  /* `--brand` is overwritten from the document's own theme; `--accent` is not,
      so the mark signing the cover stays the studio's colour whatever accent
-     the architecture picked for itself. */
-  --brand: #B26A18;
-  --brand-ink: #9C5D14;
-  --ochre: #B26A18;
-  --panel: #FAF6EE;
-  --panel-2: #F5F0E5;
-  --panel-3: #EFEADD;
-  --ink: #16140F;
-  --ink-2: #4B463C;
-  --ink-3: #9C9484;
-  --line: #E4DCCB;
-  --line-2: #D8CEBA;
-  --line-3: #D2C8B4;
+     the architecture picked for itself. Cyan is deliberately absent: it is a
+     marine-ground colour, and this page is always paper. */
+  --brand: #0E7C8A;
+  --brand-ink: #0B6470;
+  --accent: #0E7C8A;
+  --on-fill: #FFFFFF;
+  --panel: #FFFFFF;
+  --panel-2: #F5F8FA;
+  --panel-3: #F0F5F8;
+  --ink: #0B1B2B;
+  --ink-2: #3D566B;
+  --ink-3: #8CA1B2;
+  --line: #E7EEF2;
+  --line-2: #DCE5EB;
+  --line-3: #D3DEE5;
   --shadow: none;
   --r: 0px;
 
@@ -117,7 +119,7 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-divider { height: 1px; background: var(--line); margin: 14px 0; }
 
 /* `.note` in the viewer — the one place a left border is part of the system,
-   and the only ochre on the printed page. */
+   and the only teal on the printed page. */
 .paper-note {
   border-left: 2px solid var(--brand);
   background: color-mix(in srgb, var(--brand) 7%, transparent);
@@ -130,7 +132,7 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-note b { color: var(--ink); }
 
 /* A chapter number is something the machine worked out — mono, and neutral:
-   ochre here would spend the accent on every heading in the document. */
+   teal here would spend the accent on every heading in the document. */
 .paper-num {
   display: inline-block;
   min-width: 2.8em;
@@ -234,7 +236,7 @@ a.paper-btn { border-bottom-width: 1px; }
   place-items: center;
   flex: none;
 }
-.paper-ic svg { color: #FAF6EE; }
+.paper-ic svg { color: #FFFFFF; }
 
 .paper-cards, .paper-blocks {
   display: grid;
@@ -298,7 +300,7 @@ a.paper-btn { border-bottom-width: 1px; }
   background: var(--c);
   display: grid; place-items: center; flex: none;
 }
-.paper-node .ic svg { color: #FAF6EE; }
+.paper-node .ic svg { color: #FFFFFF; }
 .paper-node .nm { font-size: 12px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; }
 .paper-node .tech { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
 .paper-node .tech span {
@@ -350,7 +352,7 @@ a.paper-btn { border-bottom-width: 1px; }
   box-shadow: var(--shadow);
   overflow: hidden;
 }
-.paper-pole .top { padding: 14px 17px; background: var(--c); color: #FAF6EE; }
+.paper-pole .top { padding: 14px 17px; background: var(--c); color: #FFFFFF; }
 .paper-pole .top .k {
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em;
   text-transform: uppercase; opacity: .85; font-weight: 400;
@@ -390,7 +392,7 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-steps .n {
   width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
   font-family: var(--mono); font-size: 11px; font-weight: 700; position: relative;
-  background: var(--c); color: #FAF6EE;
+  background: var(--c); color: #FFFFFF;
 }
 .paper-steps .n:after {
   content: ""; position: absolute; top: 28px; left: 50%;

@@ -15,8 +15,8 @@ export const serverlessMvp: Template = {
     fr: 'Tout descend à zéro et remonte tout seul. On échange le coût unitaire et la portabilité contre ce dont un jeune produit a le plus besoin : ne rien opérer.'
   },
   icon: 'bolt',
-  accent: '#1F9B82',
-  accentDark: '#17A272',
+  accent: '#0099A0',
+  accentDark: '#14BBC2',
   supportedTargets: ['agnostic', 'aws', 'gcp', 'azure', 'selfhosted'],
 
   whenToUse: [

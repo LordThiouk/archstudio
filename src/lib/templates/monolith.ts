@@ -15,8 +15,8 @@ export const monolith: Template = {
     fr: 'Ceci décrit un monolithe modulaire, pas un monolithe accidentel. Les modules sont des composants nommés avec des dépendances explicites — c\'est précisément ce qui rend un découpage futur possible plutôt que théorique.'
   },
   icon: 'box',
-  accent: '#8A8C34',
-  accentDark: '#D2668F',
+  accent: '#519962',
+  accentDark: '#69BA7C',
   supportedTargets: ['agnostic', 'aws', 'gcp', 'azure', 'selfhosted'],
 
   whenToUse: [

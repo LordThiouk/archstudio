@@ -15,8 +15,8 @@ export const rag: Template = {
     fr: 'La génération augmentée par récupération met tes documents sous les yeux d\'un modèle qui ne les a jamais vus. L\'essentiel du travail est dans la récupération, pas dans la génération : le modèle ne peut être juste que dans la mesure des passages qu\'on lui donne.'
   },
   icon: 'ai',
-  accent: '#A36FAF',
-  accentDark: '#9575E8',
+  accent: '#857AC4',
+  accentDark: '#A497EA',
   supportedTargets: ['agnostic', 'aws', 'gcp', 'azure', 'selfhosted'],
 
   whenToUse: [

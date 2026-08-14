@@ -7,10 +7,10 @@ import './globals.css';
  * `Mark` in src/components/Brand.tsx and `FAVICON` in src/lib/exportHtml.ts. */
 const FAVICON =
   "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'>"
-  + "<rect width='192' height='192' fill='%2316140F'/>"
-  + "<path d='M32 96H160' stroke='%23FAF6EE' stroke-width='12'/>"
-  + "<circle cx='48' cy='96' r='30' fill='%23E0A040'/>"
-  + "<circle cx='146' cy='96' r='26' fill='%23FAF6EE'/></svg>";
+  + "<rect width='192' height='192' fill='%230B1B2B'/>"
+  + "<path d='M32 96H160' stroke='%23FFFFFF' stroke-width='12'/>"
+  + "<circle cx='48' cy='96' r='30' fill='%2300E5FF'/>"
+  + "<circle cx='146' cy='96' r='26' fill='%23FFFFFF'/></svg>";
 
 export const metadata: Metadata = {
   title: 'ArchStudio',

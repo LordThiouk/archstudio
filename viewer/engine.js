@@ -21,11 +21,13 @@ const uniq = a => [...new Set(a)];
 const warn = m => console.warn('[architecture-explorer] ' + m);
 
 /* --------------------------------------------------------------- fallback */
-/* Categorical palette, validated for colour-vision deficiency on both
- * surfaces (OKLCH lightness band, chroma floor, adjacent-pair CVD ΔE ≥ 8,
- * contrast ≥ 3:1). Override per group with `color` / `colorDark`.        */
-const PALETTE       = ['#BE6E52', '#8A8C34', '#1F9B82', '#4F8AC6', '#A36FAF'];
-const PALETTE_DARK  = ['#E4896A', '#A9AB4A', '#39BDA0', '#67AAED', '#C68BD3'];
+/* Categorical fallback palette: five cool hues at oklch(0.62 0.11 h) for
+ * h = 200, 250, 290, 340, 150, lifted for the marine ground. Every chip
+ * clears 3:1 against paper. Adjacent hues are close under colour-vision
+ * deficiency (see src/lib/defaults.ts for the measurements), so scope is
+ * always named in text too. Override per group with `color` / `colorDark`. */
+const PALETTE       = ['#0099A0', '#4F8AC6', '#857AC4', '#B26B9B', '#519962'];
+const PALETTE_DARK  = ['#14BBC2', '#67AAED', '#A497EA', '#D686BC', '#69BA7C'];
 
 /* -------------------------------------------------------------- i18n */
 const LABELS = {

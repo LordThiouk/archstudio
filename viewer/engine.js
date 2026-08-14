@@ -20,6 +20,28 @@ const rich = s => String(s == null ? '' : s);
 const uniq = a => [...new Set(a)];
 const warn = m => console.warn('[architecture-explorer] ' + m);
 
+/* The tool's own repository — a constant, never `meta.repo`.
+ *
+ * `meta.repo` is the *document's* repository: the platform being documented,
+ * typed by the author into a field labelled "Repository". Hanging the
+ * "Built with" attribution off it pointed the credit at whatever the reader
+ * happened to be reading about. The two are different links and now say so. */
+const ARCHSTUDIO_URL = 'https://github.com/tonux/archstudio';
+
+/* `meta.repo` is typed by hand and reaches an href, so it is whitelisted
+ * rather than escaped: the editor's own placeholder is `github.com/acme/…`
+ * while this used to prepend `https://github.com/`, which produced
+ * `github.com/github.com/acme/…`. Accepts either form, emits one. */
+function repoLink(raw) {
+  const slug = String(raw == null ? '' : raw).trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^(www\.)?github\.com\//i, '')
+    .replace(/\.git$/i, '')
+    .replace(/^\/+|\/+$/g, '');
+  if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(slug)) return null;
+  return { url: 'https://github.com/' + slug, label: slug };
+}
+
 /* --------------------------------------------------------------- fallback */
 /* Categorical fallback palette: five cool hues at oklch(0.62 0.11 h) for
  * h = 200, 250, 290, 340, 150, lifted for the marine ground. Every chip
@@ -821,11 +843,15 @@ function boot() {
 
   $('#main').innerHTML = TABS.map(t =>
     `<section class="view${t.id === state.tab ? ' active' : ''}" id="v-${esc(t.id)}"></section>`).join('')
-    + `<div class="footer">
+    + (() => {
+        const own = repoLink(DATA.meta.repo);
+        return `<div class="footer">
         <span>${esc(DATA.meta.footer || '')}</span>
+        ${own ? `<a class="repolink" href="${own.url}" target="_blank" rel="noopener">${esc(own.label)}</a>` : ''}
         <span style="margin-left:auto">${T.builtWith}
-        <a href="https://github.com/${esc(DATA.meta.repo || 'your-org/architecture-explorer')}" target="_blank" rel="noopener">Architecture Explorer</a></span>
+        <a href="${ARCHSTUDIO_URL}" target="_blank" rel="noopener">ArchStudio</a></span>
        </div>`;
+      })();
 
   TABS.forEach(t => mount(t.id));
 

@@ -344,6 +344,11 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--ink-3);font-family:var(--mono);font-size:10.5px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .footer a{color:var(--ink-3);border-bottom-color:var(--line-2)}
 .footer a:hover{color:var(--ink)}
+/* The document's own repository, when it declares one. Set apart from the
+   footer text so it does not read as part of the sentence beside it, and kept
+   distinct from the "Built with" credit at the other end of the row. */
+.footer .repolink{border-bottom:0;padding:1px 7px;border:1px solid var(--line-2)}
+.footer .repolink:hover{border-color:var(--ink-3)}
 .fatal{max-width:720px;margin:80px auto;padding:26px 28px;border:1px solid var(--ink);border-radius:0;background:var(--panel)}
 .fatal h2{font-size:20px;margin-bottom:10px}
 .fatal p{color:var(--ink-2);font-size:14px;margin:0 0 8px}

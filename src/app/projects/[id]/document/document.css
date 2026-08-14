@@ -1,0 +1,399 @@
+/* The paper stylesheet.
+ *
+ * The rules below are the viewer's, transposed — same tokens, same card, same
+ * icon chip, same technology pills, same pole, same phase, same note. A card
+ * carries its scope colour the way the diagram does, on the icon chip and the
+ * pills; the border stays neutral. Anything that reads as a new visual idea
+ * here is a bug: the printed page and the screen are one design.
+ *
+ * `/viewer/style.css` is the source. What is *not* copied: hover, transition
+ * and focus states, which paper does not have, and the shadow, which is a
+ * token set to `none` when printing rather than a rule that disappears.
+ *
+ * `--brand` is written on `.paper` from the document's own theme. Tokens are
+ * the light values verbatim: a printed page is light whatever theme the studio
+ * is in. */
+
+.paper-desk {
+  min-height: 100%;
+  background: #E7EBF1;
+  padding: 0 0 60px;
+}
+
+/* ------------------------------------------------------------------- chrome */
+
+.paper-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.paper-bar-name { font-size: 14px; }
+.paper-bar-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.paper-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.paper-btn:hover { background: var(--panel-3); }
+.paper-btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* --------------------------------------------------------------------- page */
+
+.paper {
+  --brand: #28519F;
+  --panel: #FFFFFF;
+  --panel-2: #FAFBFD;
+  --ink: #0F172A;
+  --ink-2: #475569;
+  --ink-3: #8494AB;
+  --line: #E2E8F0;
+  --line-2: #CBD5E1;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 24px rgba(15, 23, 42, .06);
+  --r: 14px;
+
+  width: 210mm;
+  max-width: 100%;
+  margin: 26px auto 0;
+  padding: 18mm 16mm 20mm;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.55;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 18px 46px rgba(16, 24, 40, .12);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.paper p { margin: 0 0 10px; }
+.paper code, .paper .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+
+/* `.bullets` in the viewer. */
+.paper-bullets { margin: 0; padding-left: 17px; font-size: 12px; color: var(--ink-2); }
+.paper-bullets li { margin-bottom: 5px; }
+.paper-divider { height: 1px; background: var(--line); margin: 14px 0; }
+
+/* `.note` in the viewer — the one place a left border is part of the system. */
+.paper-note {
+  border-left: 3px solid var(--brand);
+  background: color-mix(in srgb, var(--brand) 7%, transparent);
+  padding: 11px 14px;
+  border-radius: 0 10px 10px 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  margin: 12px 0 0;
+}
+.paper-note b { color: var(--ink); }
+
+.paper-num {
+  display: inline-block;
+  min-width: 2.6em;
+  color: var(--brand);
+  font-variant-numeric: tabular-nums;
+}
+.paper-h1 {
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--brand);
+  font-size: 21px;
+  letter-spacing: -.02em;
+}
+.paper-h2 { margin: 0 0 6px; font-size: 15.5px; }
+.paper-h3 { margin: 16px 0 8px; font-size: 15px; }
+.paper h4 { margin: 0 0 5px; font-size: 13px; }
+
+.paper-sub { color: var(--ink-2); margin: 0 0 14px; }
+.paper-lead { font-size: 13.5px; color: var(--ink-2); }
+.paper-part { margin: 0 0 26px; }
+.paper-entry { margin: 0 0 22px; }
+.paper-foot {
+  margin-top: 30px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 11px;
+}
+
+/* -------------------------------------------------------------------- cover */
+
+.paper-cover { padding: 30px 0 0; }
+.paper-cover .paper-note { margin-top: 24px; }
+.paper-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.paper-title { margin: 10px 0 0; font-size: 34px; letter-spacing: -.03em; }
+.paper-tagline { margin: 8px 0 0; font-size: 15px; color: var(--ink-2); }
+.paper-facts {
+  margin: 26px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.paper-facts dt { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.paper-facts dd { margin: 1px 0 0; font-weight: 600; }
+
+/* ------------------------------------------------------------------ contents */
+
+.paper-toc { list-style: none; margin: 0; padding: 0; }
+.paper-toc li { margin: 0; }
+.paper-toc a { display: flex; gap: 4px; color: inherit; text-decoration: none; padding: 3px 0; }
+.paper-toc .lv1 { margin-top: 10px; font-weight: 650; }
+.paper-toc .lv1:first-child { margin-top: 0; }
+.paper-toc .lv2 { color: var(--ink-2); padding-left: 18px; }
+.paper-toc-title { flex: 1; }
+
+/* -------------------------------------------------------- card and icon chip */
+
+/* `.card.pad` — neutral border, scope colour on the chip, never on the frame. */
+.paper-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+.paper-card > h4 { display: flex; align-items: center; gap: 9px; font-size: 14px; margin-bottom: 9px; }
+.paper-card p { color: var(--ink-2); }
+
+/* `.icard h3 .ic` */
+.paper-ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c, var(--brand)) 14%, transparent);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.paper-ic svg { color: var(--c, var(--brand)); }
+
+.paper-cards, .paper-blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 4px 0 12px;
+}
+.paper-sheets { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.paper-deps { font-size: 11px; }
+
+/* ------------------------------------------------------------------ diagram */
+
+.paper-figure { margin: 0 0 18px; }
+.paper-figure figcaption { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
+
+/* `--fit-scale` is written by the component from the available width; print
+   overrides `--paper-scale` below. Two variables, because an inline style
+   would outrank the media query. */
+.paper-frame {
+  --paper-scale: var(--fit-scale, 1);
+  position: relative;
+  overflow: hidden;
+  height: calc(var(--stage-h, 0px) * var(--paper-scale));
+}
+.paper-stage {
+  position: relative;
+  width: 1000px;
+  transform: scale(var(--paper-scale));
+  transform-origin: top left;
+}
+.paper-edges { position: absolute; inset: 0; pointer-events: none; }
+
+/* `.layer` / `.layer-head` / `.nodes` */
+.paper-layer { position: static; padding: 16px 0 6px; border-bottom: 1px dashed var(--line); }
+.paper-layer:last-child { border-bottom: 0; }
+.paper-layer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.paper-layer-head b {
+  font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 700;
+}
+.paper-layer-head em { font-style: normal; font-size: 11.5px; color: var(--ink-3); opacity: .8; }
+.paper-layer-row { display: flex; flex-wrap: wrap; gap: 11px; }
+
+/* `.node`, verbatim minus the interaction states. */
+.paper-node {
+  position: static;
+  width: 212px;
+  text-align: left;
+  border: 1px solid var(--line-2);
+  background: linear-gradient(158deg, color-mix(in srgb, var(--c) 9%, var(--panel-2)), var(--panel-2) 62%);
+  border-radius: 12px;
+  padding: 11px 13px 12px;
+  color: var(--ink);
+}
+.paper-node .nh { display: flex; align-items: center; gap: 8px; }
+.paper-node .ic {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 15%, transparent);
+  display: grid; place-items: center; flex: none;
+}
+.paper-node .ic svg { color: var(--c); }
+.paper-node .nm { font-size: 12px; font-weight: 640; letter-spacing: -.01em; line-height: 1.25; }
+.paper-node .tech { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 4px; }
+.paper-node .tech span {
+  font-size: 10px; padding: 1.5px 6px; border-radius: 5px; font-weight: 600;
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  color: color-mix(in srgb, var(--c) 82%, var(--ink));
+}
+
+/* `.ub` — the legend reuses the used-by chip. */
+.paper-legend { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; margin: 10px 0 0; padding: 0; }
+.paper-legend li {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 650; padding: 2px 8px; border-radius: 6px;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.paper-legend i { width: 7px; height: 7px; border-radius: 50%; }
+
+/* ------------------------------------------------------------------- tables */
+
+/* `table.cmp`: rules under the rows, nothing around them. */
+.paper-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 4px 0 12px; }
+.paper-table th, .paper-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.paper-table thead th {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ink-3); font-weight: 700; background: var(--panel-2);
+}
+.paper-table tbody td:first-child { font-weight: 600; color: var(--ink); }
+.paper-table tbody td { color: var(--ink-2); }
+.paper-tr-group th {
+  background: var(--panel-2); color: var(--ink);
+  font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 650;
+}
+.paper-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; vertical-align: -1px; }
+
+/* -------------------------------------------------------------------- poles */
+
+/* `.pole-card`: the scope colour is the header block, not an outline. */
+.paper-poles { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 4px 0 12px; }
+.paper-pole {
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.paper-pole .top {
+  padding: 15px 18px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 92%, #000 8%), var(--c));
+  color: #fff;
+}
+.paper-pole .top .k { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .85; font-weight: 700; }
+.paper-pole .top h4 { font-size: 16px; margin: 6px 0 4px; }
+.paper-pole .top p { margin: 0; font-size: 12px; opacity: .94; color: inherit; }
+.paper-pole .body { padding: 14px 18px 16px; }
+
+/* `.kv` */
+.paper-kv { display: grid; grid-template-columns: 100px 1fr; gap: 7px 12px; font-size: 11.5px; align-items: start; margin: 0; }
+.paper-kv dt { color: var(--ink-3); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.paper-kv dd { margin: 0; color: var(--ink); }
+
+/* --------------------------------------------------------- phases and steps */
+
+/* `.phase` */
+.paper-phase { border-left: 2px solid var(--line-2); padding: 0 0 18px 20px; position: relative; }
+.paper-phase:last-child { padding-bottom: 0; }
+.paper-phase:before {
+  content: ""; position: absolute; left: -6px; top: 3px;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--c);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent);
+}
+.paper-phase .w { font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700; color: var(--c); }
+.paper-phase h4 { font-size: 13.5px; margin: 3px 0 6px; }
+.paper-line-title { font-size: 15px; margin-bottom: 14px; }
+
+/* `.step`, without the opacity the player animates. */
+.paper-steps { list-style: none; margin: 0; padding: 0; }
+.paper-steps > li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; padding: 7px 0; }
+.paper-steps .n {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11.5px; font-weight: 700; position: relative;
+  background: var(--c); color: #fff;
+}
+.paper-steps .n:after {
+  content: ""; position: absolute; top: 28px; left: 50%;
+  width: 1px; height: calc(100% + 12px); background: var(--line-2);
+}
+.paper-steps > li:last-child .n:after { display: none; }
+.paper-steps .tx b { font-size: 12.5px; display: block; margin-bottom: 2px; }
+.paper-steps .tx p { margin: 0; font-size: 11.5px; color: var(--ink-2); }
+.paper-steps .who {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 650; padding: 3px 9px; border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  color: color-mix(in srgb, var(--c) 82%, var(--ink));
+  margin-top: 5px;
+}
+
+@media screen and (max-width: 900px) {
+  .paper { padding: 14mm 10mm; }
+  .paper-poles { grid-template-columns: 1fr; }
+}
+
+/* -------------------------------------------------------------------- print */
+
+@page { size: A4; margin: 16mm 16mm 18mm; }
+
+@media print {
+  .paper-desk { background: #fff; padding: 0; }
+  .paper-bar { display: none !important; }
+  .paper {
+    /* The card rule still reads `box-shadow: var(--shadow)`; a 24 px blur is
+       a grey smudge on paper, so the token goes, not the rule. */
+    --shadow: none;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    font-size: 10pt;
+  }
+
+  /* A4 minus the page margins is 178 mm ≈ 673 px against a 1000 px stage, so
+     .67 — but a tall diagram is scaled further to stay on one page, and the
+     component works that out from the measured stage height. Not measured at
+     `beforeprint`: that event reports screen geometry, which is the wrong
+     number by definition. */
+  .paper-frame { --paper-scale: var(--fit-print, .67); }
+
+  .paper-cover { break-after: page; padding-top: 8mm; }
+  .paper-contents { break-after: page; }
+  .paper-part { break-before: page; margin-bottom: 0; }
+  .paper-h1, .paper-h2, .paper-h3, .paper h4 { break-after: avoid; }
+  .paper-figure, .paper-card, .paper-pole, .paper-phase,
+  .paper-steps > li, .paper-note { break-inside: avoid; }
+  .paper-table thead { display: table-header-group; }
+  .paper-table tr { break-inside: avoid; }
+  .paper-toc a { text-decoration: none; }
+}

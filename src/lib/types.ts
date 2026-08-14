@@ -77,6 +77,16 @@ export interface Flow {
 }
 
 export type SectionType = 'cards' | 'timeline' | 'table' | 'compare' | 'text';
+
+/** Where a section sits in the printable design document.
+ *
+ * `chapter` is a dotted path — "2.4" — but it only decides *order*: the number
+ * printed on the page is recomputed from the final position, so deleting a
+ * chapter renumbers the rest instead of leaving a hole. Its first segment picks
+ * the part (1 to 5); anything else, or no slot at all, lands in the appendices.
+ * The viewer ignores this field entirely. */
+export interface DocSlot { chapter?: string }
+
 export interface Section {
   id: string;
   tab?: string;
@@ -84,6 +94,7 @@ export interface Section {
   title: string;
   subtitle?: string;
   note?: string;
+  doc?: DocSlot;
   [extra: string]: unknown;
 }
 

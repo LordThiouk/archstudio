@@ -34,6 +34,9 @@ ship.
 attach to a ticket, commit, or host anywhere. Also exports raw JSON, and an `architecture.js`
 data file for the standalone viewer.
 
+**Document** — the same architecture as a numbered, printable design document. Print it from the
+browser to get a PDF.
+
 **Import** — accepts JSON or a `window.ARCHITECTURE = {…}` data file. Paste it or pick the file.
 
 ---
@@ -121,9 +124,74 @@ Each project stores one JSON document — the same shape the viewer consumes. It
 - **deps** — who calls whom. Direction matters: caller → callee.
 
 Beyond that the format carries `flows`, `technologies` and editorial `sections`
-(`compare`, `cards`, `timeline`, `table`, `text`). Those render in the preview and the export,
-and survive a round-trip through import/export — but they are **not editable in the UI yet**.
-Today you author them in JSON and import. See `src/lib/types.ts` for the full contract.
+(`compare`, `cards`, `timeline`, `table`, `text`), all edited from the **Content** tab, plus the
+one optional field the printable document reads — `sections[].doc.chapter`. See
+`src/lib/types.ts` for the full contract.
+
+---
+
+## The design document
+
+The viewer is tabbed and interactive; a design document is linear and numbered. The **Document**
+button in the editor opens `/projects/:id/document` — the same JSON, rendered for paper, with a
+cover, a table of contents, numbered chapters, and the diagram as a figure. Print it and choose
+“Save as PDF”. **No dependency to install, and no headless browser on the server**: the one
+prerequisite is a browser that can print, which is the browser you already opened it in.
+
+The plan follows the Architecture Design Document structure:
+
+```
+1  Introduction                     meta.intro, header facts, the principle callout
+2  Application architecture         the diagram, then the component inventory, then your chapters
+3  Organisation architecture        your chapters
+4  DevOps & delivery                your chapters
+5  Cost estimation                  your chapters
+6  Appendices                       unslotted sections, flows, the technology table
+```
+
+A section says where it belongs through one optional field, `doc.chapter` — `"2.4"` — edited in
+the Sections panel. **The slot decides order, not the printed number**: numbering is recomputed
+from the final position, so deleting a chapter renumbers the rest and an empty part disappears
+instead of leaving a hole. A section with no slot lands in the appendices, and nothing else in
+the document format changes — the viewer ignores the field entirely.
+
+**The ADD preset.** The Sections panel offers to add the thirteen written chapters an ADD is
+expected to carry: scope, data, scalability, tenancy, RPO/RTO, observability, resource
+segmentation, IAM, networking, cost management, governance, delivery, cost estimate. They arrive
+empty, structured, bilingual and *vendor-neutral* — service names belong to the components, which
+already carry their per-target table. Applying it twice adds nothing.
+
+They are also added **off the tab bar**: written for paper, absent from `ui.tabs`, so the
+interactive viewer is exactly as it was. Turn one on from the Tabs panel if you want it on
+screen too.
+
+**One design, two media.** The print stylesheet is `viewer/style.css` transposed, not a second
+look: same tokens, same card, same icon chip, same technology pills, same pole, same phase, same
+note — the document's own `theme.brand` drives the page. A card carries its scope colour the way
+the diagram does, on the chip and the pills, and its border stays neutral. Anything in
+`document/document.css` that reads as a new visual idea is a bug. Two things are deliberately not
+copied: hover and focus states, which paper does not have, and the shadow, which becomes a token
+set to `none` when printing rather than a rule that disappears.
+
+**The diagram is the hard part.** Edges are geometry measured after layout, and print layout is
+not screen layout — measuring at `beforeprint` returns screen coordinates, which is the wrong
+number by definition. So the diagram is laid out on a fixed 1000 px stage and scaled by a
+transform, on screen and on paper alike: uniform scaling leaves the measured coordinates valid.
+On paper the scale fits the page width, or the page height when the diagram is tall enough to
+run off the bottom.
+
+Two things a print stylesheet cannot do for you. Keep **background graphics on** in the print
+dialog or the scope colours vanish; and the ADD's other diagrams — resource hierarchy, network
+topology, CI/CD pipeline — have no equivalent in the document format, so those chapters are
+prose and tables today.
+
+If you want the PDF produced by the server rather than by a person, any headless Chrome will
+render this route as it stands:
+
+```bash
+chrome --headless --no-pdf-header-footer \
+  --print-to-pdf=architecture.pdf http://localhost:3000/projects/<id>/document
+```
 
 ---
 
@@ -133,6 +201,7 @@ Today you author them in JSON and import. See `src/lib/types.ts` for the full co
 src/app/                  Next.js 15 App Router
   page.tsx                workspace (server) → components/Workspace
   projects/[id]/page.tsx  editor (server)    → components/Editor
+  projects/[id]/document/ the printable design document — plan, renderer, print CSS
   api/                    folders, projects, templates, export, import, revisions
 src/components/           Workspace, Editor, Inspector, Icon
 src/lib/
@@ -141,6 +210,7 @@ src/lib/
   types.ts                the document contract
   defaults.ts             blank document, palette, normalisation
   templates/              the six templates and instantiate()
+  document/               the ADD outline (plan.ts) and its chapter preset
   exportHtml.ts           document → self-contained HTML
 viewer/                   the standalone renderer, verbatim
 data/studio.db            your data
@@ -182,7 +252,7 @@ session check in the API routes; the data model does not need to change.
 
 ## Roadmap
 
-- Visual editors for flows, the technology table and editorial sections (JSON-only today)
+- Diagram placeholders for the document chapters that have none — network topology, CI/CD pipeline
 - Revision history UI — the data is already there
 - Keyboard navigation on the canvas, and undo/redo
 - Optional auth for shared installs

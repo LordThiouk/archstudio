@@ -355,6 +355,17 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .cgroup { margin-bottom: 28px; }
 .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 
+/* One-click skeletons — today the design-document chapters, and whatever else
+   turns out to be worth generating rather than typing sixteen times. */
+.preset-row {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel-2);
+}
+.preset-row > div { flex: 1; min-width: 0; }
+.preset-row .hint { margin-top: 3px; }
+.preset-row .btn { flex: none; }
+
 .cardlist { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .cardlist > .btn { align-self: flex-start; }
 .cardlist-empty {

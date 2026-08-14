@@ -11,6 +11,7 @@ import {
   Area, CardList, CellGrid, Group, IconPicker, Panel, RICH_HINT, ScopePicker, StringList, Text
 } from './Fields';
 import { SECTION_TYPES, blankSection } from '@/lib/defaults';
+import { applyDesignDocumentPreset, missingPresetSections } from '@/lib/document/preset';
 import { registerSectionTab, resyncSectionOrder, unregisterTab } from '@/lib/tabs';
 import type {
   Architecture, CardItem, CardsSection, CompareCard, ComparePole, CompareSection,
@@ -21,7 +22,7 @@ import type {
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 type Mut<T> = (fn: (draft: T) => void) => void;
 
-const KEEP = ['id', 'tab', 'type', 'title', 'subtitle', 'note'];
+const KEEP = ['id', 'tab', 'type', 'title', 'subtitle', 'note', 'doc'];
 
 /** Rows in a table are positional: a column added or removed has to move them. */
 function fitRows(rows: string[][], n: number): string[][] {
@@ -31,6 +32,18 @@ function fitRows(rows: string[][], n: number): string[][] {
 export default function SectionsEditor({ doc, patch }: { doc: Architecture; patch: Patch }) {
   const [newType, setNewType] = useState<SectionType>('cards');
   const chosen = SECTION_TYPES.find(t => t.type === newType)!;
+  const missing = missingPresetSections(doc);
+
+  /* The preset appends chapters without registering them as tabs, so the
+   * viewer is left alone — hence no `setSections` here, which would. */
+  const addPreset = () => {
+    if (!confirm(
+      `Add the ${missing} missing design-document chapters (data, scaling, tenancy, recovery, `
+      + 'observability, IAM, networking, cost, delivery…)?\n\n'
+      + 'They are added empty, for the printable document only — the viewer keeps its current tabs.'
+    )) return;
+    patch(d => { applyDesignDocumentPreset(d); return d; });
+  };
 
   const setSections = (next: Section[]) => patch(d => {
     const before = d.sections.map(s => s.id);
@@ -54,6 +67,20 @@ export default function SectionsEditor({ doc, patch }: { doc: Architecture; patc
       }>
 
       <div className="hint" style={{ marginTop: -6, marginBottom: 12 }}>{chosen.blurb}</div>
+
+      <div className="preset-row">
+        <div>
+          <b>Architecture Design Document</b>
+          <div className="hint">
+            The written chapters an ADD carries around the diagram — scaling, tenancy, recovery,
+            IAM, networking, delivery, cost. Empty and vendor-neutral, printed by the Document view.
+          </div>
+        </div>
+        <button className="btn sm" onClick={addPreset} disabled={!missing}>
+          <Icon name="plus" size={13} />
+          {missing ? `Add ${missing} chapters` : 'All present'}
+        </button>
+      </div>
 
       <CardList<Section>
         items={doc.sections}
@@ -96,7 +123,12 @@ function SectionForm({ doc, sec, set }: { doc: Architecture; sec: Section; set: 
             <div className="hint">Section id <span className="mono">{sec.id}</span> — fixed, the tab links to it.</div>
           </label>
         </div>
-        <Text label="Title" value={sec.title} onChange={v => set(s => { s.title = v; })} />
+        <div className="frow">
+          <Text label="Title" value={sec.title} onChange={v => set(s => { s.title = v; })} />
+          <Text label="Document chapter" value={sec.doc?.chapter || ''} placeholder="2.4" mono
+            hint="Where it sits in the printable document — 1 intro, 2 application, 3 organisation, 4 delivery, 5 cost. Empty means appendix. The printed number is recomputed from the order."
+            onChange={v => set(s => { s.doc = v.trim() ? { chapter: v.trim() } : undefined; })} />
+        </div>
         <Area label="Subtitle" value={sec.subtitle || ''} hint={RICH_HINT}
           onChange={v => set(s => { s.subtitle = v || undefined; })} />
         <Area label="Closing note" value={sec.note || ''} hint={RICH_HINT}

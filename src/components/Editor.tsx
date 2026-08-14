@@ -180,6 +180,10 @@ export default function Editor({ project }: { project: ProjectWithData }) {
               <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>Preview</button>
             </div>
 
+            <a className="btn" href={`/projects/${project.id}/document`} target="_blank" rel="noreferrer"
+              title="The same document, linear and numbered — print it to PDF from there">
+              <Icon name="file" size={15} />Document
+            </a>
             <a className="btn" href={`/api/projects/${project.id}/export?format=html`}>
               <Icon name="download" size={15} />HTML
             </a>

@@ -33,7 +33,14 @@ export interface Ui {
   views?: { overview?: boolean; architecture?: boolean; flows?: boolean; stack?: boolean };
   supportLayer?: string | false;
   flowSpeedMs?: number;
-  architecture?: { title?: string; subtitle?: string };
+  architecture?: {
+    title?: string;
+    subtitle?: string;
+    /** Split each layer into one column per scope. Unset = on past ~24 components. */
+    cluster?: boolean;
+    /** Start with the nodes stripped to icon and name. Unset = on past ~24 components. */
+    compact?: boolean;
+  };
   flows?: { title?: string; subtitle?: string };
   stack?: { title?: string; subtitle?: string };
 }

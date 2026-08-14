@@ -151,11 +151,48 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 /* Rule 1: a filtered scope fills, it does not outline. */
 .chip.pole[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 16%,transparent);border-color:var(--ink-3);color:var(--ink)}
 .hintline{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-left:auto}
+/* The reader's own controls over the sheet — density and scale. They sit at
+   the end of the filter row rather than floating over the diagram, because the
+   diagram now scrolls and anything laid on top of it would scroll away. */
+.tools{display:flex;align-items:center;gap:8px}
+.zoombar{display:flex;align-items:center;border:1px solid color-mix(in srgb,var(--ink) 16%,transparent);background:var(--panel)}
+.zb{
+  border:0;background:none;color:var(--ink-2);font:inherit;font-size:12px;font-weight:600;
+  padding:0 8px;height:28px;display:grid;place-items:center;cursor:pointer;transition:.12s;
+}
+.zb:hover{background:var(--panel-3);color:var(--ink)}
+.zb svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.zb.zfit{border-left:1px solid var(--line-2);padding:0 10px}
+/* The full-screen toggle is its own control, not a third notch on the scale. */
+.zb.solo{border:1px solid color-mix(in srgb,var(--ink) 16%,transparent);background:var(--panel);width:30px;padding:0}
+.zval{
+  font-family:var(--mono);font-size:10.5px;color:var(--ink-3);min-width:38px;text-align:center;
+  font-variant-numeric:tabular-nums;
+}
 
 /* ---------- Diagram ---------- */
-.diagram{position:relative;background:var(--bg);border:1px solid var(--line-2);border-radius:0;padding:8px 18px 22px;box-shadow:var(--shadow);overflow:hidden}
-/* A drafting sheet, not a dot screen. */
-.diagram:before{
+/* Full screen takes the toolbar with the drawing — filtering and scaling are
+   most of what you go there to do. The class is set by engine.js rather than
+   using `:fullscreen`, so one rule covers the prefixed implementations too.
+   The frame then stops being a fixed slice of the viewport and simply takes
+   whatever height is left over. */
+.archwrap.fs{
+  background:var(--bg);padding:14px 20px 16px;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.archwrap.fs .diagram{flex:1;min-height:0;max-height:none}
+.archwrap.fs .edgekey{margin-top:10px}
+/* The frame. It scrolls and clips; the sheet inside it is what scales. */
+.diagram{
+  position:relative;background:var(--bg);border:1px solid var(--line-2);border-radius:0;
+  padding:0;box-shadow:var(--shadow);overflow:auto;max-height:min(78vh,900px);
+}
+.diagram.pannable{cursor:grab}
+.diagram.dragging{cursor:grabbing;user-select:none}
+.canvas{position:relative;padding:8px 18px 22px;transform-origin:0 0}
+/* A drafting sheet, not a dot screen. On the sheet rather than the frame, so
+   it travels and scales with the drawing instead of staying put under it. */
+.canvas:before{
   content:"";position:absolute;inset:0;pointer-events:none;
   background-image:linear-gradient(var(--ink) 1px,transparent 1px),linear-gradient(90deg,var(--ink) 1px,transparent 1px);
   background-size:24px 24px;opacity:.05;
@@ -167,6 +204,19 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .layer-head b{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:400}
 .layer-head em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--ink-3);opacity:.8}
 .nodes{display:flex;flex-wrap:wrap;gap:12px}
+/* A layer split into one column per scope. The rule carries the scope colour
+   and the label names it, so the column needs no card around it — rule 1: the
+   colour is an index, not a decoration. */
+.clusters{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:flex-start}
+.cluster{padding-left:11px;border-left:2px solid color-mix(in srgb,var(--c) 60%,transparent)}
+.cluster-head{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:400;margin-bottom:8px;display:flex;align-items:center;gap:7px;
+}
+.cluster-head span{color:color-mix(in srgb,var(--c) 70%,var(--ink));font-weight:700}
+/* Filtered out entirely: the column leaves the flow rather than sitting there
+   as a ghost, so the sheet actually gets shorter when you narrow it. */
+.cluster.gone,.layer.gone{display:none}
 /* Paper, neutral edge, scope on the chip and the pills — rule 1. */
 .node{
   position:relative;width:212px;text-align:left;border:1px solid var(--line-3);
@@ -192,6 +242,12 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .node.hit{border:2px solid var(--ink);padding:11px 12px}
 .node.sel{border:2px solid var(--brand);padding:11px 12px}
 .node .badge{position:absolute;top:-1px;right:-1px;font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;border-radius:0;background:var(--ink);color:var(--panel);letter-spacing:.03em}
+/* Compact: the node keeps its icon, its name and its badge and drops the rest.
+   The technologies and the URL are still one click away in the sheet — what
+   they cost here is the row, and at this size the row is the scarce thing. */
+.canvas.compact .node{width:156px;padding:9px 10px}
+.canvas.compact .node .tech,.canvas.compact .node .url{display:none}
+.canvas.compact .node.hit,.canvas.compact .node.sel{padding:8px 9px}
 
 /* ---------- Drawer ---------- */
 .scrim{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 55%,transparent);opacity:0;pointer-events:none;transition:.2s;z-index:90}
@@ -321,6 +377,11 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
 @media (max-width:900px){
   main .grid{grid-template-columns:1fr!important}
   .node{width:100%}
+  /* One column per screen, so the scopes stack instead of competing for a
+     width there isn't. The frame gives its scroll back to the page, too: a
+     78vh box inside a phone screen is a keyhole. */
+  .clusters{display:grid;gap:16px}
+  .diagram{max-height:none}
   .hero{padding:24px 20px}
   .hero h1{font-size:27px}
   main{padding:20px 16px 70px}
@@ -334,6 +395,11 @@ table.cmp td:first-child{font-weight:600;color:var(--ink)}
   /* Rule 5: paper drops the shadow token rather than the rules that use it. */
   :root{--shadow:none}
   body{background:#fff}
+  /* Paper has no viewport to scroll and no scale to hold: the frame gives up
+     its box and the sheet prints at 1:1. engine.js redraws the curves unscaled
+     on beforeprint, so the two agree. */
+  .diagram{max-height:none!important;overflow:visible!important}
+  .canvas{transform:none!important;zoom:1!important}
 }
 
 /* ============================================================

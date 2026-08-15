@@ -64,6 +64,28 @@ export function registerSectionTab(doc: Architecture, id: string): void {
   if (at < 0) tabs.push(id); else tabs.splice(at + 1, 0, id);
 }
 
+/** The viewer's natural order for the built-ins, used to slot one back in. */
+const BUILTIN_ORDER = ['overview', 'architecture', 'flows', 'stack'];
+
+/**
+ * Make a built-in view reachable after something first gave it content.
+ *
+ * `naturalTabs` only lists `flows` once `doc.flows` is non-empty, so a document
+ * whose tabs were pinned *before* its first flow existed has no `flows` entry —
+ * and the viewer filters a non-empty `ui.tabs` against what is available, which
+ * means adding a flow later would author a tab nobody can reach. An empty
+ * `ui.tabs` means "natural order" and is left alone, as everywhere else here.
+ */
+export function ensureBuiltinTab(doc: Architecture, id: 'flows' | 'stack' | 'architecture'): void {
+  if (doc.ui.views?.[id] === false) doc.ui.views = { ...doc.ui.views, [id]: true };
+
+  const tabs = doc.ui.tabs;
+  if (!tabs?.length || tabs.includes(id)) return;
+  const after = new Set(BUILTIN_ORDER.slice(BUILTIN_ORDER.indexOf(id) + 1));
+  const at = tabs.findIndex(t => after.has(t));
+  if (at < 0) tabs.push(id); else tabs.splice(at, 0, id);
+}
+
 export function unregisterTab(doc: Architecture, id: string): void {
   if (doc.ui.tabs) doc.ui.tabs = doc.ui.tabs.filter(t => t !== id);
 }

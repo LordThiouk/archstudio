@@ -177,7 +177,7 @@ function GridRow({ row, cols, onCell, onRemove }: {
 /* --------------------------------------------------------------- card list */
 
 /** An ordered list of records: add, reorder, delete, and edit one at a time. */
-export function CardList<T>({ items, onChange, blank, summary, render, addLabel, empty, badge }: {
+export function CardList<T>({ items, onChange, blank, summary, render, addLabel, empty, badge, duplicate }: {
   items: T[];
   onChange: (next: T[]) => void;
   blank: () => T;
@@ -186,6 +186,9 @@ export function CardList<T>({ items, onChange, blank, summary, render, addLabel,
   addLabel: string;
   empty?: string;
   badge?: (item: T) => ReactNode;
+  /* Opt-in rather than automatic: a blind `structuredClone` is wrong for any
+   * record carrying an id, and only the caller knows the ids already taken. */
+  duplicate?: (item: T) => T;
 }) {
   const [open, setOpen] = useState<number | null>(null);
 
@@ -208,6 +211,14 @@ export function CardList<T>({ items, onChange, blank, summary, render, addLabel,
   const remove = (i: number) => {
     onChange(items.filter((_, j) => j !== i));
     setOpen(o => (o === null ? null : o === i ? null : o > i ? o - 1 : o));
+  };
+
+  /** The copy lands right below its original, open, ready to be renamed. */
+  const clone = (i: number) => {
+    const next = [...items];
+    next.splice(i + 1, 0, duplicate!(items[i]));
+    onChange(next);
+    setOpen(i + 1);
   };
 
   return (
@@ -233,6 +244,11 @@ export function CardList<T>({ items, onChange, blank, summary, render, addLabel,
               onClick={() => move(i, i + 1)}>
               <Icon name="chevron" size={13} style={{ transform: 'rotate(90deg)' }} />
             </button>
+            {duplicate && (
+              <button className="iconbtn" title="Duplicate" onClick={() => clone(i)}>
+                <Icon name="copy" size={13} />
+              </button>
+            )}
             <button className="iconbtn danger" title="Remove" onClick={() => remove(i)}>
               <Icon name="trash" size={14} />
             </button>

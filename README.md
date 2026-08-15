@@ -480,6 +480,10 @@ session check in the API routes; the data model does not need to change.
 - Optional auth for shared installs
 - Multi-select and bulk move on the canvas
 
+## Community
+
+[tonuxcorp.com](https://tonuxcorp.com)
+
 ## License
 
 MIT.

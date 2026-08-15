@@ -182,6 +182,13 @@ export default function Workspace({
               title="Model provider for document analysis">
               <Icon name="cog" size={15} />Settings
             </button>
+            {/* The format is the thing nobody can guess from the toolbar, so
+                the way into the explainer sits next to Settings rather than
+                behind a question mark in a corner. */}
+            <a className="footbtn" href="/how-it-works"
+              title="Layers, scopes, components, dependencies and flows — on one worked example">
+              <Icon name="eye" size={15} />How it works
+            </a>
             <span className="footnote">Self-hosted · SQLite</span>
           </div>
         </aside>

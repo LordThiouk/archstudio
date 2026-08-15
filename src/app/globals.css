@@ -860,6 +860,10 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   background: var(--panel); color: var(--ink-2); font: inherit; font-size: 12px;
   padding: 0 11px; height: 34px; border-radius: 0; cursor: pointer; transition: .12s;
 }
+/* Used on an anchor too — the way into the explainer — which would otherwise
+   take the link underline and lose its own bottom border. */
+a.footbtn { border-bottom: 1px solid var(--line-2); }
 .footbtn:hover { border-color: var(--ink-3); color: var(--ink); background: var(--panel-3); }
+a.footbtn:hover { border-bottom-color: var(--ink-3); }
 .footbtn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; }
 .footnote { flex-basis: 100%; font-size: 11px; color: var(--ink-3); }

@@ -1,0 +1,304 @@
+/* /how-it-works — the explainer's own chrome.
+ *
+ * A fourth surface, under the same identity as the other three: square
+ * corners, teal only on what the reader can act on, mono only for what the
+ * machine knows, circles only for nodes in a graph. It borrows the tokens from
+ * globals.css rather than restating them — the one thing it adds is the scope
+ * palette of the worked example, which is a fixed three-colour subset of the
+ * studio's five so the diagram reads the same on every visit.
+ *
+ * The page reads as a column, not as an app: no rails, no fixed height, one
+ * scroll. Everything animated here is decorative, and the last rule in the
+ * file switches all of it off. */
+
+.howto {
+  --g-core: #0099A0;
+  --g-platform: #4F8AC6;
+  --g-vendor: #B26B9B;
+
+  --gut: clamp(20px, 5vw, 72px);
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+}
+html[data-theme="dark"] .howto {
+  --g-core: #14BBC2;
+  --g-platform: #67AAED;
+  --g-vendor: #D686BC;
+}
+
+/* ------------------------------------------------------------------ chrome */
+
+.h-top {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 10px;
+  height: var(--topbar); padding: 0 var(--gut);
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.h-brand { display: flex; align-items: center; gap: 11px; border-bottom: 0; color: var(--ink); }
+.h-brand:hover { color: var(--ink); }
+.h-brand .wordmark b { font-size: 15px; display: block; letter-spacing: -.035em; font-weight: 800; }
+.h-brand .wordmark b i { font-style: normal; font-weight: 400; color: var(--ink-3); }
+.h-brand .wordmark span { font-family: var(--mono); font-size: 10px; color: var(--ink-3); display: block; margin-top: 1px; }
+
+.howto main { max-width: 1320px; margin: 0 auto; }
+.h-foot {
+  border-top: 1px solid var(--line); padding: 18px var(--gut) 40px;
+  color: var(--ink-3); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+}
+
+/* -------------------------------------------------------------------- hero */
+
+.h-hero { padding: 56px var(--gut) 40px; }
+.h-hero h1 { font-size: clamp(30px, 4.6vw, 52px); margin: 10px 0 0; }
+/* The line break is authored — the sentence is two sentences — so the heading
+   must not also break on its own width. */
+@media (min-width: 700px) { .h-hero h1 { white-space: nowrap; } }
+.h-hero .lede { max-width: 68ch; }
+.lede { margin: 16px 0 0; font-size: 15px; line-height: 1.65; color: var(--ink-2); }
+
+.h-outputs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(248px, 1fr));
+  gap: 1px; margin-top: 34px; background: var(--line-2); border: 1px solid var(--line-2);
+}
+.h-out {
+  background: var(--panel); padding: 18px 20px 20px;
+  animation: h-rise .5s both; animation-delay: calc(var(--i) * .09s);
+}
+.h-out svg { display: block; margin: 12px 0 10px; stroke: var(--brand); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.h-out .n { font-size: 10px; letter-spacing: .12em; color: var(--ink-3); }
+.h-out b { font-size: 15px; letter-spacing: -.02em; display: block; }
+.h-out p { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+
+/* ---------------------------------------------------------------- sections */
+
+.h-sec { padding: 54px var(--gut) 58px; border-top: 1px solid var(--line); }
+.h-sec.alt { background: var(--panel); }
+.h-sechead { max-width: 74ch; margin-bottom: 30px; }
+.h-sechead h2 { font-size: clamp(22px, 3vw, 32px); margin-top: 8px; }
+
+.h-split { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 34px; align-items: start; }
+
+/* ------------------------------------------------------------- model steps */
+
+.h-steps { display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(var(--topbar) + 22px); }
+
+.h-stage {
+  position: relative; text-align: left; font: inherit; color: var(--ink); cursor: pointer;
+  background: transparent; border: 0; border-left: 2px solid var(--line-2);
+  padding: 12px 16px 13px; transition: background .15s, border-color .15s;
+}
+.h-stage:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+/* Rule 2: the stage you are on is the thing you acted on, so it is teal. */
+.h-stage.on { border-left-color: var(--brand); background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.h-stage b { display: block; font-size: 16px; letter-spacing: -.02em; margin-top: 3px; }
+.h-stage.on b { color: var(--ink); }
+.h-stage:not(.on) b { color: var(--ink-2); font-weight: 600; }
+.h-stage p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
+
+/* The bar that runs out before the next stage takes over — the only clock on
+   the page, and it disappears the moment the reader picks a stage by hand. */
+.h-tick {
+  position: absolute; left: -2px; bottom: 0; width: 2px; background: var(--brand);
+  animation: h-tick linear both; transform-origin: top;
+}
+@keyframes h-tick { from { height: 0 } to { height: 100% } }
+@keyframes h-rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+.h-legend { list-style: none; margin: 18px 0 0; padding: 14px 16px; border: 1px solid var(--line-2); background: var(--panel-2); }
+.h-sec.alt .h-legend { background: var(--panel-2); }
+.h-legend li {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start;
+  font-size: 12.5px; color: var(--ink-2); line-height: 1.55; padding: 8px 0;
+}
+.h-legend li + li { border-top: 1px solid var(--line); }
+.h-legend b { display: block; color: var(--ink); font-size: 13px; }
+/* Rule 1: a scope is a square swatch — a circle would claim it is a node. */
+.h-legend i { width: 12px; height: 12px; display: block; margin-top: 3px; justify-self: center; }
+.h-legend i.bar { width: 24px; height: 2px; background: var(--ink-3); margin-top: 8px; }
+.h-legend .kindline { width: 34px; height: 8px; overflow: visible; margin-top: 6px; }
+.h-legend .kindline path { stroke: var(--ink-2); stroke-width: 1.2; fill: none; stroke-linecap: round; }
+.h-legend .kindline .caller { fill: var(--ink-2); }
+.h-legend .kindline .callee { fill: var(--panel); stroke: var(--ink-2); stroke-width: 1.4; }
+
+/* ------------------------------------------------------------------ figure */
+
+.h-figure {
+  border: 1px solid var(--line-3); background: var(--bg); padding: 10px 14px 6px;
+  position: relative; overflow: hidden;
+}
+.h-sec.alt .h-figure { background: var(--panel-2); }
+/* The drafting sheet behind the drawing — the same square grid as the canvas. */
+.h-figure::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(var(--ink) 1px, transparent 1px), linear-gradient(90deg, var(--ink) 1px, transparent 1px);
+  background-size: 24px 24px; opacity: .05;
+}
+.h-cap { position: relative; margin: 2px 0 6px; font-size: 10px; color: var(--ink-3); letter-spacing: .06em; }
+
+/* ----------------------------------------------------------------- diagram */
+
+.hdiag { position: relative; display: block; width: 100%; height: auto; overflow: visible; }
+
+.hdiag .hband .fill { fill: transparent; transition: fill .5s; }
+.hdiag .hband .rule { stroke: var(--line-3); stroke-width: 1; stroke-dasharray: 3 4; }
+.hdiag .blabel {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  fill: var(--ink-3); transition: fill .4s;
+}
+.hdiag .bdesc { fill: var(--ink-3); opacity: .7; text-transform: none; letter-spacing: .02em; }
+.hdiag.stage-layers .hband .fill { fill: color-mix(in srgb, var(--brand) 7%, transparent); }
+.hdiag.stage-layers .blabel { fill: var(--ink); }
+
+/* A node: paper, a neutral edge, the scope on the chip — rule 1, everywhere. */
+.hdiag .hnode { transition: opacity .45s; }
+.hdiag .hnode .body { fill: var(--panel); stroke: var(--line-3); stroke-width: 1; }
+.hdiag .hnode .chip { fill: var(--gc); transition: fill .5s; }
+.hdiag .hnode .glyph { stroke: var(--on-fill); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hdiag .hnode .nm { font-size: 13px; font-weight: 700; letter-spacing: -.01em; fill: var(--ink); }
+.hdiag .hnode .tech {
+  font-family: var(--mono); font-size: 9.5px; opacity: 0; transition: opacity .4s;
+  fill: color-mix(in srgb, var(--gc) 70%, var(--ink));
+}
+.hdiag .hnode .badgeplate { fill: var(--ink); opacity: 0; transition: opacity .4s; }
+.hdiag .hnode .badge {
+  font-family: var(--mono); font-size: 9px; font-weight: 700; text-anchor: middle;
+  fill: var(--panel); opacity: 0; transition: opacity .4s;
+}
+.hdiag.stage-components .hnode .tech, .hdiag.stage-deps .hnode .tech, .hdiag.stage-flow .hnode .tech,
+.hdiag.stage-components .hnode .badgeplate, .hdiag.stage-deps .hnode .badgeplate, .hdiag.stage-flow .hnode .badgeplate,
+.hdiag.stage-components .hnode .badge, .hdiag.stage-deps .hnode .badge, .hdiag.stage-flow .hnode .badge { opacity: 1; }
+
+/* Layers first: the bands are the subject, so the boxes on them are barely
+   there and have not been given a scope yet. */
+.hdiag.stage-layers .hnode { opacity: .3; }
+.hdiag.stage-layers .hnode .chip { fill: var(--ink-3); }
+
+/* An edge is background while something else is the subject and the subject
+   itself on the dependencies stage, so its weight is a variable rather than a
+   value — including in the keyframes that stagger the drawing in. */
+.hdiag { --edge-op: 0; }
+.hdiag.stage-deps { --edge-op: .72; }
+.hdiag.stage-flow { --edge-op: .3; }
+
+.hdiag .hedge { opacity: var(--edge-op); transition: opacity .45s; }
+.hdiag .hedge path { stroke: var(--gc); stroke-width: 1.3; stroke-linecap: round; }
+.hdiag .hedge .caller { fill: var(--gc); }
+.hdiag .hedge .callee { fill: var(--panel); stroke: var(--gc); stroke-width: 1.5; }
+.hdiag.stage-deps .hedge, .hdiag.stage-flow .hedge {
+  animation: h-fade .5s backwards; animation-delay: calc(var(--i) * .07s);
+}
+/* Not on the path the flow has taken so far: still there, no longer read. */
+.hdiag.stage-flow .hedge.faint { opacity: .1; }
+@keyframes h-fade { from { opacity: 0 } to { opacity: var(--edge-op) } }
+
+/* The anatomy leads: hairlines and mono, and only while components are the
+   subject — they are annotation on the drawing, not part of it. */
+.hdiag .hcallout { opacity: 0; transition: opacity .4s; pointer-events: none; }
+.hdiag.stage-components .hcallout { opacity: 1; }
+.hdiag .hcallout .lead { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 3; }
+.hdiag .hcallout .ctxt { font-family: var(--mono); font-size: 9.5px; fill: var(--ink-2); }
+
+/* The flow: the step you are on takes the ink border the canvas uses for a
+   hit, everything not yet reached steps back. */
+.hdiag.stage-flow .hnode.dim { opacity: .34; }
+.hdiag.stage-flow .hnode.on .body { stroke: var(--ink); stroke-width: 2; }
+.hdiag.stage-flow .hnode.past .body { stroke: var(--ink-3); }
+
+.hdiag .hhop .trail {
+  stroke: var(--brand); stroke-width: 1.6; stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: 100; animation: h-draw .8s cubic-bezier(.4, 0, .2, 1) forwards;
+}
+.hdiag .hhop .packet { fill: var(--brand); }
+@keyframes h-draw { to { stroke-dashoffset: 0 } }
+
+/* --------------------------------------------------------------- flow copy */
+
+.h-flow { display: flex; flex-direction: column; }
+.h-flowhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.h-flowhead h3 { font-size: 18px; }
+.h-flowhead span { font-size: 11.5px; color: var(--ink-3); }
+
+.h-steplist { list-style: none; margin: 0; padding: 0; }
+.h-steplist li { opacity: .42; transition: opacity .25s; }
+.h-steplist li.on { opacity: 1; }
+.h-steplist button {
+  display: grid; grid-template-columns: 34px 1fr; gap: 14px; width: 100%; text-align: left;
+  background: transparent; border: 0; padding: 7px 0; font: inherit; color: inherit; cursor: pointer;
+}
+/* Rule 4: a step is a node on a line, so its number is round. */
+.h-steplist .n {
+  position: relative; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; background: var(--panel); border: 1.5px solid var(--line-2);
+  color: var(--ink-3); transition: .25s;
+}
+.h-steplist li.on .n { background: var(--gc); border-color: var(--gc); color: var(--on-fill); }
+.h-steplist .n::after {
+  content: ""; position: absolute; top: 30px; left: 50%; width: 1px; height: calc(100% + 16px);
+  background: var(--line-2);
+}
+.h-steplist li:last-child .n::after { display: none; }
+.h-steplist .tx b { display: block; font-size: 13.5px; }
+.h-steplist .tx em { display: block; font-style: normal; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; line-height: 1.55; }
+.h-steplist .who {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 10px; padding: 3px 8px; margin-top: 7px;
+  background: color-mix(in srgb, var(--gc) 14%, transparent);
+  color: color-mix(in srgb, var(--gc) 70%, var(--ink));
+}
+.h-steplist .who svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.h-playbar { display: flex; gap: 8px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+.h-progress { flex: 1; min-width: 60px; height: 2px; background: var(--line-2); overflow: hidden; }
+.h-progress i { display: block; height: 100%; background: var(--brand); transition: width .3s; }
+.h-playbar .count { font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.h-note {
+  margin: 18px 0 0; padding: 11px 14px; font-size: 12.5px; line-height: 1.6; color: var(--ink-2);
+  background: color-mix(in srgb, var(--brand) 7%, transparent); border-left: 2px solid var(--brand);
+}
+
+/* ---------------------------------------------------------------- pipeline */
+
+.h-pipe {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 1px; background: var(--line-2); border: 1px solid var(--line-2);
+}
+.h-pipe li { background: var(--panel); padding: 18px 20px 22px; animation: h-rise .5s both; animation-delay: calc(var(--i) * .07s); }
+.h-pipe .n { font-size: 10px; letter-spacing: .12em; color: var(--ink-3); }
+.h-pipe svg { display: block; margin: 12px 0 10px; stroke: var(--brand); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.h-pipe b { display: block; font-size: 14px; letter-spacing: -.02em; }
+.h-pipe p { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.6; }
+
+/* --------------------------------------------------------------------- cta */
+
+.h-cta { padding: 56px var(--gut) 64px; border-top: 1px solid var(--line); background: var(--panel); }
+.h-cta h2 { font-size: clamp(22px, 3vw, 30px); }
+.h-cta p { max-width: 68ch; margin: 14px 0 0; font-size: 14px; line-height: 1.65; color: var(--ink-2); }
+.h-ctabtns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+
+/* ------------------------------------------------------------- narrow view */
+
+@media (max-width: 1000px) {
+  .h-split { grid-template-columns: 1fr; }
+  .h-steps { position: static; }
+  /* The figure comes first on a phone: the drawing is the subject, and a
+     column of prose above it would push it off the screen entirely. */
+  .h-split .h-figure { order: -1; }
+  .h-stage p { max-width: none; }
+}
+@media (max-width: 620px) {
+  .h-top { padding: 0 16px; }
+  .h-top .btn span { display: none; }
+  .h-figure { padding: 8px 8px 4px; }
+}
+
+/* Everything above that moves is decoration. Under a reduced-motion setting
+   the same states are reachable — the stages by click, the flow by its
+   playbar — they simply arrive rather than animate. */
+@media (prefers-reduced-motion: reduce) {
+  .howto *, .howto *::before, .howto *::after {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .hdiag .hhop .trail { stroke-dashoffset: 0; }
+}

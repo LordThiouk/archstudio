@@ -95,6 +95,24 @@ browser to get a PDF.
 
 **Import** — accepts JSON or a `window.ARCHITECTURE = {…}` data file. Paste it or pick the file.
 
+**Read a document** *(off until you configure a model)* — hand it a design document, an RFC or an
+onboarding guide as PDF or Markdown, and it drafts the diagram the document describes: scopes, layers,
+components, dependencies, and the role and responsibilities of each. The same reading can be run
+against a project that already exists — **Enrich** in the editor — where it can only add: new
+components, missing dependencies, and text in the fields you left empty. Nothing you have written
+is ever overwritten, and applying leaves a named version in History to go back to.
+
+Nothing is written until you have read what came back. The review screen states what the model
+had to assume, what it could not answer, and what had to be repaired before the document could be
+opened — a dependency on a component it never defined, an icon that does not exist. Treat all of
+it as a draft: it is one reading of one document, and the dependencies especially deserve a
+second pair of eyes.
+
+This is the one feature that leaves your machine, so it is opt-in and it is yours to point:
+choose a provider in **Settings** — Anthropic, OpenAI, Google Gemini, NVIDIA NIM, or anything
+that speaks the OpenAI API, including a model running on your own hardware. Configure nothing and
+both entry points do not exist. See [Reading documents](#reading-documents).
+
 ---
 
 ## Templates
@@ -332,14 +350,18 @@ src/app/                  Next.js 15 App Router
   projects/[id]/page.tsx  editor (server)    → components/Editor
   projects/[id]/document/ the printable design document — plan, renderer, print CSS
   api/                    folders, projects, templates, export, import, revisions
-src/components/           Workspace, Editor, Inspector, History, Icon, Brand (the mark)
+  api/ai, api/settings    document analysis, and which model does it
+src/components/           Workspace, Editor, Inspector, History, Analyse, Settings, Icon, Brand
 src/lib/
   db.ts                   node:sqlite connection + schema
   store.ts                every query in the app lives here
+  settings.ts             operator configuration; the only place a key is handled
   types.ts                the document contract
   defaults.ts             blank document, palette, normalisation
   links.ts                the dependency-kind table — stroke, labels, legend
   diff.ts                 two documents → what changed, in words
+  ai/                     schema, prompts, convert, merge
+  ai/providers/           one shape for five providers, three adapters
   templates/              the six templates and instantiate()
   document/               the ADD outline (plan.ts) and its chapter preset
   exportHtml.ts           document → self-contained HTML
@@ -376,6 +398,62 @@ checkpoint during an autosave otherwise leaves two rows in the same second with 
 The full surface is `GET/POST/PATCH/DELETE /api/projects/:id/revisions`, driven by the **History**
 button in the editor. What that panel shows is computed by `src/lib/diff.ts`, which turns two
 documents into sentences rather than a JSON diff.
+
+---
+
+## Reading documents
+
+Nothing is configured out of the box. Open **Settings** — the gear at the foot of the sidebar —
+and choose who reads your documents:
+
+| Provider | Endpoint | PDFs | Token count before a run |
+|---|---|---|---|
+| Anthropic | built in | yes | exact |
+| Google Gemini | built in | yes | exact |
+| OpenAI | built in | text only | estimated |
+| NVIDIA NIM | built in | text only | estimated |
+| OpenAI-compatible | yours | text only | estimated |
+
+The last row is the interesting one: anything that speaks `/v1/chat/completions` — Ollama, LM
+Studio, vLLM, Groq, Together, OpenRouter, a model on your own GPU — is a base URL away, and needs
+no key at all when it is local and unauthenticated.
+
+**Test before you trust it.** Two buttons in the dialog: *Load models* asks the provider what it
+can serve, and *Test* runs a real schema-constrained request. The second is the one that matters —
+the analysis depends on the model honouring a JSON schema, most current models do and small local
+ones often do not, and it is much better to learn that here than after uploading a 40-page
+document.
+
+**The key is stored in `data/studio.db`, in clear text.** There is no login in this application
+to encrypt it against, and a key derived from something on the machine would only look like
+encryption — so: anyone who can read that file, or a backup of it, can read the key. It is never
+sent back to the browser, which only ever sees the last four characters. To keep it out of the
+data directory entirely, set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` /
+`NVIDIA_API_KEY` in the environment and leave the field empty; the dialog then says it is reading
+the environment.
+
+**What it sends.** The file you choose, plus — for an enrichment — the id, name, scope and layer
+of each component already in *that one project*. Nothing else: not your other projects, not the
+database, not the file until you pick it. It goes to the endpoint you configured and nowhere else,
+from the server process, so the key never reaches the browser.
+
+**What it costs.** One request per run, on your own account. Providers do not publish their rates
+through their APIs, so no price is invented for you: enter one in Settings (dollars per million
+tokens, input and output) and the dialog shows what a run will cost before you start it. Leave it
+empty and it shows a token count instead.
+
+**What guarantees the output.** The answer is generated under a JSON Schema the provider enforces
+— `output_config.format` on Anthropic, `response_format: json_schema` with `strict: true` on the
+OpenAI surface, `responseSchema` on Gemini — so it cannot come back as prose or as half a
+document. That leaves exactly one failure mode, a document that is well-formed and *wrong*, which
+is why the result is shown for review rather than written, and why every repair is listed rather
+than made quietly. The schema lives in `src/lib/ai/schema.ts`, is checked against `types.ts` by a
+test, and is translated per provider in `src/lib/ai/providers/dialects.ts`.
+
+**What it does not do.** It does not write your chapters: `sections` are the editorial argument of
+the document and stay yours. It does not cite the source — the APIs reject citations and
+schema-constrained output in the same request, so tracing a component back to its paragraph would
+need a second pass, and pretending to trace it would be worse than not trying.
 
 ---
 

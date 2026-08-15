@@ -10,6 +10,7 @@ import { Icon } from './Icon';
 import Inspector from './Inspector';
 import ContentEditor from './ContentEditor';
 import History from './History';
+import { EnrichDialog, useAiStatus } from './Analyse';
 import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
 import { dashFor, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
@@ -28,6 +29,8 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const [link, setLink] = useState<{ from: string; x: number; y: number } | null>(null);
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
+  const [enrich, setEnrich] = useState(false);
+  const ai = useAiStatus();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const first = useRef(true);
@@ -183,6 +186,13 @@ export default function Editor({ project }: { project: ProjectWithData }) {
               <button aria-pressed={mode === 'preview'} onClick={() => setMode('preview')}>Preview</button>
             </div>
 
+            {ai?.enabled && (
+              <button className="btn" onClick={() => setEnrich(true)}
+                title="Read a document against this project and add what it is missing">
+                <Icon name="ai" size={15} />Enrich
+              </button>
+            )}
+
             <button className="btn" onClick={() => setHistory(true)}
               title="Earlier versions, and what changed since each one">
               <Icon name="clock" size={15} />History
@@ -255,6 +265,18 @@ export default function Editor({ project }: { project: ProjectWithData }) {
              * the autosave that follows is a no-op against what is on disk. */
             setDoc(data);
             setSelected(s => (data.components.some(c => c.id === s) ? s : null));
+          }} />
+      )}
+
+      {enrich && (
+        <EnrichDialog projectId={project.id} doc={doc}
+          onClose={() => setEnrich(false)}
+          onApply={merged => {
+            /* Adopted like a restore: the dialog has already checkpointed the
+             * document, and the autosave that follows this state change is the
+             * one and only write. */
+            setDoc(merged);
+            setEnrich(false);
           }} />
       )}
     </DndContext>

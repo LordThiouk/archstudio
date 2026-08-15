@@ -8,6 +8,9 @@ import {
 } from '@dnd-kit/core';
 import { Icon } from './Icon';
 import { Lockup } from './Brand';
+import { AnalyseNewDialog, useAiStatus } from './Analyse';
+import { SettingsDialog } from './Settings';
+import { api } from '@/lib/api';
 import { FOLDER_COLORS, PALETTE } from '@/lib/defaults';
 /* `templates/types` carries no template bodies — importing the registry here
  * would ship every template's editorial content to the browser. */
@@ -16,17 +19,6 @@ import type { CloudTarget, Lang, TemplateSummary } from '@/lib/templates/types';
 import type { FolderRecord, ProjectSummary } from '@/lib/types';
 
 type Scope = { kind: 'all' } | { kind: 'unfiled' } | { kind: 'folder'; id: string };
-
-const api = {
-  async json<T>(url: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(url, {
-      ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) }
-    });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
-    return res.json();
-  }
-};
 
 export default function Workspace({
   initialFolders, initialProjects
@@ -39,7 +31,11 @@ export default function Workspace({
     Object.fromEntries(initialFolders.map(f => [f.id, true])));
   const [query, setQuery] = useState('');
   const [dragging, setDragging] = useState<ProjectSummary | null>(null);
-  const [dialog, setDialog] = useState<null | 'new' | 'import'>(null);
+  const [dialog, setDialog] = useState<null | 'new' | 'import' | 'analyse' | 'settings'>(null);
+  /* Null until the server answers, false on an install with no API key — the
+   * entry point is absent rather than disabled, because a button that only
+   * exists to explain why it cannot work is worse than no button. */
+  const ai = useAiStatus();
   const [busy, setBusy] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -179,7 +175,14 @@ export default function Workspace({
             <button className="iconbtn" onClick={toggleTheme} title="Light / dark">
               <Icon name="moon" size={15} />
             </button>
-            <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>Self-hosted · SQLite</span>
+            {/* Named, not a bare gear. This is where the model provider and its
+                key are set, and nobody hunts for an unlabelled icon to find
+                something they have not been told exists. */}
+            <button className="footbtn" onClick={() => setDialog('settings')}
+              title="Model provider for document analysis">
+              <Icon name="cog" size={15} />Settings
+            </button>
+            <span className="footnote">Self-hosted · SQLite</span>
           </div>
         </aside>
 
@@ -195,6 +198,19 @@ export default function Workspace({
               <input className="input" placeholder="Search projects…" value={query}
                 onChange={e => setQuery(e.target.value)} />
             </div>
+            {/* Shown whether or not a model is configured, and it leads to the
+                right place either way. Hiding it until configuration was done
+                left no path at all from "I want this" to "here is where you
+                turn it on" — the feature was invisible to anyone who had not
+                already read the README. */}
+            {ai && (
+              <button className="btn" onClick={() => setDialog(ai.enabled ? 'analyse' : 'settings')}
+                title={ai.enabled
+                  ? 'Draft a project from a written document'
+                  : 'Needs a model provider — set one up first'}>
+                <Icon name="ai" size={15} />Read a document
+              </button>
+            )}
             <button className="btn" onClick={() => setDialog('import')}>
               <Icon name="upload" size={15} />Import
             </button>
@@ -246,6 +262,19 @@ export default function Workspace({
           onClose={() => setDialog(null)}
           onCreated={id => router.push(`/projects/${id}`)}
         />
+      )}
+      {dialog === 'analyse' && (
+        <AnalyseNewDialog
+          folderId={currentFolderId}
+          onClose={() => setDialog(null)}
+          onCreated={id => router.push(`/projects/${id}`)}
+        />
+      )}
+      {dialog === 'settings' && (
+        <SettingsDialog onClose={() => setDialog(null)}
+          reason={ai && !ai.enabled
+            ? 'Reading documents needs a model. Choose a provider and give it a key, and “Read a document” starts working.'
+            : undefined} />
       )}
     </DndContext>
   );

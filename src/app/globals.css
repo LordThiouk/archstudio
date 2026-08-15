@@ -785,3 +785,48 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   .sidebar { display: none; }
   .inspector { position: fixed; right: 0; top: var(--topbar); bottom: 0; z-index: 60; box-shadow: var(--shadow-lg); }
 }
+
+/* ---------- Document analysis ---------- */
+/* The findings panel. Everything here is a claim a model made about someone's
+   system, so it is set as prose to be read rather than as data to be skimmed —
+   the one place in the studio where the reader is expected to disagree with
+   what is on screen. */
+.ai-list { margin: 4px 0 0; padding-left: 17px; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.ai-list li { margin-bottom: 4px; }
+.ai-list li:last-child { margin-bottom: 0; }
+.ai-counts { font-size: 13px; margin: 2px 0 0; color: var(--ink-2); }
+/* The running state: a file name and a warning that nothing will happen for a
+   minute or two. Left-aligned because it is a sentence, not a status. */
+.ai-running { padding: 22px 20px; border: 1px dashed var(--line-3); background: var(--panel-2); margin-top: 14px; }
+.ai-running b { display: block; margin-bottom: 4px; font-size: 13.5px; }
+.ai-running span { font-size: 12.5px; color: var(--ink-2); }
+.ai-more { font-size: 12.5px; color: var(--ink-3); padding: 2px 0 2px 23px; }
+
+/* ---------- Settings ---------- */
+/* A link that is really a button — "Forget it" next to a stored key. Set as
+   prose because it belongs to the sentence around it, not to the toolbar. */
+.linkbtn {
+  border: 0; background: none; padding: 0; font: inherit; font-size: inherit; cursor: pointer;
+  color: var(--brand-ink); border-bottom: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+}
+.linkbtn:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.linkbtn:disabled { color: var(--ink-3); border-bottom-color: transparent; cursor: default; }
+/* The result of a connection test. Teal, because it is the one line here that
+   reports something the operator just made happen. */
+.ok-line {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--brand-ink);
+}
+.ok-line svg { fill: none; stroke: currentColor; stroke-width: 1.9; }
+
+/* The named way into Settings. A labelled button rather than another icon in
+   the tray: this is where the model provider and its key are set, and an
+   unlabelled gear is only findable by someone who already knows. */
+.sidebar-foot { flex-wrap: wrap; }
+.footbtn {
+  display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line-2);
+  background: var(--panel); color: var(--ink-2); font: inherit; font-size: 12px;
+  padding: 0 11px; height: 34px; border-radius: 0; cursor: pointer; transition: .12s;
+}
+.footbtn:hover { border-color: var(--ink-3); color: var(--ink); background: var(--panel-3); }
+.footbtn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; }
+.footnote { flex-basis: 100%; font-size: 11px; color: var(--ink-3); }

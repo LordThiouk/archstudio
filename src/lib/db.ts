@@ -22,6 +22,13 @@ PRAGMA foreign_keys = ON;
 -- one process against this file — dev server and a build, or several workers —
 -- so the honest default is to block briefly rather than fail the request.
 PRAGMA busy_timeout = 5000;
+-- Deleted content is overwritten with zeros rather than left in a free page.
+-- The default is off because zeroing costs writes, and for folders and
+-- projects nobody would care — but this file also holds an API key, and
+-- "forget my key" has to mean the bytes are gone, not that a row stopped
+-- pointing at them. It applies to future deletions only, so settings.ts
+-- vacuums when a key changes, to scrub any copy written before this existed.
+PRAGMA secure_delete = ON;
 
 CREATE TABLE IF NOT EXISTS folders (
   id         TEXT PRIMARY KEY,
@@ -46,6 +53,16 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_projects_folder ON projects(folder_id);
+
+-- One row per settings group, holding JSON. A key-value table rather than
+-- columns because this holds operator configuration, not domain data: it grows
+-- by whatever the next feature needs to remember, and a migration per field
+-- would be a lot of ceremony for a single-user file.
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE IF NOT EXISTS revisions (
   id         TEXT PRIMARY KEY,

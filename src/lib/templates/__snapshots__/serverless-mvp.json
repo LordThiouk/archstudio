@@ -1,7 +1,7 @@
 {
   "agnostic · en": {
     "title": "Serverless MVP",
-    "kicker": "Template: Serverless MVP · Vendor-neutral · 2026-08-14",
+    "kicker": "Template: Serverless MVP · Vendor-neutral · 2026-08-15",
     "groups": [
       "product: Product",
       "data: Data",
@@ -52,7 +52,7 @@
   },
   "agnostic · fr": {
     "title": "MVP serverless",
-    "kicker": "Modèle : MVP serverless · Agnostique · 2026-08-14",
+    "kicker": "Modèle : MVP serverless · Agnostique · 2026-08-15",
     "groups": [
       "product: Produit",
       "data: Données",
@@ -103,7 +103,7 @@
   },
   "aws · en": {
     "title": "Serverless MVP",
-    "kicker": "Template: Serverless MVP · AWS · 2026-08-14",
+    "kicker": "Template: Serverless MVP · AWS · 2026-08-15",
     "groups": [
       "product: Product",
       "data: Data",
@@ -156,7 +156,7 @@
   },
   "aws · fr": {
     "title": "MVP serverless",
-    "kicker": "Modèle : MVP serverless · AWS · 2026-08-14",
+    "kicker": "Modèle : MVP serverless · AWS · 2026-08-15",
     "groups": [
       "product: Produit",
       "data: Données",
@@ -209,7 +209,7 @@
   },
   "gcp · en": {
     "title": "Serverless MVP",
-    "kicker": "Template: Serverless MVP · Google Cloud · 2026-08-14",
+    "kicker": "Template: Serverless MVP · Google Cloud · 2026-08-15",
     "groups": [
       "product: Product",
       "data: Data",
@@ -262,7 +262,7 @@
   },
   "gcp · fr": {
     "title": "MVP serverless",
-    "kicker": "Modèle : MVP serverless · Google Cloud · 2026-08-14",
+    "kicker": "Modèle : MVP serverless · Google Cloud · 2026-08-15",
     "groups": [
       "product: Produit",
       "data: Données",
@@ -315,7 +315,7 @@
   },
   "azure · en": {
     "title": "Serverless MVP",
-    "kicker": "Template: Serverless MVP · Azure · 2026-08-14",
+    "kicker": "Template: Serverless MVP · Azure · 2026-08-15",
     "groups": [
       "product: Product",
       "data: Data",
@@ -368,7 +368,7 @@
   },
   "azure · fr": {
     "title": "MVP serverless",
-    "kicker": "Modèle : MVP serverless · Azure · 2026-08-14",
+    "kicker": "Modèle : MVP serverless · Azure · 2026-08-15",
     "groups": [
       "product: Produit",
       "data: Données",
@@ -421,7 +421,7 @@
   },
   "selfhosted · en": {
     "title": "Serverless MVP",
-    "kicker": "Template: Serverless MVP · Self-hosted · 2026-08-14",
+    "kicker": "Template: Serverless MVP · Self-hosted · 2026-08-15",
     "groups": [
       "product: Product",
       "data: Data",
@@ -473,7 +473,7 @@
   },
   "selfhosted · fr": {
     "title": "MVP serverless",
-    "kicker": "Modèle : MVP serverless · Auto-hébergé · 2026-08-14",
+    "kicker": "Modèle : MVP serverless · Auto-hébergé · 2026-08-15",
     "groups": [
       "product: Produit",
       "data: Données",

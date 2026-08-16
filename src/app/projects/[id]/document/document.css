@@ -279,7 +279,7 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-layer:last-child { border-bottom: 0; }
 .paper-layer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .paper-layer-head b {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .13em; text-transform: uppercase;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: capitalize;
   color: var(--ink-3); font-weight: 400;
 }
 .paper-layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }

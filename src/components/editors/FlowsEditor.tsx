@@ -10,13 +10,14 @@ import FlowPatterns from './FlowPatterns';
 import { Area, CardList, Group, Panel, RICH_HINT, ScopePicker, Text } from './Fields';
 import { slugify } from '@/lib/defaults';
 import { api } from '@/lib/api';
-import { insertFlow } from '@/lib/flows/apply';
+import { insertPlate } from '@/lib/flows/plate';
 import { toFlowPattern } from '@/lib/flows/derive';
+import type { LegoCatalogSnapshot } from '@/lib/lego/types';
 import type { Architecture, Flow, FlowStep } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 
-export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: Patch }) {
+export default function FlowsEditor({ doc, patch, catalog }: { doc: Architecture; patch: Patch; catalog: LegoCatalogSnapshot | null }) {
   const setFlows = (next: Flow[]) => patch(d => { d.flows = next; return d; });
   const compName = (id: string) => doc.components.find(c => c.id === id)?.name || id;
   const noComponents = doc.components.length === 0;
@@ -66,7 +67,7 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
         {noComponents && (
           <div className="warnbox">
             <Icon name="alert" size={15} />
-            A flow is a path through the diagram. Add components first — steps have nothing to point at.
+            No bricks yet — a pattern can create the missing ones, or add components first for a manual flow.
           </div>
         )}
 
@@ -75,10 +76,10 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
             <b>Start from a pattern</b>
             <div className="hint">
               Authentication, checkout, inbound webhook, RAG query, CI/CD, asynchronous processing —
-              plus anything you saved yourself. The steps come written; you bind each one to a component.
+              plus anything you saved yourself. Bind steps to existing bricks, create missing ones, or skip.
             </div>
           </div>
-          <button className="btn sm" disabled={noComponents} onClick={() => setPicking(true)}>
+          <button className="btn sm" disabled={!catalog} onClick={() => setPicking(true)}>
             <Icon name="route" size={13} />Browse patterns
           </button>
         </div>
@@ -164,10 +165,10 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
           )} />
       </Group>
 
-      {picking && (
-        <FlowPatterns doc={doc} onClose={() => setPicking(false)}
+      {picking && catalog && (
+        <FlowPatterns doc={doc} catalog={catalog} onClose={() => setPicking(false)}
           onInsert={(pattern, bindings, name, group) =>
-            patch(d => { insertFlow(d, { pattern, bindings, name, group }); return d; })} />
+            catalog && patch(d => { insertPlate(d, { pattern, bindings, name, group }, catalog); return d; })} />
       )}
     </Panel>
   );

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, slugify } from '@/lib/defaults';
+import { displayLayerLabel } from '@/lib/layers';
 import { LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkOf, shortLink } from '@/lib/links';
 import type { Architecture, Component, Link, LinkKind } from '@/lib/types';
 
@@ -61,7 +62,7 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         </label>
         <label className="field"><span>Layer</span>
           <select className="select" value={comp.layer} onChange={e => set(c => { c.layer = e.target.value; })}>
-            {doc.layers.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            {doc.layers.map(l => <option key={l.id} value={l.id}>{displayLayerLabel(l.name === l.id ? l.id : l.name)}</option>)}
           </select>
         </label>
       </div>

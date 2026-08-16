@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Mark, Wordmark } from '@/components/Brand';
 import { PALETTE } from '@/lib/defaults';
+import { displayLayerLabel } from '@/lib/layers';
 import { dashFor, describeLink, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
@@ -321,7 +322,7 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
         {doc.layers.map(layer => (
           <div className="paper-layer" key={layer.id}>
             <div className="paper-layer-head">
-              <b>{layer.name}</b>{layer.desc && <em>{layer.desc}</em>}
+              <b>{displayLayerLabel(layer.name)}</b>{layer.desc && <em>{layer.desc}</em>}
             </div>
             <div className="paper-layer-row">
               {doc.components.filter(c => c.layer === layer.id).map(c => (
@@ -369,7 +370,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
           if (!items.length) return null;
           return (
             <tbody key={layer.id}>
-              <tr className="paper-tr-group"><th colSpan={4}>{layer.name}</th></tr>
+              <tr className="paper-tr-group"><th colSpan={4}>{displayLayerLabel(layer.name)}</th></tr>
               {items.map(c => (
                 <tr key={c.id}>
                   <td>{c.name}</td>

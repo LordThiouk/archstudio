@@ -18,7 +18,7 @@ import type { Architecture } from '../types';
 
 const SNAP_DIR = join(dirname(fileURLToPath(import.meta.url)), '__snapshots__');
 const UPDATE = process.env.UPDATE_SNAPSHOTS === '1';
-const TODAY = '2026-08-14';
+const TODAY = '2026-08-15';
 
 const BUILTIN_TABS = ['overview', 'architecture', 'flows', 'stack'];
 const PLACEHOLDERS = ['{{', 'TODO', 'FIXME', 'lorem', '…'];

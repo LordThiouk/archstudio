@@ -1,4 +1,5 @@
 import { LINK_KINDS, linkIsEmpty } from './links';
+import { displayLayerLabel } from './layers';
 import type { Architecture, Group, Link, Section, SectionType } from './types';
 
 /* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
@@ -87,7 +88,14 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
     theme: { ...base.theme, ...(input.theme || {}) },
     ui: { ...base.ui, ...(input.ui || {}) },
     groups: paintGroups(input.groups?.length ? input.groups : base.groups),
-    layers: input.layers?.length ? input.layers : base.layers,
+    layers: (input.layers?.length ? input.layers : base.layers).map(layer => {
+      const lang = input.meta?.lang === 'fr' ? 'fr' : 'en';
+      const slugName = !layer.name || layer.name === layer.id || /^[a-z0-9_-]+$/.test(layer.name);
+      return {
+        ...layer,
+        name: slugName ? displayLayerLabel(layer.id, lang) : displayLayerLabel(layer.name, lang)
+      };
+    }),
     components: input.components || [],
     technologies: input.technologies || [],
     flows: input.flows || [],

@@ -10,8 +10,14 @@ import { Icon } from './Icon';
 import Inspector from './Inspector';
 import ContentEditor from './ContentEditor';
 import History from './History';
+import PlacementWizard from './editors/PlacementWizard';
 import { EnrichDialog, useAiStatus } from './Analyse';
 import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
+import { displayLayerLabel } from '@/lib/layers';
+import { ensurePlacementScaffold } from '@/lib/lego/place';
+import { syncTechnologies } from '@/lib/lego/stack';
+import { loadLegoCatalog } from '@/lib/lego/client';
+import type { LegoCatalogSnapshot } from '@/lib/lego/types';
 import { dashFor, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
 
@@ -30,10 +36,15 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
   const [enrich, setEnrich] = useState(false);
+  const [catalog, setCatalog] = useState<LegoCatalogSnapshot | null>(null);
   const ai = useAiStatus();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const first = useRef(true);
+
+  useEffect(() => {
+    loadLegoCatalog(doc.meta.lang === 'fr' ? 'fr' : 'en').then(setCatalog).catch(() => setCatalog(null));
+  }, [doc.meta.lang]);
 
   /* A project just created from a template opens with its first component
    * selected, so the inspector shows immediately what can be changed. The flag
@@ -89,6 +100,17 @@ export default function Editor({ project }: { project: ProjectWithData }) {
     setSelected(id);
     return id;
   }, [doc.components, doc.groups, patch]);
+
+  const placeBrick = useCallback((component: Component) => {
+    if (!catalog) return;
+    patch(d => {
+      ensurePlacementScaffold(component, d, catalog);
+      d.components.push(component);
+      syncTechnologies(d, catalog);
+      return d;
+    });
+    setSelected(component.id);
+  }, [catalog, patch]);
 
   const moveComponent = useCallback((id: string, layerId: string, beforeId?: string) => {
     patch(d => {
@@ -213,10 +235,10 @@ export default function Editor({ project }: { project: ProjectWithData }) {
           {mode === 'preview' ? (
             <PreviewPane projectId={project.id} version={doc} saveState={save} />
           ) : mode === 'content' ? (
-            <ContentEditor doc={doc} patch={patch} />
+            <ContentEditor doc={doc} patch={patch} catalog={catalog} />
           ) : (
             <div className="editor-body">
-              <Palette doc={doc} patch={patch} onAdd={() => addComponent(doc.layers[0].id)} />
+              <Palette doc={doc} patch={patch} catalog={catalog} onPlace={placeBrick} />
 
               <div className="canvas-wrap">
                 <Canvas
@@ -424,7 +446,7 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
   return (
     <div className={`layer${isOver ? ' over' : ''}`}>
       <div className="layer-head">
-        <b>{layer.name}</b>
+        <b>{displayLayerLabel(layer.name)}</b>
         {layer.desc && <em>{layer.desc}</em>}
         <span className="layer-tools">
           <button className="iconbtn" style={{ width: 24, height: 24 }} title="Rename layer"
@@ -497,10 +519,13 @@ function ComponentCard({ comp, colour, selected, isLinkTarget, onSelect, onStart
 
 /* ------------------------------------------------------------------ palette */
 
-function Palette({ doc, patch, onAdd }: {
-  doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void; onAdd: () => void;
+function Palette({ doc, patch, catalog, onPlace }: {
+  doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
+  catalog: LegoCatalogSnapshot | null;
+  onPlace: (component: Component) => void;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: 'palette:new' });
+  const [placing, setPlacing] = useState(false);
 
   return (
     <aside className="palette">
@@ -508,9 +533,20 @@ function Palette({ doc, patch, onAdd }: {
       <div ref={setNodeRef} {...listeners} {...attributes} className="palette-item">
         <Icon name="plus" size={14} />Drag me into a layer
       </div>
-      <button className="btn sm" style={{ width: '100%', justifyContent: 'center' }} onClick={onAdd}>
-        Add to first layer
+      <button type="button" className="btn sm" style={{ width: '100%', justifyContent: 'center' }}
+        onClick={() => setPlacing(true)}>
+        Add brick
       </button>
+      {placing ? (
+        <PlacementWizard
+          existingIds={doc.components.map(component => component.id)}
+          groups={doc.groups}
+          lang={doc.meta.lang}
+          catalog={catalog}
+          onPlace={onPlace}
+          onClose={() => setPlacing(false)}
+        />
+      ) : null}
 
       <div className="sect-label">
         Scopes<span className="spacer" />

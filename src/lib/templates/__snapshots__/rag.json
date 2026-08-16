@@ -1,7 +1,7 @@
 {
   "agnostic · en": {
     "title": "RAG — questions over documents",
-    "kicker": "Template: RAG — questions over documents · Vendor-neutral · 2026-08-14",
+    "kicker": "Template: RAG — questions over documents · Vendor-neutral · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & data",
@@ -57,7 +57,7 @@
   },
   "agnostic · fr": {
     "title": "RAG — questions sur documents",
-    "kicker": "Modèle : RAG — questions sur documents · Agnostique · 2026-08-14",
+    "kicker": "Modèle : RAG — questions sur documents · Agnostique · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & données",
@@ -113,7 +113,7 @@
   },
   "aws · en": {
     "title": "RAG — questions over documents",
-    "kicker": "Template: RAG — questions over documents · AWS · 2026-08-14",
+    "kicker": "Template: RAG — questions over documents · AWS · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & data",
@@ -171,7 +171,7 @@
   },
   "aws · fr": {
     "title": "RAG — questions sur documents",
-    "kicker": "Modèle : RAG — questions sur documents · AWS · 2026-08-14",
+    "kicker": "Modèle : RAG — questions sur documents · AWS · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & données",
@@ -229,7 +229,7 @@
   },
   "gcp · en": {
     "title": "RAG — questions over documents",
-    "kicker": "Template: RAG — questions over documents · Google Cloud · 2026-08-14",
+    "kicker": "Template: RAG — questions over documents · Google Cloud · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & data",
@@ -249,15 +249,15 @@
       "connectors [ingestion/ingestion] Source connectors → extract",
       "extract [ingestion/ingestion] Document AI → chunk",
       "chunk [ingestion/ingestion] Chunking → embed",
-      "embed [ingestion/ingestion] Vertex AI Embeddings → vector",
+      "embed [ingestion/ingestion] Agent Platform Embeddings → vector",
       "pipeline [ingestion/ingestion] Workflows → connectors,docstore,meta",
-      "vector [index/index] Vertex AI Vector Search → —",
+      "vector [index/index] Vector Search (Agent Platform) → —",
       "docstore [index/index] Cloud Storage → —",
       "meta [index/index] Firestore → —",
       "retriever [inference/answering] Retrieval & filtering → vector,meta,rerank",
-      "rerank [inference/answering] Vertex AI Ranking API → docstore",
-      "llm [inference/answering] Vertex AI → —",
-      "guard [inference/answering] Vertex AI safety filters → —",
+      "rerank [inference/answering] Agent Platform ranking API → docstore",
+      "llm [inference/answering] Gemini Enterprise Agent Platform → —",
+      "guard [inference/answering] Agent Platform safety filters → —",
       "eval [platform/quality] Evaluation & feedback → api",
       "trace [platform/quality] Cloud Trace → —",
       "cache [platform/quality] Memorystore → —"
@@ -287,7 +287,7 @@
   },
   "gcp · fr": {
     "title": "RAG — questions sur documents",
-    "kicker": "Modèle : RAG — questions sur documents · Google Cloud · 2026-08-14",
+    "kicker": "Modèle : RAG — questions sur documents · Google Cloud · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & données",
@@ -307,15 +307,15 @@
       "connectors [ingestion/ingestion] Connecteurs de sources → extract",
       "extract [ingestion/ingestion] Document AI → chunk",
       "chunk [ingestion/ingestion] Découpage → embed",
-      "embed [ingestion/ingestion] Vertex AI Embeddings → vector",
+      "embed [ingestion/ingestion] Agent Platform Embeddings → vector",
       "pipeline [ingestion/ingestion] Workflows → connectors,docstore,meta",
-      "vector [index/index] Vertex AI Vector Search → —",
+      "vector [index/index] Vector Search (Agent Platform) → —",
       "docstore [index/index] Cloud Storage → —",
       "meta [index/index] Firestore → —",
       "retriever [inference/answering] Récupération & filtrage → vector,meta,rerank",
-      "rerank [inference/answering] Vertex AI Ranking API → docstore",
-      "llm [inference/answering] Vertex AI → —",
-      "guard [inference/answering] Vertex AI safety filters → —",
+      "rerank [inference/answering] Agent Platform ranking API → docstore",
+      "llm [inference/answering] Gemini Enterprise Agent Platform → —",
+      "guard [inference/answering] Agent Platform safety filters → —",
       "eval [platform/quality] Évaluation & retours → api",
       "trace [platform/quality] Cloud Trace → —",
       "cache [platform/quality] Memorystore → —"
@@ -345,7 +345,7 @@
   },
   "azure · en": {
     "title": "RAG — questions over documents",
-    "kicker": "Template: RAG — questions over documents · Azure · 2026-08-14",
+    "kicker": "Template: RAG — questions over documents · Azure · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & data",
@@ -403,7 +403,7 @@
   },
   "azure · fr": {
     "title": "RAG — questions sur documents",
-    "kicker": "Modèle : RAG — questions sur documents · Azure · 2026-08-14",
+    "kicker": "Modèle : RAG — questions sur documents · Azure · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & données",
@@ -461,7 +461,7 @@
   },
   "selfhosted · en": {
     "title": "RAG — questions over documents",
-    "kicker": "Template: RAG — questions over documents · Self-hosted · 2026-08-14",
+    "kicker": "Template: RAG — questions over documents · Self-hosted · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & data",
@@ -519,7 +519,7 @@
   },
   "selfhosted · fr": {
     "title": "RAG — questions sur documents",
-    "kicker": "Modèle : RAG — questions sur documents · Auto-hébergé · 2026-08-14",
+    "kicker": "Modèle : RAG — questions sur documents · Auto-hébergé · 2026-08-15",
     "groups": [
       "ingestion: Ingestion",
       "index: Index & données",

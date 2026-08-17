@@ -11,7 +11,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & data",
+      "index: Index & Data",
       "inference: Inference",
       "platform: Platform"
     ],
@@ -67,7 +67,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & données",
+      "index: Index & Données",
       "inference: Inférence",
       "platform: Plateforme"
     ],
@@ -123,7 +123,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & data",
+      "index: Index & Data",
       "inference: Inference",
       "platform: Platform"
     ],
@@ -181,7 +181,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & données",
+      "index: Index & Données",
       "inference: Inférence",
       "platform: Plateforme"
     ],
@@ -239,7 +239,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & data",
+      "index: Index & Data",
       "inference: Inference",
       "platform: Platform"
     ],
@@ -297,7 +297,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & données",
+      "index: Index & Données",
       "inference: Inférence",
       "platform: Plateforme"
     ],
@@ -355,7 +355,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & data",
+      "index: Index & Data",
       "inference: Inference",
       "platform: Platform"
     ],
@@ -413,7 +413,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & données",
+      "index: Index & Données",
       "inference: Inférence",
       "platform: Plateforme"
     ],
@@ -471,7 +471,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & data",
+      "index: Index & Data",
       "inference: Inference",
       "platform: Platform"
     ],
@@ -529,7 +529,7 @@
     "layers": [
       "clients: Clients",
       "ingestion: Ingestion",
-      "index: Index & données",
+      "index: Index & Données",
       "inference: Inférence",
       "platform: Plateforme"
     ],

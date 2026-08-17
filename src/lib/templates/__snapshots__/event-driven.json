@@ -10,7 +10,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -65,7 +65,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -120,7 +120,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -177,7 +177,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -234,7 +234,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -291,7 +291,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -348,7 +348,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -405,7 +405,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -462,7 +462,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -519,7 +519,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"

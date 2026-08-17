@@ -10,7 +10,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -68,7 +68,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -126,7 +126,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -186,7 +186,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -246,7 +246,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -306,7 +306,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -366,7 +366,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -426,7 +426,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -486,7 +486,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -545,7 +545,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"

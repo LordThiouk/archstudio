@@ -169,6 +169,18 @@ CREATE TABLE IF NOT EXISTS lego_capability_phrases (
   PRIMARY KEY (catalog_version, brick_id, lang),
   FOREIGN KEY (catalog_version, brick_id) REFERENCES lego_bricks(catalog_version, id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS lego_dependencies (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  from_brick TEXT NOT NULL,
+  to_brick TEXT NOT NULL,
+  strength TEXT NOT NULL CHECK(strength IN ('required', 'recommended', 'optional')),
+  why_en TEXT NOT NULL,
+  why_fr TEXT NOT NULL,
+  protocol_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('sync', 'async', 'batch')),
+  PRIMARY KEY (catalog_version, from_brick, to_brick)
+);
+CREATE INDEX IF NOT EXISTS idx_lego_dependencies_from ON lego_dependencies(catalog_version, from_brick);
 `;
 
 declare global {
@@ -183,10 +195,19 @@ function open(): DatabaseSync {
   return db;
 }
 
+/** Applies additive schema (CREATE IF NOT EXISTS). Safe to re-run on a live
+ * handle — needed because Next caches the connection on globalThis across HMR,
+ * so a new table like `lego_dependencies` would otherwise never appear. */
+function ensureSchema(database: DatabaseSync): DatabaseSync {
+  database.exec(SCHEMA);
+  return database;
+}
+
 /* Cached on globalThis so Next's dev-mode module reloading does not open a new
- * handle on every hot update. */
+ * handle on every hot update. SCHEMA still re-runs so additive tables land. */
 function connect(): DatabaseSync {
-  return globalThis.__studioDb ?? (globalThis.__studioDb = open());
+  if (globalThis.__studioDb) return ensureSchema(globalThis.__studioDb);
+  return (globalThis.__studioDb = open());
 }
 
 /* Opened on first query, never at import time.

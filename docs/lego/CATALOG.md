@@ -11,7 +11,7 @@ Every brick entry in this file **must** provide:
 | `role` | `Component.role` | One phrase (en/fr): *what this is for*, not the tech name |
 | `responsibilities` | `Component.features` | ≥2 bullets (en/fr): what it does |
 | `notes` (known gaps) | `Component.notes` | ≥1 bullet (en/fr): caveats, unfinished policy, misuse risks |
-| `depends_on` | suggested `deps` | Advisory brick ids |
+| `depends_on` | suggested `deps` | Advisory brick ids — ranked UX in [DEPENDENCIES.md](./DEPENDENCIES.md) |
 | `when_to_use` / `when_not_to_use` | catalog UI only | Placement guidance |
 | `icon` / `scope` / capabilities / tech | defaults | See ICONS, SCOPES, CAPABILITIES, BRICK_TECH |
 
@@ -213,7 +213,7 @@ These are **client surface** bricks; their variants are frameworks in [VARIANTS.
 - **service_tech:** `Cognito`, `Entra External ID`, `Firebase Auth`, `Identity Platform`, `Keycloak`, `OIDC`
 - **capability_tech:** `OIDC`, `JWT`, `SAML`, `SCIM`
 - **capabilities:** `oidc`, `jwt`, `saml`, `scim` → `OIDC`, `JWT`, `SAML`, `SCIM`
-- **role:** (en) Proves who callers are and issues tokens other services trust. / (fr) Prouve qui sont les appelants et émet des jetons que d’autres services font confiance.
+- **role:** (en) Proves who callers are and issues tokens other services trust. / (fr) Prouve qui sont les appelants et émet des jetons auxquels d’autres services font confiance.
 - **notes** (known gaps):
   - (en) Vendor IdP vs self-hosted changes scope (vendor vs tenancy/product).
   - (fr) IdP tiers vs self-hosted change le scope (vendor vs tenancy/product).
@@ -289,7 +289,7 @@ These are **client surface** bricks; their variants are frameworks in [VARIANTS.
 - **service_tech:** `AKS`, `EKS`, `GKE`, `Talos Linux`, `k3s`
 - **capability_tech:** `Kubernetes`
 - **capabilities:** `kubernetes`, `container` → `Kubernetes`, `Container`
-- **role:** (en) Orchestrates many containers: schedule, heal, and scale a cluster. / (fr) Orchestrate beaucoup de conteneurs : placer, soigner et scaler un cluster.
+- **role:** (en) Orchestrates many containers: schedule, heal, and scale a cluster. / (fr) Orchestre beaucoup de conteneurs : placer, soigner et scaler un cluster.
 - **notes** (known gaps):
   - (en) Operational cost is high; overkill for one or two services.
   - (fr) Coût opérationnel élevé ; excessif pour un ou deux services.
@@ -447,7 +447,7 @@ These are **client surface** bricks; their variants are frameworks in [VARIANTS.
   - (en) Serve or generate pre-signed access to objects
   - (fr) Servir ou générer un accès pré-signé aux objets
 - **depends_on:** `secrets`
-- **when_to_use:** (en) Users upload files or you produce large artifacts / (fr) Les users uploadent des fichiers ou tu produis de gros artefacts
+- **when_to_use:** (en) Users upload files or you produce large artifacts / (fr) Les utilisateurs envoient des fichiers ou tu produis de gros artefacts
 - **when_not_to_use:** (en) Only tiny structured rows belong in a database / (fr) Seules de petites lignes structurées vont en base
 - **status:** filled — role + notes LOCKED
 
@@ -495,7 +495,7 @@ These are **client surface** bricks; their variants are frameworks in [VARIANTS.
   - (en) Index content for keyword and filter queries
   - (fr) Indexer le contenu pour mots-clés et filtres
 - **depends_on:** `objects`, `sql`, `nosql`
-- **when_to_use:** (en) Users search text, catalogs, or logs by keywords / (fr) Les users cherchent texte, catalogues ou logs par mots-clés
+- **when_to_use:** (en) Users search text, catalogs, or logs by keywords / (fr) Les utilisateurs cherchent texte, catalogues ou logs par mots-clés
 - **when_not_to_use:** (en) Exact ID lookups only; no text search UX / (fr) Seulement des lookups par ID ; pas d’UX recherche texte
 - **status:** filled — role + notes LOCKED
 

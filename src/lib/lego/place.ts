@@ -3,7 +3,7 @@ import { displayLayerLabel } from '../layers';
 import type { Component } from '../types';
 import { isBrickId, type BrickId } from './bricks';
 import { variantById } from './catalog';
-import { scopeLabel, seedStarterScopes } from './scope';
+import { scopeLabel } from './scope';
 import type { LegoCatalogSnapshot } from './types';
 
 export const PLACEMENT_ENTRY_POINTS = ['brick'] as const;
@@ -60,7 +60,6 @@ export function ensurePlacementScaffold(
   },
   snapshot: LegoCatalogSnapshot
 ): void {
-  seedStarterScopes(doc.groups, snapshot);
   if (!doc.groups.some(group => group.id === component.group)) {
     doc.groups.push({ id: component.group, name: scopeLabel(snapshot, component.group) });
   }

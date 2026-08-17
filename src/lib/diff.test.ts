@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 
-import { blankArchitecture } from './defaults';
+import { blankArchitecture, STARTER_LAYERS } from './defaults';
 import { byArea, diffArchitecture, summarise, type Change } from './diff';
 import type { Architecture, Component } from './types';
 
@@ -11,7 +11,13 @@ const comp = (id: string, over: Partial<Component> = {}): Component => ({
 });
 
 const doc = (over: Partial<Architecture> = {}): Architecture => ({
-  ...blankArchitecture('Test'), ...over
+  ...blankArchitecture('Test'),
+  groups: [
+    { id: 'core', name: 'Core', short: 'Core', color: '#0099A0' },
+    { id: 'vendor', name: 'Third parties', short: 'Vendors', color: '#4F8AC6' }
+  ],
+  layers: STARTER_LAYERS.map(layer => ({ ...layer })),
+  ...over
 });
 
 const find = (cs: Change[], label: string) => cs.find(c => c.label === label);
@@ -50,7 +56,7 @@ test('a rename reads as one arrow, not as a delete plus an add', () => {
 test('a move names both layers, each from the document it belongs to', () => {
   const before = doc({ components: [comp('api')] });
   const after = doc({
-    layers: [...blankArchitecture().layers.map(l => (l.id === 'data' ? { ...l, name: 'Persistence' } : l))],
+    layers: STARTER_LAYERS.map(l => (l.id === 'data' ? { ...l, name: 'Persistence' } : { ...l })),
     components: [comp('api', { layer: 'data' })]
   });
   assert.equal(find(diffArchitecture(before, after).changes, 'api')?.detail,
@@ -103,7 +109,7 @@ test('edges lost to a deleted component are not repeated once per edge', () => {
 /* ------------------------------------------------------------------ layers */
 
 test('reordering layers is one entry, and only when the set is unchanged', () => {
-  const base = blankArchitecture('Test').layers;
+  const base = STARTER_LAYERS.map(layer => ({ ...layer }));
   const before = doc();
   const after = doc({ layers: [base[1], base[0], base[2], base[3]] });
   const { changes } = diffArchitecture(before, after);
@@ -115,7 +121,7 @@ test('reordering layers is one entry, and only when the set is unchanged', () =>
 
 test('deleting a layer explains the new sequence by itself', () => {
   const before = doc();
-  const after = doc({ layers: blankArchitecture().layers.slice(0, 3) });
+  const after = doc({ layers: STARTER_LAYERS.slice(0, 3).map(layer => ({ ...layer })) });
   const { changes } = diffArchitecture(before, after);
 
   assert.deepEqual(changes.map(c => c.kind), ['removed']);

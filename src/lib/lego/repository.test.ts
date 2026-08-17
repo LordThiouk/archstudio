@@ -29,6 +29,7 @@ const EXPECTED_COUNTS = {
   lego_intents: 12,
   lego_variants: 154,
   lego_technology_descriptions: 38,
+  lego_dependencies: 36,
 } as const;
 
 test('ensureLegoCatalog seeds an empty database', () => {

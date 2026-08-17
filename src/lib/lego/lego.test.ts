@@ -5,7 +5,7 @@ import { countMappableSteps, insertPlate, isMappableStep, PLATE_CREATE } from '.
 import { resolveCatalog } from '../flows/catalog';
 import { displayLayerLabel } from '../layers';
 import { BRICK_IDS } from './bricks';
-import { variantsFor } from './catalog';
+import { placementFilterForBrick, variantsFor } from './catalog';
 import { componentBrick, ensurePlacementScaffold, placeVariant, brickProse } from './place';
 import { hostingModeLabel, scopeOptionsForFilter, validScopeIds } from './scope';
 import { buildCatalogSnapshot } from './seed-data';
@@ -26,6 +26,15 @@ test('scope filtering uses snapshot affinities and aliases', () => {
   assert.equal(variantsFor(en, { intent: 'auth', mode: 'cloud', scope: 'front' }).length, 0);
   assert.equal(variantsFor(en, { intent: 'auth', mode: 'cloud', scope: 'consumer' }).length, 0);
   assert(variantsFor(en, { intent: 'auth', mode: 'cloud', scope: 'all' }).some(variant => variant.id === 'cognito'));
+});
+
+test('targeted placement uses the selected variant real shape and keeps only the requested brick', () => {
+  const filter = placementFilterForBrick(en, 'functions');
+  assert(filter);
+  assert.equal(filter.intent, 'api');
+  assert.equal(filter.shape, 'compute');
+  assert.equal(filter.variant.maps_to, 'functions');
+  assert(variantsFor(en, filter).every(variant => variant.maps_to === 'functions'));
 });
 
 test('valid scopes for intent match locked matrix and always include All scopes option', () => {
@@ -91,4 +100,21 @@ test('plates receive their mappability and placements from snapshot', () => {
   assert(doc.technologies.some(technology => technology.name === 'Next.js'));
   const invalid = blankArchitecture('Atomic');
   assert.equal(insertPlate(invalid, { pattern, bindings: [PLATE_CREATE] }, en), null);
+});
+
+test('plate wires consecutive surviving steps across a skipped binding', () => {
+  const pattern = resolveCatalog('en').find(candidate => candidate.id === 'auth-login');
+  assert(pattern);
+  const doc = blankArchitecture('Wire');
+  const first = placeVariant(en, { variantId: 'nextjs', existingIds: [] });
+  const third = placeVariant(en, { variantId: 'cognito', existingIds: [first.id] });
+  ensurePlacementScaffold(first, doc, en);
+  ensurePlacementScaffold(third, doc, en);
+  doc.components.push(first, third);
+  const bindings = pattern.steps.map((_, index) => (index === 0 ? first.id : index === 2 ? third.id : null));
+  const result = insertPlate(doc, { pattern, bindings }, en);
+  assert(result);
+  assert.ok((result.wired ?? 0) >= 1);
+  assert.ok(first.deps?.includes(third.id));
+  assert.ok(first.links?.some(link => link.to === third.id && link.protocol === 'OIDC/OAuth'));
 });

@@ -1,9 +1,10 @@
 import { insertFlow } from './apply';
 import type { FlowPattern } from './types';
 import { componentBrick, ensurePlacementScaffold, placeVariant } from '../lego/place';
+import { suggestedLinkForBrick } from '../lego/protocols';
 import { syncTechnologies } from '../lego/stack';
 import type { LegoCatalogSnapshot } from '../lego/types';
-import type { Architecture, Component, LinkKind } from '../types';
+import type { Architecture } from '../types';
 
 /** Sentinel binding: create a brick for this step's mappable role. */
 export const PLATE_CREATE = '__plate_create__';
@@ -135,31 +136,21 @@ export function insertPlate(doc: Architecture, insertion: PlateInsertion, snapsh
   }
 
   let wired = 0;
-  for (let index = 0; index < bindings.length - 1; index++) {
-    const from = bindings[index], to = bindings[index + 1];
-    if (!from || !to || from === to) continue;
+  /* Wire consecutive *surviving* bindings — skipped plate steps must not break
+   * the chain that insertFlow will actually render. */
+  const placed = bindings.filter((id): id is string => !!id);
+  for (let index = 0; index < placed.length - 1; index++) {
+    const from = placed[index], to = placed[index + 1];
+    if (from === to) continue;
     const caller = doc.components.find(component => component.id === from);
     const callee = doc.components.find(component => component.id === to);
     if (!caller || !callee) continue;
     caller.deps = [...new Set([...(caller.deps || []), to])];
-    const suggestion = protocolFor(callee);
+    const suggestion = suggestedLinkForBrick(componentBrick(callee));
     caller.links = [...(caller.links || []).filter(link => link.to !== to), { to, ...suggestion }];
     wired++;
   }
 
   syncTechnologies(doc, snapshot);
   return { id: result.id, created, skipped: bindings.filter(binding => !binding).length, wired };
-}
-
-function protocolFor(component: Component): { protocol: string; kind: LinkKind } {
-  switch (componentBrick(component)) {
-    case 'identity': return { protocol: 'OIDC/OAuth', kind: 'sync' };
-    case 'sql': return { protocol: 'SQL', kind: 'sync' };
-    case 'cache': return { protocol: 'Redis', kind: 'sync' };
-    case 'queue': return { protocol: 'Message queue', kind: 'async' };
-    case 'pubsub': return { protocol: 'Pub/Sub', kind: 'async' };
-    case 'stream': return { protocol: 'Kafka', kind: 'async' };
-    case 'email': return { protocol: 'SMTP', kind: 'async' };
-    default: return { protocol: 'REST/HTTPS', kind: 'sync' };
-  }
 }

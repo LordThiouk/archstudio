@@ -16,6 +16,18 @@ export interface LegoVariant {
   maps_to: string;
 }
 
+export type LegoDependencyStrength = 'required' | 'recommended' | 'optional';
+
+export interface LegoDependencySuggestion {
+  from: string;
+  to: string;
+  strength: LegoDependencyStrength;
+  why_en: string;
+  why_fr: string;
+  protocol_id: string;
+  kind: 'sync' | 'async' | 'batch';
+}
+
 export interface LegoBrick {
   id: string;
   icon: string;
@@ -37,5 +49,6 @@ export interface LegoCatalogSnapshot {
   bricks: Record<string, LegoBrick>;
   intents: LegoIntent[];
   variants: LegoVariant[];
+  dependencies: LegoDependencySuggestion[];
   technologyDescriptions: Record<string, string>;
 }

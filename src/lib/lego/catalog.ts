@@ -7,16 +7,29 @@ export const HOSTING_MODES: readonly HostingMode[] = ['client', 'baas', 'cloud',
 
 export function variantsFor(
   snapshot: LegoCatalogSnapshot,
-  filter: { intent?: string; mode?: HostingMode; scope?: LegoScope; shape?: string }
+  filter: { intent?: string; mode?: HostingMode; scope?: LegoScope; shape?: string; targetBrick?: string }
 ): LegoVariant[] {
   const candidates = snapshot.variants.filter(variant =>
     (!filter.intent || variant.intent === filter.intent)
     && (!filter.mode || variant.mode === filter.mode)
     && (!filter.shape || variantShape(variant) === filter.shape)
+    && (!filter.targetBrick || variant.maps_to === filter.targetBrick)
   );
   const scope = filter.scope && (snapshot.aliases[filter.scope] || filter.scope);
   if (!scope || scope === 'all') return candidates;
   return candidates.filter(variant => snapshot.bricks[variant.maps_to]?.affinities.includes(scope));
+}
+
+export function placementFilterForBrick(snapshot: LegoCatalogSnapshot, brick: string) {
+  const variant = snapshot.variants.find(candidate => candidate.maps_to === brick);
+  if (!variant) return undefined;
+  return {
+    intent: variant.intent,
+    mode: variant.mode,
+    shape: variantShape(variant),
+    targetBrick: brick,
+    variant
+  };
 }
 
 export function variantById(snapshot: LegoCatalogSnapshot, id: string): LegoVariant | undefined {

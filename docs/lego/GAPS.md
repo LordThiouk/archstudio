@@ -11,8 +11,9 @@ This page records current constraints. It is not a release chronology.
 | Catalog persistence | Versioned transactional SQLite seed and runtime reads | Authoring remains in `seed-data.ts`; no catalog admin UI |
 | Catalog API | Localized English/French snapshots | Browser memoization lasts for the page lifetime |
 | Placement taxonomy | 12 intents, optional shapes, 4 modes, compatible scopes, 154 variants | Runtime seed covers 26 of the 40 conceptual bricks |
-| Placement Wizard | Intent → shape → mode → scope → variant | No post-placement recommendations or multi-brick suggestions |
+| Placement Wizard | Intent → shape → mode → scope → variant; targeted Add & link keeps the requested brick in-filter | Provider choice remains automatic inside targeted Add & link |
 | Brick metadata | Role, responsibilities, known gaps, icon, scope, layer, and technologies | Protocols are not selected during single-brick placement |
+| Dependency suggestions | Versioned SQLite seed, snapshot API, explicit post-placement sheet, non-destructive flow chips/hints, and optional 2-step journey CTA | Optional suggestions have no **Show more optional** control |
 | Stack sync | Case-insensitive additive upsert from all component `tech[]` values | No pruning; existing authored fields are not recomputed |
 | Flow plates | Bind, skip, or create mapped steps; insert flow; wire links; sync stack | Provider selection uses the first variant mapped to a role |
 | Locked catalogs | Scopes, intents, variants, flows, capabilities, icons, and protocols documented | Some derived inventories can drift from runtime seed data |
@@ -35,8 +36,9 @@ Catalog changes remain code-first:
 - **All scopes** is the safe default and falls back to the target brick's default scope at insertion.
 - Scope aliases normalize legacy ids such as `core`, `business`, and `consumer` to `product`.
 - Layer is derived from the target brick; the wizard does not expose a layer picker.
-- `depends_on` in [CATALOG.md](./CATALOG.md) remains advisory for single-brick placement.
+- `depends_on` in [CATALOG.md](./CATALOG.md) remains the full advisory inventory; ranked UX suggestions and **diagram→flow reflection** are locked in [DEPENDENCIES.md](./DEPENDENCIES.md).
 - The protocol vocabulary in [PROTOCOLS.md](./PROTOCOLS.md) is locked, but the inspector still permits free-form values.
+- Confirmed diagram links surface in the Flows editor as chips for consecutive steps and soft hints for non-adjacent steps. When no flow already contains both linked components, an optional 2-step **Add short journey** CTA is available.
 
 ## Flow plate constraints
 
@@ -60,7 +62,7 @@ Catalog changes remain code-first:
 
 ## Deliberately deferred product work
 
-- Recommend likely next bricks after placement, such as CDN after a web app.
+- Add **Show more optional** for lower-ranked post-placement suggestions.
 - Offer provider selection for each created flow step.
 - Add an explicit payment/commerce intent and PSP brick.
 - Derive inventories automatically from the versioned runtime catalog.

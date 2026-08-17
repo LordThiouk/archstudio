@@ -1,4 +1,4 @@
-import type { LegoCatalogSnapshot, LegoLanguage } from './types';
+import type { LegoCatalogSnapshot, LegoDependencySuggestion, LegoLanguage } from './types';
 
 /* Versioned server-only catalogue data. SQLite is the runtime authority. */
 export type SeedHostingMode = 'client' | 'baas' | 'cloud' | 'selfhosted';
@@ -438,7 +438,46 @@ const TECHNOLOGY_DESCRIPTIONS: Record<string, { en: string; fr: string }> = {
   llm: { en: 'LLM provides language-model inference for application features.', fr: 'LLM fournit l’inférence de modèle de langage pour les fonctionnalités applicatives.' }
 };
 
-export const CATALOG_SEED = { intents: INTENTS, variants: VARIANTS, scopes: LOCKED_SCOPES, scopeAliases: SCOPE_ALIASES, roleScopes: ROLE_SCOPES, icons: ICONS, layers: LAYERS, defaultScopes: SCOPES, capabilities: CAPABILITIES, brickMetadata: BRICK_METADATA, frenchBrickMetadata: FRENCH_BRICK_METADATA, rolePhrases: ROLE_PHRASES, frenchRolePhrases: FRENCH_ROLE_PHRASES, roleCapabilities: ROLE_CAPABILITIES, technologyDescriptions: TECHNOLOGY_DESCRIPTIONS } as const;
+const DEPENDENCIES: readonly LegoDependencySuggestion[] = [
+  { from: 'webApp', to: 'identity', strength: 'required', why_en: 'People need to sign in before using the product.', why_fr: 'Les gens doivent se connecter avant d’utiliser le produit.', protocol_id: 'oidc', kind: 'sync' },
+  { from: 'webApp', to: 'apiGateway', strength: 'recommended', why_en: 'The browser should call a single API entry, not every backend directly.', why_fr: 'Le navigateur devrait appeler une seule entrée API, pas chaque backend.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'webApp', to: 'cdn', strength: 'optional', why_en: 'Static assets and edge caching keep the UI fast.', why_fr: 'Les assets et le cache edge gardent l’UI rapide.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'mobileApp', to: 'identity', strength: 'required', why_en: 'The app needs a login / token issuer.', why_fr: 'L’app a besoin d’un login / émetteur de jetons.', protocol_id: 'oidc', kind: 'sync' },
+  { from: 'mobileApp', to: 'apiGateway', strength: 'recommended', why_en: 'Mobile clients should hit one API front door.', why_fr: 'Les clients mobiles devraient passer par une seule porte API.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'apiGateway', to: 'identity', strength: 'recommended', why_en: 'The gateway often validates tokens before routing.', why_fr: 'La passerelle valide souvent les jetons avant de router.', protocol_id: 'oidc', kind: 'sync' },
+  { from: 'cdn', to: 'staticHosting', strength: 'recommended', why_en: 'CDN usually fronts the files or app shell you publish.', why_fr: 'Le CDN sert en général les fichiers / shell que tu publies.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'staticHosting', to: 'cdn', strength: 'optional', why_en: 'A CDN in front of static hosting is the usual production shape.', why_fr: 'Un CDN devant l’hébergement statique est la forme prod habituelle.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'waf', to: 'apiGateway', strength: 'recommended', why_en: 'WAF sits in front of the public entry you protect.', why_fr: 'Le WAF se place devant l’entrée publique à protéger.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'loadBalancer', to: 'containers', strength: 'recommended', why_en: 'The load balancer spreads traffic across running instances.', why_fr: 'Le load balancer répartit le trafic entre les instances.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'identity', to: 'secrets', strength: 'recommended', why_en: 'Auth providers need private keys and client secrets stored safely.', why_fr: 'L’auth a besoin de clés et secrets stockés proprement.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'functions', to: 'secrets', strength: 'required', why_en: 'Serverless code needs credentials without hard-coding them.', why_fr: 'Le code serverless a besoin de credentials sans les coder en dur.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'functions', to: 'sql', strength: 'recommended', why_en: 'Most backends persist business data in a database.', why_fr: 'La plupart des backends stockent les données métier en base.', protocol_id: 'sql', kind: 'sync' },
+  { from: 'containers', to: 'secrets', strength: 'required', why_en: 'Containers need runtime secrets and config injection.', why_fr: 'Les conteneurs ont besoin de secrets et de config au runtime.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'containers', to: 'registry', strength: 'recommended', why_en: 'Images have to come from a container registry.', why_fr: 'Les images doivent venir d’un registry.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'kubernetes', to: 'observability', strength: 'recommended', why_en: 'Clusters are hard to operate without metrics and logs.', why_fr: 'Un cluster sans métriques / logs est difficile à opérer.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'jobs', to: 'queue', strength: 'recommended', why_en: 'Background work usually waits on a queue or schedule trigger.', why_fr: 'Le travail de fond attend en général une file ou un schedule.', protocol_id: 'queue', kind: 'async' },
+  { from: 'orchestration', to: 'queue', strength: 'recommended', why_en: 'Workflows coordinate steps through queues or events.', why_fr: 'Les workflows coordonnent les étapes via files ou events.', protocol_id: 'queue', kind: 'async' },
+  { from: 'sql', to: 'secrets', strength: 'required', why_en: 'Databases need connection credentials.', why_fr: 'Les bases ont besoin d’identifiants de connexion.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'sql', to: 'backup', strength: 'recommended', why_en: 'Durable data needs a backup path.', why_fr: 'Des données durables ont besoin de sauvegarde.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'nosql', to: 'secrets', strength: 'required', why_en: 'Document stores need access credentials.', why_fr: 'Les stores document ont besoin d’accès.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'cache', to: 'sql', strength: 'optional', why_en: 'Cache often sits in front of a primary database.', why_fr: 'Le cache se place souvent devant une base primaire.', protocol_id: 'sql', kind: 'sync' },
+  { from: 'objects', to: 'secrets', strength: 'recommended', why_en: 'Object storage needs access keys / IAM roles.', why_fr: 'Le stockage objet a besoin de clés / rôles.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'search', to: 'objects', strength: 'optional', why_en: 'Search indexes are often built from documents in object storage.', why_fr: 'Les index sont souvent construits depuis des docs en object storage.', protocol_id: 'object', kind: 'sync' },
+  { from: 'vector', to: 'embeddings', strength: 'required', why_en: 'Vectors come from an embedding model.', why_fr: 'Les vecteurs viennent d’un modèle d’embeddings.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'queue', to: 'functions', strength: 'recommended', why_en: 'Something must consume the messages.', why_fr: 'Quelque chose doit consommer les messages.', protocol_id: 'queue', kind: 'async' },
+  { from: 'pubsub', to: 'functions', strength: 'recommended', why_en: 'Subscribers process published events.', why_fr: 'Des subscribers traitent les events publiés.', protocol_id: 'pubsub', kind: 'async' },
+  { from: 'stream', to: 'streamProcessing', strength: 'recommended', why_en: 'Streams usually feed a processor or consumer service.', why_fr: 'Les streams alimentent en général un processeur.', protocol_id: 'kafka', kind: 'async' },
+  { from: 'llm', to: 'guardrails', strength: 'recommended', why_en: 'LLM answers should pass safety / policy checks.', why_fr: 'Les réponses LLM devraient passer des garde-fous.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'llm', to: 'secrets', strength: 'required', why_en: 'Model APIs need API keys.', why_fr: 'Les APIs de modèles ont besoin de clés.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'embeddings', to: 'vector', strength: 'recommended', why_en: 'Embeddings are stored in a vector index.', why_fr: 'Les embeddings sont stockés dans un index vectoriel.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'email', to: 'secrets', strength: 'recommended', why_en: 'Mail providers need SMTP / API credentials.', why_fr: 'Les providers mail ont besoin de credentials.', protocol_id: 'smtp', kind: 'async' },
+  { from: 'observability', to: 'secrets', strength: 'optional', why_en: 'Agents and exporters need sink credentials.', why_fr: 'Agents / exporters ont besoin d’accès au sink.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'cicd', to: 'registry', strength: 'recommended', why_en: 'Pipelines publish build artifacts / images.', why_fr: 'Les pipelines publient artefacts / images.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'gitops', to: 'kubernetes', strength: 'recommended', why_en: 'GitOps applies desired state to a cluster.', why_fr: 'GitOps applique l’état désiré sur un cluster.', protocol_id: 'rest', kind: 'sync' },
+  { from: 'audit', to: 'objects', strength: 'optional', why_en: 'Audit trails are often archived to object storage.', why_fr: 'Les pistes d’audit partent souvent en object storage.', protocol_id: 'object', kind: 'sync' }
+];
+
+export const CATALOG_SEED = { intents: INTENTS, variants: VARIANTS, scopes: LOCKED_SCOPES, scopeAliases: SCOPE_ALIASES, roleScopes: ROLE_SCOPES, icons: ICONS, layers: LAYERS, defaultScopes: SCOPES, capabilities: CAPABILITIES, brickMetadata: BRICK_METADATA, frenchBrickMetadata: FRENCH_BRICK_METADATA, rolePhrases: ROLE_PHRASES, frenchRolePhrases: FRENCH_ROLE_PHRASES, roleCapabilities: ROLE_CAPABILITIES, technologyDescriptions: TECHNOLOGY_DESCRIPTIONS, dependencies: DEPENDENCIES } as const;
 
 export function buildCatalogSnapshot(lang: LegoLanguage = 'en'): LegoCatalogSnapshot {
   const metadata = lang === 'fr' ? CATALOG_SEED.frenchBrickMetadata : CATALOG_SEED.brickMetadata;
@@ -463,6 +502,7 @@ export function buildCatalogSnapshot(lang: LegoLanguage = 'en'): LegoCatalogSnap
     bricks,
     intents: CATALOG_SEED.intents.map(intent => ({ ...intent, modes: [...intent.modes], shapes: intent.shapes && [...intent.shapes] })),
     variants: CATALOG_SEED.variants.map(variant => ({ ...variant })),
+    dependencies: CATALOG_SEED.dependencies.map(dependency => ({ ...dependency })),
     technologyDescriptions: Object.fromEntries(Object.entries(CATALOG_SEED.technologyDescriptions).map(([key, value]) => [key, value[lang]]))
   };
 }

@@ -62,6 +62,14 @@ export function ScopePicker({ doc, value, onChange, label = 'Scope' }: {
   doc: Architecture; value: string | undefined; onChange: (v: string) => void; label?: string;
 }) {
   const current = doc.groups.find(g => g.id === value) || doc.groups[0];
+  if (!doc.groups.length) {
+    return (
+      <div className="field">
+        <span>{label}</span>
+        <div className="hint">No scopes yet — place a brick or add a scope in the palette.</div>
+      </div>
+    );
+  }
   return (
     <div className="field">
       <span>{label}</span>
@@ -185,7 +193,7 @@ export function CardList<T>({ items, onChange, blank, summary, render, addLabel,
   render: (item: T, set: (fn: (draft: T) => void) => void, i: number) => ReactNode;
   addLabel: string;
   empty?: string;
-  badge?: (item: T) => ReactNode;
+  badge?: (item: T, i: number) => ReactNode;
   /* Opt-in rather than automatic: a blind `structuredClone` is wrong for any
    * record carrying an id, and only the caller knows the ids already taken. */
   duplicate?: (item: T) => T;
@@ -235,7 +243,7 @@ export function CardList<T>({ items, onChange, blank, summary, render, addLabel,
             <button className="elist-name" onClick={() => setOpen(o => (o === i ? null : i))}>
               {summary(item, i) || <em>Untitled</em>}
             </button>
-            {badge?.(item)}
+            {badge?.(item, i)}
             <button className="iconbtn" title="Move up" disabled={i === 0}
               onClick={() => move(i, i - 1)}>
               <Icon name="chevron" size={13} style={{ transform: 'rotate(-90deg)' }} />

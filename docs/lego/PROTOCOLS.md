@@ -83,4 +83,6 @@ Caller-side overrides (optional hints):
 
 ## Status
 
-**LOCKED** 2026-08-15 — kinds (code) + 15 protocol labels + callee suggestions. Wiring into the editor is out of scope until a later ISA.
+**LOCKED** 2026-08-15 — kinds (code) + 15 protocol labels + callee suggestions.
+
+**2026-08-16:** Post-placement dependency targets, strength, and human “why” copy are locked in [DEPENDENCIES.md](./DEPENDENCIES.md). Suggestion edges write canonical labels from this vocabulary (`protocolLabel`). Manual draw-edge prefill remains backlog.

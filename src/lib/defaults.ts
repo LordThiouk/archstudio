@@ -1,6 +1,6 @@
 import { LINK_KINDS, linkIsEmpty } from './links';
 import { displayLayerLabel } from './layers';
-import type { Architecture, Group, Link, Section, SectionType } from './types';
+import type { Architecture, Flow, Group, Link, Section, SectionType } from './types';
 
 /* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
  * h = 200, 250, 290, 340, 150, lifted to L .72 / C .12 on a marine ground.
@@ -45,7 +45,96 @@ export function paintGroups(groups: Group[]): Group[] {
   }));
 }
 
-/** A new project starts with a usable skeleton, not an empty canvas. */
+/** Classic four-band layout used by templates and history-diff fixtures.
+ * New blank projects stay empty; this pack is opt-in. */
+export const STARTER_LAYERS = [
+  { id: 'clients', name: 'Client channels', desc: 'Web · Mobile' },
+  { id: 'services', name: 'Services & APIs', desc: 'Business logic' },
+  { id: 'data', name: 'Data & storage', desc: 'OLTP · Cache · Objects' },
+  { id: 'infra', name: 'Infrastructure', desc: 'Supports everything above' }
+];
+
+export const STARTER_GROUPS = () => paintGroups([
+  { id: 'core', name: 'Core', short: 'Core' },
+  { id: 'vendor', name: 'Third parties', short: 'Vendors' }
+]);
+
+/** Prefill when the author adds a flow or step by hand (and short journeys). */
+export const DEFAULT_FLOW_COPY = {
+  en: {
+    name: 'New flow',
+    firstStep: 'First step',
+    nextStep: 'Next step',
+    newStep: 'New step',
+    sub: 'Consumer · under an hour',
+    note: 'What breaks if a step fails, who owns the recovery.',
+    stepDescription: 'What this step does.'
+  },
+  fr: {
+    name: 'Nouveau parcours',
+    firstStep: 'Première étape',
+    nextStep: 'Étape suivante',
+    newStep: 'Nouvelle étape',
+    sub: 'Consommateur · moins d’une heure',
+    note: 'Ce qui casse si une étape échoue, et qui reprend.',
+    stepDescription: 'Ce que fait cette étape.'
+  }
+} as const;
+
+export function flowCopy(lang?: string) {
+  return lang === 'fr' ? DEFAULT_FLOW_COPY.fr : DEFAULT_FLOW_COPY.en;
+}
+
+/** Fill missing subtitle, side note, and step descriptions — never overwrite authored copy. */
+export function fillFlowDefaults(flow: Flow, lang?: string): Flow {
+  const copy = flowCopy(lang);
+  return {
+    ...flow,
+    sub: flow.sub?.trim() ? flow.sub : copy.sub,
+    note: flow.note?.trim() ? flow.note : copy.note,
+    steps: (flow.steps || []).map(step => ({
+      ...step,
+      description: step.description?.trim() ? step.description : copy.stepDescription
+    }))
+  };
+}
+
+/** Manual "Add a flow" seed: no phantom step when the canvas is empty. */
+export function blankManualFlow(doc: Architecture): Flow {
+  const copy = flowCopy(doc.meta.lang);
+  const seeds = doc.components.slice(0, 2);
+  return {
+    id: slugify('flow', doc.flows.map(flow => flow.id)),
+    name: copy.name,
+    group: seeds[0]?.group,
+    sub: copy.sub,
+    note: copy.note,
+    steps: seeds.map((component, index) => ({
+      component: component.id,
+      title: index === 0 ? copy.firstStep : copy.nextStep,
+      description: copy.stepDescription
+    }))
+  };
+}
+
+/** Remove a component and its inbound edges. Empty flows stay — they are being authored. */
+export function deleteComponent(doc: Architecture, componentId: string): void {
+  doc.components = doc.components.filter(component => component.id !== componentId)
+    .map(component => {
+      const deps = (component.deps || []).filter(id => id !== componentId);
+      const links = component.links?.filter(link => link.to !== componentId);
+      return { ...component, deps, links: links?.length ? links : undefined };
+    });
+  doc.flows = doc.flows.map(flow => ({
+    ...flow,
+    steps: flow.steps.filter(step => step.component !== componentId)
+  }));
+  pruneUnusedLayersAndScopes(doc);
+}
+
+/** A new project starts empty on the diagram — layers and scopes appear when
+ * bricks are placed or the author adds them in the palette. Content headings
+ * for Flows / Tech stack ship with usable defaults. */
 export function blankArchitecture(name = 'New architecture'): Architecture {
   return {
     meta: {
@@ -59,18 +148,19 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
     theme: { brand: '#0E7C8A', brandDark: '#00E5FF', logo: 'cube' },
     ui: {
       defaultTheme: 'light',
-      views: { overview: true, architecture: true, flows: true, stack: true }
+      views: { overview: true, architecture: true, flows: true, stack: true },
+      flowSpeedMs: 1500,
+      flows: {
+        title: 'Flows',
+        subtitle: 'End-to-end journeys — which component takes over at each step.'
+      },
+      stack: {
+        title: 'Tech stack',
+        subtitle: 'Everything running in production, filterable by category and scope.'
+      }
     },
-    groups: paintGroups([
-      { id: 'core', name: 'Core', short: 'Core' },
-      { id: 'vendor', name: 'Third parties', short: 'Vendors' }
-    ]),
-    layers: [
-      { id: 'clients', name: 'Client channels', desc: 'Web · Mobile' },
-      { id: 'services', name: 'Services & APIs', desc: 'Business logic' },
-      { id: 'data', name: 'Data & storage', desc: 'OLTP · Cache · Objects' },
-      { id: 'infra', name: 'Infrastructure', desc: 'Supports everything above' }
-    ],
+    groups: [],
+    layers: [],
     components: [],
     technologies: [],
     flows: [],
@@ -78,17 +168,39 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
   };
 }
 
+/** Drop layers and scopes that no remaining component references. */
+export function pruneUnusedLayersAndScopes(doc: Architecture): void {
+  const usedLayers = new Set(doc.components.map(component => component.layer));
+  const usedGroups = new Set(doc.components.map(component => component.group));
+  doc.layers = doc.layers.filter(layer => usedLayers.has(layer.id));
+  doc.groups = doc.groups.filter(group => usedGroups.has(group.id));
+  const remainingGroups = new Set(doc.groups.map(group => group.id));
+  doc.technologies = doc.technologies.map(technology => ({
+    ...technology,
+    groups: technology.groups?.filter(group => remainingGroups.has(group))
+  }));
+}
+
 /** Fill in anything an imported or older document is missing. */
 export function normalizeArchitecture(input: Partial<Architecture>): Architecture {
   const base = blankArchitecture(input.meta?.name || 'Imported architecture');
+  const groups = input.groups !== undefined ? input.groups : base.groups;
+  const layers = input.layers !== undefined ? input.layers : base.layers;
   const doc: Architecture = {
     ...base,
     ...input,
     meta: { ...base.meta, ...(input.meta || {}) },
     theme: { ...base.theme, ...(input.theme || {}) },
-    ui: { ...base.ui, ...(input.ui || {}) },
-    groups: paintGroups(input.groups?.length ? input.groups : base.groups),
-    layers: (input.layers?.length ? input.layers : base.layers).map(layer => {
+    ui: {
+      ...base.ui,
+      ...(input.ui || {}),
+      views: { ...base.ui.views, ...(input.ui?.views || {}) },
+      flows: { ...base.ui.flows, ...(input.ui?.flows || {}) },
+      stack: { ...base.ui.stack, ...(input.ui?.stack || {}) },
+      flowSpeedMs: input.ui?.flowSpeedMs ?? base.ui.flowSpeedMs
+    },
+    groups: paintGroups(groups),
+    layers: layers.map(layer => {
       const lang = input.meta?.lang === 'fr' ? 'fr' : 'en';
       const slugName = !layer.name || layer.name === layer.id || /^[a-z0-9_-]+$/.test(layer.name);
       return {
@@ -110,8 +222,8 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
     const deps = (c.deps || []).filter(d => compIds.has(d) && d !== c.id);
     return {
       ...c,
-      group: groupIds.has(c.group) ? c.group : doc.groups[0].id,
-      layer: layerIds.has(c.layer) ? c.layer : doc.layers[0].id,
+      group: groupIds.has(c.group) ? c.group : (doc.groups[0]?.id ?? c.group),
+      layer: layerIds.has(c.layer) ? c.layer : (doc.layers[0]?.id ?? c.layer),
       tech: c.tech || [],
       features: c.features || [],
       notes: c.notes || [],
@@ -123,7 +235,10 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
   /* A step pointing at a deleted component would crash the viewer, so those go.
    * A flow with no steps left is kept: it is almost always one being authored,
    * and dropping it here would delete the user's work on the next autosave. */
-  doc.flows = doc.flows.map(f => ({ ...f, steps: (f.steps || []).filter(s => compIds.has(s.component)) }));
+  const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
+  doc.flows = doc.flows
+    .map(f => ({ ...f, steps: (f.steps || []).filter(s => compIds.has(s.component)) }))
+    .map(f => fillFlowDefaults(f, lang));
 
   return doc;
 }

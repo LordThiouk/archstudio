@@ -1,17 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { type HostingMode, type LegoScope, variantsFor } from '@/lib/lego/catalog';
+import { placementFilterForBrick, type HostingMode, type LegoScope, variantsFor } from '@/lib/lego/catalog';
 import { defaultGroupForRole, placeVariant } from '@/lib/lego/place';
 import { hostingModeLabel, scopeOptionsForFilter } from '@/lib/lego/scope';
 import type { LegoCatalogSnapshot } from '@/lib/lego/types';
 import type { Component, Group } from '@/lib/types';
 
-export default function PlacementWizard({ existingIds, groups: _groups, lang = 'en', catalog, onPlace, onClose }: {
+export default function PlacementWizard({ existingIds, groups: _groups, lang = 'en', catalog, initialBrick, onPlace, onClose }: {
   existingIds: readonly string[];
   groups: readonly Group[];
   lang?: 'en' | 'fr';
   catalog: LegoCatalogSnapshot | null;
+  initialBrick?: string;
   onPlace: (component: Component) => void;
   onClose: () => void;
 }) {
@@ -22,7 +23,13 @@ export default function PlacementWizard({ existingIds, groups: _groups, lang = '
    * so starting on groups[0] left Variant empty and Place brick disabled. */
   const [scope, setScope] = useState<LegoScope>('all');
   const [shape, setShape] = useState('');
-  const variants = useMemo(() => catalog && intent ? variantsFor(catalog, { intent: intent.id, mode, scope, shape }) : [], [catalog, intent, mode, scope, shape]);
+  const targetFilter = useMemo(
+    () => catalog && initialBrick ? placementFilterForBrick(catalog, initialBrick) : undefined,
+    [catalog, initialBrick]
+  );
+  const variants = useMemo(() => catalog && intent ? variantsFor(catalog, {
+    intent: intent.id, mode, scope, shape, targetBrick: targetFilter?.targetBrick
+  }) : [], [catalog, intent, mode, scope, shape, targetFilter]);
   const scopes = useMemo(
     () => catalog && intent
       ? scopeOptionsForFilter(catalog, { intent: intent.id, mode, shape }, lang)
@@ -39,10 +46,13 @@ export default function PlacementWizard({ existingIds, groups: _groups, lang = '
 
   useEffect(() => {
     if (!catalog) return;
-    setIntentId(catalog.intents[0]?.id || '');
-    setMode(catalog.intents[0]?.modes[0] || 'client');
-    setShape(catalog.intents[0]?.shapes?.[0] || '');
-  }, [catalog]);
+    const initial = targetFilter?.variant;
+    const nextIntent = catalog.intents.find(candidate => candidate.id === initial?.intent) || catalog.intents[0];
+    setIntentId(nextIntent?.id || '');
+    setMode(initial?.mode || nextIntent?.modes[0] || 'client');
+    setShape(targetFilter?.shape || nextIntent?.shapes?.[0] || '');
+    setVariantId(initial?.id || '');
+  }, [catalog, targetFilter]);
 
   useEffect(() => {
     if (scope !== 'all' && !scopes.some(candidate => candidate.id === scope)) {
@@ -85,13 +95,13 @@ export default function PlacementWizard({ existingIds, groups: _groups, lang = '
         </div>
 
         {!catalog ? <p className="muted">Loading Lego catalog…</p> : null}
-        {catalog && intent ? <label className="field"><span>1. Intent</span><select className="select" value={intent.id} onChange={event => selectIntent(event.target.value)}>
+        {catalog && intent ? <label className="field"><span>1. Intent</span><select className="select" value={intent.id} disabled={!!targetFilter} onChange={event => selectIntent(event.target.value)}>
           {catalog.intents.map(candidate => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
         </select></label> : null}
-        {shapes.length ? <label className="field"><span>2. Shape</span><select className="select" value={shape} onChange={event => setShape(event.target.value)}>
+        {shapes.length ? <label className="field"><span>2. Shape</span><select className="select" value={shape} disabled={!!targetFilter} onChange={event => setShape(event.target.value)}>
           {shapes.map(candidate => <option key={candidate} value={candidate}>{candidate}</option>)}
         </select></label> : null}
-        <label className="field"><span>{modeStep}. Mode</span><select className="select" value={mode} onChange={event => { setMode(event.target.value as HostingMode); setVariantId(''); }}>
+        <label className="field"><span>{modeStep}. Mode</span><select className="select" value={mode} disabled={!!targetFilter} onChange={event => { setMode(event.target.value as HostingMode); setVariantId(''); }}>
           {(intent?.modes || []).map(candidate => (
             <option key={candidate} value={candidate}>{hostingModeLabel(candidate, lang)}</option>
           ))}

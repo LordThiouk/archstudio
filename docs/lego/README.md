@@ -56,6 +56,7 @@ SQLite is the runtime source for catalog snapshots. Catalog authoring is still c
 | [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Runtime architecture, API, insertion, synchronization, tests, and limits |
 | [GAPS.md](./GAPS.md) | Current constraints and deferred work |
 | [DATA_TYPES.md](./DATA_TYPES.md) | Domain and persistence type inventory |
+| [DEPENDENCIES.md](./DEPENDENCIES.md) | Dependency suggestions for non-architects (locked; sheet + flow reflection shipped) |
 
 ### Placement taxonomy
 
@@ -78,6 +79,7 @@ SQLite is the runtime source for catalog snapshots. Catalog authoring is still c
 | [SERVICES.md](./SERVICES.md) | Service roles across cloud and self-hosted targets | Export |
 | [TECHNOLOGIES.md](./TECHNOLOGIES.md) | Inventory of template and service technology labels | Inventory |
 | [PROTOCOLS.md](./PROTOCOLS.md) | Link kinds, protocol vocabulary, and suggestions | Locked |
+| [DEPENDENCIES.md](./DEPENDENCIES.md) | Ranked brick→brick dependency suggestions for non-architects | Locked |
 | [FLOWS.md](./FLOWS.md) | Eight flow patterns and their brick crosswalk | Locked |
 | [SHORTLIST.md](./SHORTLIST.md) | Deferred candidate brick kinds | Backlog |
 

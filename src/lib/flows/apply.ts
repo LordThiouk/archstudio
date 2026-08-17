@@ -15,7 +15,7 @@
  * survive.
  */
 
-import { slugify } from '../defaults';
+import { fillFlowDefaults, flowCopy, slugify } from '../defaults';
 import { ensureBuiltinTab } from '../tabs';
 import type { Architecture, Flow, FlowStep } from '../types';
 import type { FlowPattern } from './types';
@@ -47,7 +47,9 @@ export function insertFlow(doc: Architecture, ins: FlowInsertion): FlowInsertRes
     steps.push({
       component,
       title: step.title,
-      ...(step.description ? { description: step.description } : {})
+      description: step.description?.trim()
+        ? step.description
+        : flowCopy(doc.meta.lang).stepDescription
     });
   });
 
@@ -56,14 +58,14 @@ export function insertFlow(doc: Architecture, ins: FlowInsertion): FlowInsertRes
   const name = (ins.name || ins.pattern.name).trim() || ins.pattern.name;
   const group = ins.group || doc.components.find(c => c.id === steps[0].component)?.group;
 
-  const flow: Flow = {
+  const flow = fillFlowDefaults({
     id: slugify(name, doc.flows.map(f => f.id)),
     name,
     ...(group ? { group } : {}),
     ...(ins.pattern.sub ? { sub: ins.pattern.sub } : {}),
     ...(ins.pattern.note ? { note: ins.pattern.note } : {}),
     steps
-  };
+  }, doc.meta.lang);
 
   doc.flows.push(flow);
   ensureBuiltinTab(doc, 'flows');

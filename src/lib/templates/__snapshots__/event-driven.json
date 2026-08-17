@@ -1,7 +1,7 @@
 {
   "agnostic · en": {
     "title": "Event-driven processing",
-    "kicker": "Template: Event-driven processing · Vendor-neutral · 2026-08-14",
+    "kicker": "Template: Event-driven processing · Vendor-neutral · 2026-08-15",
     "groups": [
       "producers: Producers",
       "bus: Bus & routing",
@@ -10,7 +10,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -56,7 +56,7 @@
   },
   "agnostic · fr": {
     "title": "Traitement événementiel",
-    "kicker": "Modèle : Traitement événementiel · Agnostique · 2026-08-14",
+    "kicker": "Modèle : Traitement événementiel · Agnostique · 2026-08-15",
     "groups": [
       "producers: Producteurs",
       "bus: Bus & routage",
@@ -65,7 +65,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -111,7 +111,7 @@
   },
   "aws · en": {
     "title": "Event-driven processing",
-    "kicker": "Template: Event-driven processing · AWS · 2026-08-14",
+    "kicker": "Template: Event-driven processing · AWS · 2026-08-15",
     "groups": [
       "producers: Producers",
       "bus: Bus & routing",
@@ -120,7 +120,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -168,7 +168,7 @@
   },
   "aws · fr": {
     "title": "Traitement événementiel",
-    "kicker": "Modèle : Traitement événementiel · AWS · 2026-08-14",
+    "kicker": "Modèle : Traitement événementiel · AWS · 2026-08-15",
     "groups": [
       "producers: Producteurs",
       "bus: Bus & routage",
@@ -177,7 +177,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -225,7 +225,7 @@
   },
   "gcp · en": {
     "title": "Event-driven processing",
-    "kicker": "Template: Event-driven processing · Google Cloud · 2026-08-14",
+    "kicker": "Template: Event-driven processing · Google Cloud · 2026-08-15",
     "groups": [
       "producers: Producers",
       "bus: Bus & routing",
@@ -234,7 +234,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -282,7 +282,7 @@
   },
   "gcp · fr": {
     "title": "Traitement événementiel",
-    "kicker": "Modèle : Traitement événementiel · Google Cloud · 2026-08-14",
+    "kicker": "Modèle : Traitement événementiel · Google Cloud · 2026-08-15",
     "groups": [
       "producers: Producteurs",
       "bus: Bus & routage",
@@ -291,7 +291,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -339,7 +339,7 @@
   },
   "azure · en": {
     "title": "Event-driven processing",
-    "kicker": "Template: Event-driven processing · Azure · 2026-08-14",
+    "kicker": "Template: Event-driven processing · Azure · 2026-08-15",
     "groups": [
       "producers: Producers",
       "bus: Bus & routing",
@@ -348,7 +348,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -396,7 +396,7 @@
   },
   "azure · fr": {
     "title": "Traitement événementiel",
-    "kicker": "Modèle : Traitement événementiel · Azure · 2026-08-14",
+    "kicker": "Modèle : Traitement événementiel · Azure · 2026-08-15",
     "groups": [
       "producers: Producteurs",
       "bus: Bus & routage",
@@ -405,7 +405,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -453,7 +453,7 @@
   },
   "selfhosted · en": {
     "title": "Event-driven processing",
-    "kicker": "Template: Event-driven processing · Self-hosted · 2026-08-14",
+    "kicker": "Template: Event-driven processing · Self-hosted · 2026-08-15",
     "groups": [
       "producers: Producers",
       "bus: Bus & routing",
@@ -462,7 +462,7 @@
     ],
     "layers": [
       "producers: Producers",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Processing",
       "destinations: Destinations",
       "platform: Platform"
@@ -476,7 +476,7 @@
       "queue [ingestion/bus] RabbitMQ / NATS JetStream → —",
       "stream [ingestion/bus] Apache Kafka / Redpanda → —",
       "workers [processing/processing] Docker Compose / Nomad → queue,idempotency,store,dlq,notify",
-      "stream-proc [processing/processing] Apache Flink / Benthos → stream,warehouse",
+      "stream-proc [processing/processing] Apache Flink / Redpanda Connect → stream,warehouse",
       "saga [processing/processing] Temporal → workers",
       "idempotency [processing/processing] MongoDB → —",
       "dlq [processing/processing] RabbitMQ dead-letter exchange → —",
@@ -510,7 +510,7 @@
   },
   "selfhosted · fr": {
     "title": "Traitement événementiel",
-    "kicker": "Modèle : Traitement événementiel · Auto-hébergé · 2026-08-14",
+    "kicker": "Modèle : Traitement événementiel · Auto-hébergé · 2026-08-15",
     "groups": [
       "producers: Producteurs",
       "bus: Bus & routage",
@@ -519,7 +519,7 @@
     ],
     "layers": [
       "producers: Producteurs",
-      "ingestion: Ingestion & bus",
+      "ingestion: Ingestion & Bus",
       "processing: Traitement",
       "destinations: Destinations",
       "platform: Plateforme"
@@ -533,7 +533,7 @@
       "queue [ingestion/bus] RabbitMQ / NATS JetStream → —",
       "stream [ingestion/bus] Apache Kafka / Redpanda → —",
       "workers [processing/processing] Docker Compose / Nomad → queue,idempotency,store,dlq,notify",
-      "stream-proc [processing/processing] Apache Flink / Benthos → stream,warehouse",
+      "stream-proc [processing/processing] Apache Flink / Redpanda Connect → stream,warehouse",
       "saga [processing/processing] Temporal → workers",
       "idempotency [processing/processing] MongoDB → —",
       "dlq [processing/processing] RabbitMQ dead-letter exchange → —",

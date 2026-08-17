@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { toFlowPattern } from './derive';
 import { matchSteps } from './match';
 import { insertFlow } from './apply';
-import { blankArchitecture } from '../defaults';
+import { blankArchitecture, fillFlowDefaults } from '../defaults';
 import { LIBRARY_MAX_DESC, LIBRARY_MAX_STEPS } from './types';
 import type { Architecture, Component, Flow } from '../types';
 
@@ -50,7 +50,9 @@ test('a derived pattern rebinds exactly in the project it came from', () => {
   assert.deepEqual(bindings, FLOW.steps.map(s => s.component));
 
   insertFlow(target, { pattern: p, bindings });
-  assert.deepEqual(target.flows[0].steps, FLOW.steps);
+  assert.deepEqual(target.flows[0].steps, fillFlowDefaults({ ...FLOW, steps: FLOW.steps }).steps);
+  assert.equal(target.flows[0].sub, FLOW.sub);
+  assert.ok(target.flows[0].note);
 });
 
 test('prose is carried across, the component id is not', () => {

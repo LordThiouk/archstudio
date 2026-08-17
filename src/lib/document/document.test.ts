@@ -101,6 +101,12 @@ test('the outline speaks the document’s language', () => {
 
 test('the support layer follows the viewer’s rule', () => {
   const four = blankArchitecture('four');
+  four.layers = [
+    { id: 'clients', name: 'Clients' },
+    { id: 'services', name: 'Services' },
+    { id: 'data', name: 'Data' },
+    { id: 'infra', name: 'Infrastructure' }
+  ];
   assert.equal(supportLayerId(four), four.layers.at(-1)!.id);
 
   const three = normalizeArchitecture({ ...four, layers: four.layers.slice(0, 3) });

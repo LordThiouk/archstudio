@@ -4,11 +4,13 @@
  * pulls from here through `cloudOf()`, so a vendor rename is a one-line edit in
  * this file rather than a hunt across six templates.
  *
- * Service names verified 14 August 2026. Recent renames folded in:
+ * Service names verified 15 August 2026. Recent renames folded in:
  *   Google Cloud Functions      → Cloud Run functions
+ *   Vertex AI                   → Gemini Enterprise Agent Platform (Apr 2026)
  *   Azure AI Foundry            → Microsoft Foundry        (Ignite 2025)
- *   Azure AD B2C                → Microsoft Entra External ID (B2C tenants close March 2026)
+ *   Azure AD B2C                → Microsoft Entra External ID (end-of-sale new customers May 2025; P2 March 2026; support ≥ May 2030)
  *   Azure Cache for Redis       → Azure Managed Redis      (retirement announced)
+ *   Benthos                     → Redpanda Connect
  * These names move. Re-read this file once a year.
  */
 
@@ -24,7 +26,7 @@ export interface ServiceCell {
 export type ServiceRow = Record<ResolvedTarget, ServiceCell>;
 
 /** The date the names above were last checked, surfaced in the generated doc. */
-export const SERVICES_VERIFIED_ON = '2026-08-14';
+export const SERVICES_VERIFIED_ON = '2026-08-15';
 
 const row = (r: ServiceRow) => r;
 
@@ -80,7 +82,7 @@ export const SERVICES = {
   identity: row({
     aws:        { name: 'Amazon Cognito', tech: ['Cognito'], note: { en: 'Cognito is cheap and rigid. WorkOS or Auth0 cost more and argue back less.', fr: 'Cognito est bon marché et rigide. WorkOS ou Auth0 coûtent plus cher et résistent moins.' } },
     gcp:        { name: 'Identity Platform', tech: ['Identity Platform', 'Firebase Auth'] },
-    azure:      { name: 'Microsoft Entra External ID', tech: ['Entra External ID'], note: { en: 'Azure AD B2C tenants close in March 2026 — start here, not there.', fr: 'Les tenants Azure AD B2C ferment en mars 2026 — commence ici, pas là-bas.' } },
+    azure:      { name: 'Microsoft Entra External ID', tech: ['Entra External ID'], note: { en: 'B2C is end-of-sale for new customers (May 2025); P2 ends March 2026; existing tenants stay supported until at least May 2030 — start here, not there.', fr: 'B2C n\'est plus vendu aux nouveaux clients (mai 2025) ; le P2 s\'arrête en mars 2026 ; les tenants existants restent supportés au moins jusqu\'en mai 2030 — commence ici, pas là-bas.' } },
     selfhosted: { name: 'Keycloak / Zitadel', tech: ['Keycloak', 'OIDC'] }
   }),
   sql: row({
@@ -129,7 +131,7 @@ export const SERVICES = {
     aws:        { name: 'Amazon Managed Service for Apache Flink', tech: ['Flink'] },
     gcp:        { name: 'Dataflow', tech: ['Dataflow', 'Beam'] },
     azure:      { name: 'Azure Stream Analytics', tech: ['Stream Analytics'] },
-    selfhosted: { name: 'Apache Flink / Benthos', tech: ['Flink', 'Redpanda Connect'] }
+    selfhosted: { name: 'Apache Flink / Redpanda Connect', tech: ['Flink', 'Redpanda Connect'], note: { en: 'Benthos was acquired and rebranded Redpanda Connect (2024).', fr: 'Benthos a été acquis et rebaptisé Redpanda Connect (2024).' } }
   }),
   schemaRegistry: row({
     aws:        { name: 'EventBridge Schema Registry', tech: ['Schema Registry'] },
@@ -151,31 +153,31 @@ export const SERVICES = {
   }),
   vector: row({
     aws:        { name: 'OpenSearch Serverless (vector engine)', tech: ['OpenSearch', 'S3 Vectors alternative'], note: { en: 'No single AWS service combines lexical, vector and semantic reranking the way Azure AI Search does — expect to assemble it.', fr: 'Aucun service AWS ne combine lexical, vectoriel et reclassement sémantique comme Azure AI Search — il faudra assembler.' } },
-    gcp:        { name: 'Vertex AI Vector Search', tech: ['Vector Search', 'AlloyDB pgvector'] },
+    gcp:        { name: 'Vector Search (Agent Platform)', tech: ['Vector Search', 'AlloyDB pgvector'], note: { en: 'Vertex AI Vector Search under the Gemini Enterprise Agent Platform rename (April 2026).', fr: 'Vertex AI Vector Search sous le rename Gemini Enterprise Agent Platform (avril 2026).' } },
     azure:      { name: 'Azure AI Search', tech: ['AI Search', 'hybrid + semantic'] },
     selfhosted: { name: 'Qdrant / pgvector', tech: ['Qdrant', 'pgvector'] }
   }),
   embeddings: row({
     aws:        { name: 'Amazon Bedrock (Titan / Cohere)', tech: ['Bedrock'] },
-    gcp:        { name: 'Vertex AI Embeddings', tech: ['Vertex AI'] },
+    gcp:        { name: 'Agent Platform Embeddings', tech: ['Agent Platform'], note: { en: 'Vertex AI was renamed Gemini Enterprise Agent Platform in April 2026.', fr: 'Vertex AI a été renommé Gemini Enterprise Agent Platform en avril 2026.' } },
     azure:      { name: 'Microsoft Foundry', tech: ['Foundry'], note: { en: 'Azure AI Foundry was renamed Microsoft Foundry at Ignite 2025.', fr: 'Azure AI Foundry a été renommé Microsoft Foundry à Ignite 2025.' } },
     selfhosted: { name: 'Text Embeddings Inference', tech: ['TEI', 'BGE / E5'] }
   }),
   llm: row({
     aws:        { name: 'Amazon Bedrock', tech: ['Bedrock'] },
-    gcp:        { name: 'Vertex AI', tech: ['Vertex AI'] },
+    gcp:        { name: 'Gemini Enterprise Agent Platform', tech: ['Agent Platform'], note: { en: 'Vertex AI was renamed Gemini Enterprise Agent Platform in April 2026.', fr: 'Vertex AI a été renommé Gemini Enterprise Agent Platform en avril 2026.' } },
     azure:      { name: 'Microsoft Foundry', tech: ['Foundry'] },
     selfhosted: { name: 'vLLM', tech: ['vLLM', 'open-weights model'], note: { en: 'A GPU you own is billed whether or not anyone asks a question.', fr: 'Un GPU qui t\'appartient est facturé que quelqu\'un pose une question ou non.' } }
   }),
   rerank: row({
     aws:        { name: 'Bedrock Rerank', tech: ['Bedrock'] },
-    gcp:        { name: 'Vertex AI Ranking API', tech: ['Vertex AI'] },
+    gcp:        { name: 'Agent Platform ranking API', tech: ['Agent Platform'], note: { en: 'Formerly Vertex AI Ranking API — same Discovery Engine ranking surface under Agent Platform.', fr: 'Anciennement Vertex AI Ranking API — même surface Ranking Discovery Engine sous Agent Platform.' } },
     azure:      { name: 'Azure AI Search semantic ranker', tech: ['AI Search'] },
     selfhosted: { name: 'bge-reranker (TEI)', tech: ['TEI', 'cross-encoder'] }
   }),
   guardrails: row({
     aws:        { name: 'Bedrock Guardrails', tech: ['Guardrails'] },
-    gcp:        { name: 'Vertex AI safety filters', tech: ['Vertex AI'] },
+    gcp:        { name: 'Agent Platform safety filters', tech: ['Agent Platform'] },
     azure:      { name: 'Azure AI Content Safety', tech: ['Content Safety'] },
     selfhosted: { name: 'Llama Guard + Presidio', tech: ['Llama Guard', 'Presidio'] }
   }),

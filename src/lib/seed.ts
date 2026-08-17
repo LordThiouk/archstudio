@@ -1,4 +1,5 @@
 import { createFolder, createProject, isEmpty, listFolders } from './store';
+import { ensureLegoCatalog } from './lego/repository';
 import demo from './seed/demo.json';
 import type { Architecture } from './types';
 
@@ -8,6 +9,7 @@ import type { Architecture } from './types';
  * open — delete the folder and it is gone for good.
  */
 export function ensureSeed(): void {
+  ensureLegoCatalog();
   if (!isEmpty() || listFolders().length) return;
 
   const examples = createFolder('Examples', null, '#0099A0');

@@ -10,9 +10,17 @@ import { Icon } from './Icon';
 import Inspector from './Inspector';
 import ContentEditor from './ContentEditor';
 import History from './History';
+import PlacementWizard from './editors/PlacementWizard';
 import { EnrichDialog, useAiStatus } from './Analyse';
 import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
-import { dashFor, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
+import { displayLayerLabel } from '@/lib/layers';
+import { ensurePlacementScaffold, componentBrick } from '@/lib/lego/place';
+import { syncTechnologies } from '@/lib/lego/stack';
+import { loadLegoCatalog } from '@/lib/lego/client';
+import { addSuggestedDependency, matchesSuggestionTarget, matchingDependencyTarget, visibleDependencies } from '@/lib/lego/dependencies';
+import type { LegoCatalogSnapshot, LegoDependencySuggestion } from '@/lib/lego/types';
+import { dashFor, describeLink, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
+import { protocolLabel, suggestedLinkForBrick } from '@/lib/lego/protocols';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
 
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
@@ -30,10 +38,18 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
   const [enrich, setEnrich] = useState(false);
+  const [catalog, setCatalog] = useState<LegoCatalogSnapshot | null>(null);
+  const [placementRequest, setPlacementRequest] = useState<{ callerId?: string; suggestion?: LegoDependencySuggestion } | null>(null);
+  const [suggestionCallerId, setSuggestionCallerId] = useState<string | null>(null);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const ai = useAiStatus();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const first = useRef(true);
+
+  useEffect(() => {
+    loadLegoCatalog(doc.meta.lang === 'fr' ? 'fr' : 'en').then(setCatalog).catch(() => setCatalog(null));
+  }, [doc.meta.lang]);
 
   /* A project just created from a template opens with its first component
    * selected, so the inspector shows immediately what can be changed. The flag
@@ -76,11 +92,18 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   /* ------------------------------------------------------------ mutations */
   const addComponent = useCallback((layerId: string, index?: number) => {
     const id = slugify('component', doc.components.map(c => c.id));
+    const groupId = doc.groups[0]?.id || 'product';
     const comp: Component = {
-      id, name: 'New component', group: doc.groups[0].id, layer: layerId,
+      id, name: 'New component', group: groupId, layer: layerId,
       icon: 'box', tech: [], features: [], notes: [], deps: []
     };
     patch(d => {
+      if (!d.groups.some(group => group.id === groupId)) {
+        d.groups.push({ id: groupId, name: 'Product', short: 'Product', color: PALETTE[0], colorDark: PALETTE_DARK[0] });
+      }
+      if (!d.layers.some(layer => layer.id === layerId)) {
+        d.layers.push({ id: layerId, name: displayLayerLabel(layerId) });
+      }
       const list = [...d.components];
       list.splice(index ?? list.length, 0, comp);
       d.components = list;
@@ -89,6 +112,46 @@ export default function Editor({ project }: { project: ProjectWithData }) {
     setSelected(id);
     return id;
   }, [doc.components, doc.groups, patch]);
+
+  const placeBrick = useCallback((component: Component) => {
+    if (!catalog) return;
+    patch(d => {
+      ensurePlacementScaffold(component, d, catalog);
+      d.components.push(component);
+      syncTechnologies(d, catalog);
+      return d;
+    });
+    setSelected(component.id);
+  }, [catalog, patch]);
+
+  const acceptSuggestedLink = useCallback((callerId: string, calleeId: string, suggestion: LegoDependencySuggestion) => {
+    patch(d => {
+      const caller = d.components.find(component => component.id === callerId);
+      if (caller) addSuggestedDependency(caller, calleeId, suggestion);
+      return d;
+    });
+  }, [patch]);
+
+  const confirmPlacedBrick = useCallback((component: Component) => {
+    const request = placementRequest;
+    placeBrick(component);
+    if (request?.callerId && request.suggestion) {
+      if (matchesSuggestionTarget(component, request.suggestion)) {
+        acceptSuggestedLink(request.callerId, component.id, request.suggestion);
+        setSuggestionError(null);
+      } else {
+        const target = catalog?.bricks[request.suggestion.to]?.capabilityPhrase || request.suggestion.to;
+        setSuggestionError(doc.meta.lang === 'fr'
+          ? `La brique placée ne fournit pas ${target}. Choisis une variante proposée pour cette dépendance.`
+          : `The placed brick does not provide ${target}. Choose one of the variants offered for this dependency.`);
+      }
+      setSuggestionCallerId(request.callerId);
+    } else if (catalog && visibleDependencies(catalog, component).length) {
+      setSuggestionCallerId(component.id);
+      setSuggestionError(null);
+    }
+    setPlacementRequest(null);
+  }, [acceptSuggestedLink, catalog, doc.meta.lang, placeBrick, placementRequest]);
 
   const moveComponent = useCallback((id: string, layerId: string, beforeId?: string) => {
     patch(d => {
@@ -107,10 +170,17 @@ export default function Editor({ project }: { project: ProjectWithData }) {
     if (from === to) return;
     patch(d => {
       const c = d.components.find(x => x.id === from);
+      const callee = d.components.find(x => x.id === to);
       if (!c) return d;
       c.deps = c.deps || [];
-      if (c.deps.includes(to)) c.deps = c.deps.filter(x => x !== to);   /* click again to remove */
-      else c.deps.push(to);
+      if (c.deps.includes(to)) {
+        c.deps = c.deps.filter(x => x !== to);
+        c.links = (c.links || []).filter(link => link.to !== to);
+      } else {
+        c.deps.push(to);
+        const suggestion = suggestedLinkForBrick(componentBrick(callee || {}));
+        c.links = [...(c.links || []).filter(link => link.to !== to), { to, ...suggestion }];
+      }
       return d;
     });
   }, [patch]);
@@ -213,10 +283,10 @@ export default function Editor({ project }: { project: ProjectWithData }) {
           {mode === 'preview' ? (
             <PreviewPane projectId={project.id} version={doc} saveState={save} />
           ) : mode === 'content' ? (
-            <ContentEditor doc={doc} patch={patch} />
+            <ContentEditor doc={doc} patch={patch} catalog={catalog} />
           ) : (
             <div className="editor-body">
-              <Palette doc={doc} patch={patch} onAdd={() => addComponent(doc.layers[0].id)} />
+              <Palette doc={doc} patch={patch} catalog={catalog} onOpenPlacement={() => setPlacementRequest({})} />
 
               <div className="canvas-wrap">
                 <Canvas
@@ -256,6 +326,41 @@ export default function Editor({ project }: { project: ProjectWithData }) {
 
       {link && <LinkLine link={link} />}
 
+      {placementRequest && (
+        <PlacementWizard
+          existingIds={doc.components.map(component => component.id)}
+          groups={doc.groups}
+          lang={doc.meta.lang === 'fr' ? 'fr' : 'en'}
+          catalog={catalog}
+          initialBrick={placementRequest.suggestion?.to}
+          onPlace={confirmPlacedBrick}
+          onClose={() => {
+            if (placementRequest.callerId) setSuggestionCallerId(placementRequest.callerId);
+            setPlacementRequest(null);
+          }}
+        />
+      )}
+
+      {suggestionCallerId && catalog && (() => {
+        const caller = doc.components.find(component => component.id === suggestionCallerId);
+        return caller ? (
+          <DependencySuggestions
+            caller={caller}
+            components={doc.components}
+            catalog={catalog}
+            lang={doc.meta.lang === 'fr' ? 'fr' : 'en'}
+            error={suggestionError}
+            onLink={(targetId, suggestion) => acceptSuggestedLink(caller.id, targetId, suggestion)}
+            onAddAndLink={suggestion => {
+              setSuggestionCallerId(null);
+              setSuggestionError(null);
+              setPlacementRequest({ callerId: caller.id, suggestion });
+            }}
+            onClose={() => { setSuggestionCallerId(null); setSuggestionError(null); }}
+          />
+        ) : null;
+      })()}
+
       {history && (
         <History projectId={project.id} doc={doc} dirty={save !== 'saved'}
           onClose={() => setHistory(false)}
@@ -291,6 +396,56 @@ function SaveFlag({ state }: { state: SaveState }) {
     <span className={`saveflag${state === 'dirty' || state === 'saving' ? ' dirty' : ''}${state === 'error' ? ' error' : ''}`}>
       <i />{label}
     </span>
+  );
+}
+
+function DependencySuggestions({ caller, components, catalog, lang, error, onLink, onAddAndLink, onClose }: {
+  caller: Component;
+  components: readonly Component[];
+  catalog: LegoCatalogSnapshot;
+  lang: 'en' | 'fr';
+  error: string | null;
+  onLink: (targetId: string, suggestion: LegoDependencySuggestion) => void;
+  onAddAndLink: (suggestion: LegoDependencySuggestion) => void;
+  onClose: () => void;
+}) {
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const suggestions = visibleDependencies(catalog, caller).filter(suggestion => !skipped.includes(suggestion.to));
+  const copy = lang === 'fr'
+    ? { title: 'Ce dont ça a souvent besoin', done: 'Déjà lié', link: 'Lier', add: 'Ajouter et lier', manual: 'Ajoute ce composant manuellement', skip: 'Passer', close: 'Terminé' }
+    : { title: 'What this usually needs', done: 'Already linked', link: 'Link', add: 'Add & link', manual: 'Add this component manually', skip: 'Skip', close: 'Done' };
+
+  return (
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal dependency-sheet" onClick={event => event.stopPropagation()} role="dialog" aria-label={copy.title}>
+        <div className="modal-head"><div><h2>{copy.title}</h2></div></div>
+        {error && <div className="warnbox"><Icon name="alert" size={15} />{error}</div>}
+        {suggestions.map(suggestion => {
+          const target = matchingDependencyTarget(components, suggestion.to);
+          const linked = target && caller.deps?.includes(target.id);
+          const placeable = catalog.variants.some(variant => variant.maps_to === suggestion.to);
+          const label = catalog.bricks[suggestion.to]?.capabilityPhrase || suggestion.to;
+          return (
+            <article className="dependency-suggestion" key={suggestion.to}>
+              <div>
+                <b>{label}</b>
+                <p>{lang === 'fr' ? suggestion.why_fr : suggestion.why_en}</p>
+                <small>{protocolLabel(suggestion.protocol_id)} · {LINK_KIND_LABELS[suggestion.kind][lang]}</small>
+              </div>
+              <div className="dependency-actions">
+                {linked ? <span className="muted">{copy.done}{describeLink(linkOf(caller, target.id), lang) ? ` · ${describeLink(linkOf(caller, target.id), lang)}` : ''}</span>
+                  : target ? <button type="button" className="btn sm primary" onClick={() => onLink(target.id, suggestion)}>{copy.link}</button>
+                    : placeable ? <button type="button" className="btn sm primary" onClick={() => onAddAndLink(suggestion)}>{copy.add}</button>
+                      : <button type="button" className="btn sm" disabled title={lang === 'fr' ? 'Aucune variante du catalogue ne peut encore placer cette brique.' : 'No catalog variant can place this brick yet.'}>{copy.manual}</button>}
+                {!linked && <button type="button" className="btn sm ghost" onClick={() => setSkipped(values => [...values, suggestion.to])}>{copy.skip}</button>}
+              </div>
+            </article>
+          );
+        })}
+        {!suggestions.length && <p className="muted">{lang === 'fr' ? 'Aucune autre suggestion.' : 'No more suggestions.'}</p>}
+        <div className="modal-actions"><button type="button" className="btn ghost" onClick={onClose}>{copy.close}</button></div>
+      </div>
+    </div>
   );
 }
 
@@ -402,6 +557,12 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
     <div className={`canvas${linking ? ' linking' : ''}`} ref={ref}
       onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
       <svg className="canvas-edges" dangerouslySetInnerHTML={{ __html: edges }} />
+      {doc.layers.length === 0 && (
+        <div className="warnbox" style={{ margin: 16 }}>
+          <Icon name="alert" size={15} />
+          No layers yet — add a layer in the palette, or place a brick (it creates the layer it needs).
+        </div>
+      )}
       {doc.layers.map(layer => (
         <LayerRow key={layer.id} layer={layer} doc={doc} patch={patch}
           selected={selected} setSelected={setSelected} hoverTarget={hoverTarget}
@@ -424,7 +585,7 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
   return (
     <div className={`layer${isOver ? ' over' : ''}`}>
       <div className="layer-head">
-        <b>{layer.name}</b>
+        <b>{displayLayerLabel(layer.name)}</b>
         {layer.desc && <em>{layer.desc}</em>}
         <span className="layer-tools">
           <button className="iconbtn" style={{ width: 24, height: 24 }} title="Rename layer"
@@ -436,11 +597,17 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
             }}><Icon name="cog" size={13} /></button>
           <button className="iconbtn" style={{ width: 24, height: 24 }} title="Delete layer"
             onClick={() => {
-              if (doc.layers.length <= 1) { alert('Keep at least one layer.'); return; }
-              if (items.length && !confirm(`Delete "${layer.name}"? Its ${items.length} component(s) move to "${doc.layers[0].name}".`)) return;
+              if (items.length && doc.layers.length <= 1) {
+                alert('Keep at least one layer while components still use it.');
+                return;
+              }
+              if (items.length && !confirm(`Delete "${layer.name}"? Its ${items.length} component(s) move to "${doc.layers.find(l => l.id !== layer.id)!.name}".`)) return;
+              if (!items.length && !confirm(`Delete empty layer "${layer.name}"?`)) return;
               patch(d => {
-                const fallback = d.layers.find(l => l.id !== layer.id)!.id;
-                d.components.forEach(c => { if (c.layer === layer.id) c.layer = fallback; });
+                if (items.length) {
+                  const fallback = d.layers.find(l => l.id !== layer.id)!.id;
+                  d.components.forEach(c => { if (c.layer === layer.id) c.layer = fallback; });
+                }
                 d.layers = d.layers.filter(l => l.id !== layer.id);
                 return d;
               });
@@ -497,8 +664,10 @@ function ComponentCard({ comp, colour, selected, isLinkTarget, onSelect, onStart
 
 /* ------------------------------------------------------------------ palette */
 
-function Palette({ doc, patch, onAdd }: {
-  doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void; onAdd: () => void;
+function Palette({ doc, patch, catalog, onOpenPlacement }: {
+  doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
+  catalog: LegoCatalogSnapshot | null;
+  onOpenPlacement: () => void;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: 'palette:new' });
 
@@ -508,8 +677,9 @@ function Palette({ doc, patch, onAdd }: {
       <div ref={setNodeRef} {...listeners} {...attributes} className="palette-item">
         <Icon name="plus" size={14} />Drag me into a layer
       </div>
-      <button className="btn sm" style={{ width: '100%', justifyContent: 'center' }} onClick={onAdd}>
-        Add to first layer
+      <button type="button" className="btn sm" style={{ width: '100%', justifyContent: 'center' }}
+        onClick={onOpenPlacement}>
+        Add brick
       </button>
 
       <div className="sect-label">
@@ -543,19 +713,25 @@ function Palette({ doc, patch, onAdd }: {
             onChange={e => patch(d => { const x = d.groups.find(y => y.id === g.id); if (x) x.color = e.target.value; return d; })} />
           <input value={g.name}
             onChange={e => patch(d => { const x = d.groups.find(y => y.id === g.id); if (x) { x.name = e.target.value; x.short = e.target.value; } return d; })} />
-          {doc.groups.length > 1 && (
+          {doc.groups.length > 1 || !doc.components.some(c => c.group === g.id) ? (
             <button className="iconbtn" style={{ width: 22, height: 22 }} title="Delete scope"
               onClick={() => {
                 const used = doc.components.filter(c => c.group === g.id).length;
+                if (used && doc.groups.length <= 1) {
+                  alert('Keep at least one scope while components still use it.');
+                  return;
+                }
                 if (used && !confirm(`${used} component(s) use this scope. They will move to "${doc.groups.find(x => x.id !== g.id)!.name}".`)) return;
                 patch(d => {
-                  const fallback = d.groups.find(x => x.id !== g.id)!.id;
-                  d.components.forEach(c => { if (c.group === g.id) c.group = fallback; });
+                  if (used) {
+                    const fallback = d.groups.find(x => x.id !== g.id)!.id;
+                    d.components.forEach(c => { if (c.group === g.id) c.group = fallback; });
+                  }
                   d.groups = d.groups.filter(x => x.id !== g.id);
                   return d;
                 });
               }}><Icon name="trash" size={12} /></button>
-          )}
+          ) : null}
         </div>
       ))}
 

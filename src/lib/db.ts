@@ -72,6 +72,115 @@ CREATE TABLE IF NOT EXISTS revisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_revisions_project ON revisions(project_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS lego_catalog_versions (
+  version TEXT PRIMARY KEY,
+  seeded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS lego_scopes (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  label_en TEXT NOT NULL,
+  label_fr TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, id)
+);
+CREATE TABLE IF NOT EXISTS lego_scope_aliases (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  alias TEXT NOT NULL,
+  scope_id TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, alias),
+  FOREIGN KEY (catalog_version, scope_id) REFERENCES lego_scopes(catalog_version, id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lego_bricks (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  layer_id TEXT NOT NULL,
+  default_scope_id TEXT NOT NULL,
+  capabilities_json TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, id),
+  FOREIGN KEY (catalog_version, default_scope_id) REFERENCES lego_scopes(catalog_version, id)
+);
+CREATE TABLE IF NOT EXISTS lego_brick_texts (
+  catalog_version TEXT NOT NULL,
+  brick_id TEXT NOT NULL,
+  lang TEXT NOT NULL CHECK(lang IN ('en', 'fr')),
+  role TEXT NOT NULL,
+  responsibilities_json TEXT NOT NULL,
+  notes_json TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, brick_id, lang),
+  FOREIGN KEY (catalog_version, brick_id) REFERENCES lego_bricks(catalog_version, id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lego_brick_scope_affinities (
+  catalog_version TEXT NOT NULL,
+  brick_id TEXT NOT NULL,
+  scope_id TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, brick_id, scope_id),
+  FOREIGN KEY (catalog_version, brick_id) REFERENCES lego_bricks(catalog_version, id) ON DELETE CASCADE,
+  FOREIGN KEY (catalog_version, scope_id) REFERENCES lego_scopes(catalog_version, id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_lego_affinity_scope ON lego_brick_scope_affinities(catalog_version, scope_id);
+CREATE TABLE IF NOT EXISTS lego_intents (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, id)
+);
+CREATE TABLE IF NOT EXISTS lego_intent_modes (
+  catalog_version TEXT NOT NULL,
+  intent_id TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (catalog_version, intent_id, mode),
+  FOREIGN KEY (catalog_version, intent_id) REFERENCES lego_intents(catalog_version, id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lego_intent_shapes (
+  catalog_version TEXT NOT NULL,
+  intent_id TEXT NOT NULL,
+  shape TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (catalog_version, intent_id, shape),
+  FOREIGN KEY (catalog_version, intent_id) REFERENCES lego_intents(catalog_version, id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lego_variants (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  intent_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  brick_id TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, id),
+  FOREIGN KEY (catalog_version, intent_id) REFERENCES lego_intents(catalog_version, id),
+  FOREIGN KEY (catalog_version, brick_id) REFERENCES lego_bricks(catalog_version, id)
+);
+CREATE INDEX IF NOT EXISTS idx_lego_variants_filter ON lego_variants(catalog_version, intent_id, mode, brick_id);
+CREATE TABLE IF NOT EXISTS lego_technology_descriptions (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  technology_key TEXT NOT NULL,
+  lang TEXT NOT NULL CHECK(lang IN ('en', 'fr')),
+  description TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, technology_key, lang)
+);
+CREATE TABLE IF NOT EXISTS lego_capability_phrases (
+  catalog_version TEXT NOT NULL,
+  brick_id TEXT NOT NULL,
+  lang TEXT NOT NULL CHECK(lang IN ('en', 'fr')),
+  phrase TEXT NOT NULL,
+  PRIMARY KEY (catalog_version, brick_id, lang),
+  FOREIGN KEY (catalog_version, brick_id) REFERENCES lego_bricks(catalog_version, id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lego_dependencies (
+  catalog_version TEXT NOT NULL REFERENCES lego_catalog_versions(version) ON DELETE CASCADE,
+  from_brick TEXT NOT NULL,
+  to_brick TEXT NOT NULL,
+  strength TEXT NOT NULL CHECK(strength IN ('required', 'recommended', 'optional')),
+  why_en TEXT NOT NULL,
+  why_fr TEXT NOT NULL,
+  protocol_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('sync', 'async', 'batch')),
+  PRIMARY KEY (catalog_version, from_brick, to_brick)
+);
+CREATE INDEX IF NOT EXISTS idx_lego_dependencies_from ON lego_dependencies(catalog_version, from_brick);
 `;
 
 declare global {
@@ -86,10 +195,19 @@ function open(): DatabaseSync {
   return db;
 }
 
+/** Applies additive schema (CREATE IF NOT EXISTS). Safe to re-run on a live
+ * handle — needed because Next caches the connection on globalThis across HMR,
+ * so a new table like `lego_dependencies` would otherwise never appear. */
+function ensureSchema(database: DatabaseSync): DatabaseSync {
+  database.exec(SCHEMA);
+  return database;
+}
+
 /* Cached on globalThis so Next's dev-mode module reloading does not open a new
- * handle on every hot update. */
+ * handle on every hot update. SCHEMA still re-runs so additive tables land. */
 function connect(): DatabaseSync {
-  return globalThis.__studioDb ?? (globalThis.__studioDb = open());
+  if (globalThis.__studioDb) return ensureSchema(globalThis.__studioDb);
+  return (globalThis.__studioDb = open());
 }
 
 /* Opened on first query, never at import time.

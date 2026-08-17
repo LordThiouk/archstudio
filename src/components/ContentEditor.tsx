@@ -12,6 +12,7 @@ import FlowsEditor from './editors/FlowsEditor';
 import StackEditor from './editors/StackEditor';
 import SectionsEditor from './editors/SectionsEditor';
 import { tabRows } from '@/lib/tabs';
+import type { LegoCatalogSnapshot } from '@/lib/lego/types';
 import type { Architecture } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
@@ -25,7 +26,7 @@ const PANELS: { id: PanelId; label: string; icon: string; count?: (d: Architectu
   { id: 'sections', label: 'Sections', icon: 'folder', count: d => d.sections.length }
 ];
 
-export default function ContentEditor({ doc, patch }: { doc: Architecture; patch: Patch }) {
+export default function ContentEditor({ doc, patch, catalog }: { doc: Architecture; patch: Patch; catalog: LegoCatalogSnapshot | null }) {
   const [panel, setPanel] = useState<PanelId>('document');
 
   return (
@@ -51,7 +52,7 @@ export default function ContentEditor({ doc, patch }: { doc: Architecture; patch
       <div className="content-main">
         {panel === 'document' && <DocumentEditor doc={doc} patch={patch} />}
         {panel === 'tabs' && <TabsEditor doc={doc} patch={patch} />}
-        {panel === 'flows' && <FlowsEditor doc={doc} patch={patch} />}
+        {panel === 'flows' && <FlowsEditor doc={doc} patch={patch} catalog={catalog} />}
         {panel === 'stack' && <StackEditor doc={doc} patch={patch} />}
         {panel === 'sections' && <SectionsEditor doc={doc} patch={patch} />}
       </div>

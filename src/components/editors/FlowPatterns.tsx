@@ -9,6 +9,11 @@
  * This component never writes the document. It hands the reviewed bindings to
  * its caller, which owns the `patch` — one writer, so nothing here can race the
  * editor's autosave.
+ *
+ * Bindings handed to onInsert:
+ * - component id → keep / use existing
+ * - null → skip (omit from the flow; do not create)
+ * - PLATE_CREATE → create a brick for a mappable step
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -16,13 +21,25 @@ import { Icon } from '../Icon';
 import { ScopePicker, Text } from './Fields';
 import { api } from '@/lib/api';
 import { matchSteps, type Binding } from '@/lib/flows/match';
+import {
+  PLATE_CREATE,
+  countActionableBindings,
+  isMappableStep
+} from '@/lib/flows/plate';
+import type { LegoCatalogSnapshot } from '@/lib/lego/types';
 import type { FlowPattern, LibraryPattern } from '@/lib/flows/types';
 import type { Architecture } from '@/lib/types';
 
 interface Payload { catalog: FlowPattern[]; library: LibraryPattern[]; max: number }
 
-export default function FlowPatterns({ doc, onInsert, onClose }: {
+function initialBinding(matched: string | null, patternId: string, stepKey: string, catalog: LegoCatalogSnapshot): string | null {
+  if (matched) return matched;
+  return isMappableStep(patternId, stepKey, catalog) ? PLATE_CREATE : null;
+}
+
+export default function FlowPatterns({ doc, catalog, onInsert, onClose }: {
   doc: Architecture;
+  catalog: LegoCatalogSnapshot;
   onInsert: (pattern: FlowPattern, bindings: (string | null)[], name: string, group?: string) => void;
   onClose: () => void;
 }) {
@@ -49,7 +66,7 @@ export default function FlowPatterns({ doc, onInsert, onClose }: {
     const matched = matchSteps(p.steps, doc.components);
     setChosen(p);
     setAuto(matched);
-    setBind(matched.map(b => b.component));
+    setBind(matched.map((b, i) => initialBinding(b.component, p.id, p.steps[i].key, catalog)));
     setName(p.name);
     setGroup(undefined);
   };
@@ -66,7 +83,25 @@ export default function FlowPatterns({ doc, onInsert, onClose }: {
     finally { setBusy(false); }
   };
 
-  const kept = useMemo(() => bind.filter(Boolean).length, [bind]);
+  const actionable = useMemo(
+    () => (chosen ? countActionableBindings(chosen, bind, catalog) : 0),
+    [chosen, bind, catalog]
+  );
+  const kept = useMemo(
+    () => bind.filter(v => typeof v === 'string' && v !== PLATE_CREATE && v.length > 0).length,
+    [bind]
+  );
+  const creating = useMemo(
+    () => bind.filter(v => v === PLATE_CREATE).length,
+    [bind]
+  );
+
+  const ctaLabel = (() => {
+    if (actionable < 2) return 'Bind or create at least two steps';
+    if (creating > 0 && kept > 0) return `Add flow (${kept} bound · ${creating} to create)`;
+    if (creating > 0) return `Add flow · create ${creating} missing brick${creating === 1 ? '' : 's'}`;
+    return `Add flow (${kept} steps)`;
+  })();
 
   return (
     <div className="modal-scrim" onClick={onClose}>
@@ -79,7 +114,7 @@ export default function FlowPatterns({ doc, onInsert, onClose }: {
             <p className="lede">
               {chosen
                 ? 'Each step was matched against your components by name, stack and layer. '
-                  + 'Correct anything that looks wrong — a step left on “skip” is simply left out.'
+                  + 'Correct anything that looks wrong — skip omits the step; create missing drops a brick when the canvas has none.'
                 : 'The steps come written. You only decide which component takes each one.'}
             </p>
           </div>
@@ -95,25 +130,41 @@ export default function FlowPatterns({ doc, onInsert, onClose }: {
         ) : (
           <>
             <div className="flowmap">
-              {chosen.steps.map((s, i) => (
-                <div className={`flowmap-row${bind[i] ? '' : ' off'}`} key={s.key}>
-                  <i className="n">{i + 1}</i>
-                  <div className="what">
-                    <b>{s.title}</b>
-                    {s.description && <em>{s.description}</em>}
+              {chosen.steps.map((s, i) => {
+                const mappable = isMappableStep(chosen.id, s.key, catalog);
+                const value = bind[i] ?? '';
+                return (
+                  <div className={`flowmap-row${bind[i] ? '' : ' off'}`} key={s.key}>
+                    <i className="n">{i + 1}</i>
+                    <div className="what">
+                      <b>{s.title}</b>
+                      {s.description && <em>{s.description}</em>}
+                    </div>
+                    <select className="select" value={value}
+                      onChange={e => {
+                        const raw = e.target.value;
+                        const next =
+                          raw === '' ? null :
+                          raw === PLATE_CREATE ? PLATE_CREATE :
+                          raw;
+                        setBind(b => b.map((v, j) => (j === i ? next : v)));
+                      }}>
+                      <option value="">— skip this step —</option>
+                      {mappable && (
+                        <option value={PLATE_CREATE}>— create missing brick —</option>
+                      )}
+                      {doc.components.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    {!bind[i]
+                      ? <span className="count">skipped</span>
+                      : bind[i] === PLATE_CREATE
+                        ? <span className="count">create</span>
+                        : bind[i] === auto[i]?.component && !auto[i].confident
+                          ? <span className="count" title="Matched on a weak signal — worth a look">guess</span>
+                          : <span className="count" style={{ visibility: 'hidden' }}>ok</span>}
                   </div>
-                  <select className="select" value={bind[i] ?? ''}
-                    onChange={e => setBind(b => b.map((v, j) => (j === i ? (e.target.value || null) : v)))}>
-                    <option value="">— skip this step —</option>
-                    {doc.components.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {!bind[i]
-                    ? <span className="count">skipped</span>
-                    : bind[i] === auto[i]?.component && !auto[i].confident
-                      ? <span className="count" title="Matched on a weak signal — worth a look">guess</span>
-                      : <span className="count" style={{ visibility: 'hidden' }}>ok</span>}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="frow" style={{ marginTop: 14 }}>
@@ -127,9 +178,9 @@ export default function FlowPatterns({ doc, onInsert, onClose }: {
         <div className="modal-actions">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           {chosen && (
-            <button className="btn primary" disabled={kept < 2}
+            <button className="btn primary" disabled={actionable < 2}
               onClick={() => { onInsert(chosen, bind, name, group); onClose(); }}>
-              {kept < 2 ? 'Bind at least two steps' : `Add flow (${kept} steps)`}
+              {ctaLabel}
             </button>
           )}
         </div>

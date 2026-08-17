@@ -11,6 +11,11 @@ data/*.db-wal
 next-env.d.ts
 tsconfig.tsbuildinfo
 
+# Local agent / graph tooling — not product source
+graphify-out/
+.omc/
+.lifeos-work-isa
+
 # Third-party reference material kept locally and never redistributed.
 # The brackets are escaped: unescaped, `[External]` is a character class and
 # the rule would silently match nothing.

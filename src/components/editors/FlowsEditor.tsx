@@ -8,18 +8,28 @@ import { useState } from 'react';
 import { Icon } from '../Icon';
 import FlowPatterns from './FlowPatterns';
 import { Area, CardList, Group, Panel, RICH_HINT, ScopePicker, Text } from './Fields';
-import { slugify } from '@/lib/defaults';
+import { blankManualFlow, flowCopy, slugify } from '@/lib/defaults';
 import { api } from '@/lib/api';
-import { insertFlow } from '@/lib/flows/apply';
+import { insertPlate } from '@/lib/flows/plate';
 import { toFlowPattern } from '@/lib/flows/derive';
+import { flowLinkReflections, orphanDiagramLinks, shortJourneyFlow } from '@/lib/flows/reflection';
+import { ensureBuiltinTab } from '@/lib/tabs';
+import type { LegoCatalogSnapshot } from '@/lib/lego/types';
+import { describeLink } from '@/lib/links';
 import type { Architecture, Flow, FlowStep } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 
-export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: Patch }) {
+function linkChipLabel(link: Parameters<typeof describeLink>[0], lang: 'en' | 'fr'): string {
+  return describeLink(link, lang) || (lang === 'fr' ? 'relié' : 'linked');
+}
+
+export default function FlowsEditor({ doc, patch, catalog }: { doc: Architecture; patch: Patch; catalog: LegoCatalogSnapshot | null }) {
   const setFlows = (next: Flow[]) => patch(d => { d.flows = next; return d; });
   const compName = (id: string) => doc.components.find(c => c.id === id)?.name || id;
   const noComponents = doc.components.length === 0;
+  const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
+  const orphans = orphanDiagramLinks(doc.components, doc.flows);
 
   const [picking, setPicking] = useState(false);
   /* The id of the flow currently being saved, so only its own button says so. */
@@ -66,7 +76,7 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
         {noComponents && (
           <div className="warnbox">
             <Icon name="alert" size={15} />
-            A flow is a path through the diagram. Add components first — steps have nothing to point at.
+            No bricks yet — a pattern can create the missing ones, or add components first for a manual flow.
           </div>
         )}
 
@@ -75,13 +85,46 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
             <b>Start from a pattern</b>
             <div className="hint">
               Authentication, checkout, inbound webhook, RAG query, CI/CD, asynchronous processing —
-              plus anything you saved yourself. The steps come written; you bind each one to a component.
+              plus anything you saved yourself. Bind steps to existing bricks, create missing ones, or skip.
             </div>
           </div>
-          <button className="btn sm" disabled={noComponents} onClick={() => setPicking(true)}>
+          <button className="btn sm" disabled={!catalog} onClick={() => setPicking(true)}>
             <Icon name="route" size={13} />Browse patterns
           </button>
         </div>
+
+        {orphans.length > 0 && (
+          <div className="flow-orphan-list">
+            <div className="sect-label">{lang === 'fr' ? 'Liaisons hors parcours' : 'Links without a journey'}</div>
+            {orphans.map(edge => (
+              <div className="preset-row flow-orphan-row" key={`${edge.from}:${edge.to}`}>
+                <div>
+                  <b>{compName(edge.from)} → {compName(edge.to)}</b>
+                  <div className="hint">
+                    {linkChipLabel(edge.link, lang)}
+                    {' · '}
+                    {lang === 'fr'
+                      ? 'Relié sur le diagramme, pas encore dans un flow.'
+                      : 'Connected on the diagram, not yet in a flow.'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => patch(d => {
+                    const journey = shortJourneyFlow(d.components, edge, d.flows.map(f => f.id), d.meta.lang);
+                    d.flows.push(journey);
+                    ensureBuiltinTab(d, 'flows');
+                    return d;
+                  })}
+                >
+                  <Icon name="route" size={13} />
+                  {lang === 'fr' ? 'Ajouter un parcours court' : 'Add short journey'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         <CardList<Flow>
           items={doc.flows}
@@ -93,27 +136,21 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
             id: slugify(`${f.name} copy`, doc.flows.map(x => x.id)),
             name: `${f.name} (copy)`
           })}
-          blank={() => {
-            const first = doc.components[0];
-            return {
-              id: slugify('flow', doc.flows.map(f => f.id)),
-              name: 'New flow',
-              group: first?.group,
-              steps: first ? [{ component: first.id, title: 'First step' }] : []
-            };
-          }}
+          blank={() => blankManualFlow(doc)}
           summary={f => f.name}
           badge={f => <span className="count">{f.steps.length} steps</span>}
-          render={(flow, set) => (
-            <>
+          render={(flow, set) => {
+            const reflection = flowLinkReflections(doc.components, flow);
+            return (
+              <>
               <div className="frow">
                 <Text label="Name" value={flow.name} onChange={v => set(f => { f.name = v; })} />
-                <Text label="Subtitle" value={flow.sub || ''} placeholder="Consumer · under an hour"
+                <Text label="Subtitle" value={flow.sub || ''} placeholder={flowCopy(lang).sub}
                   onChange={v => set(f => { f.sub = v || undefined; })} />
               </div>
               <ScopePicker doc={doc} value={flow.group} onChange={v => set(f => { f.group = v; })} />
               <Area label="Side note" value={flow.note || ''} hint={RICH_HINT}
-                placeholder="What breaks if a step fails, who owns the recovery."
+                placeholder={flowCopy(lang).note}
                 onChange={v => set(f => { f.note = v || undefined; })} />
 
               <div className="sect-label" style={{ marginTop: 14 }}>Steps</div>
@@ -123,9 +160,21 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
                 addLabel="Add a step"
                 empty="A flow with no step renders an empty card."
                 duplicate={s => structuredClone(s)}
-                blank={() => ({ component: doc.components[0]?.id ?? '', title: 'New step' })}
+                blank={() => ({
+                  component: doc.components[0]?.id ?? '',
+                  title: flowCopy(lang).newStep,
+                  description: flowCopy(lang).stepDescription
+                })}
                 summary={(s, i) => `${i + 1}. ${s.title || compName(s.component)}`}
-                badge={s => <span className="count">{compName(s.component)}</span>}
+                badge={(s, i) => {
+                  const connection = reflection.consecutive.find(item => item.afterStep === i - 1);
+                  return (
+                    <>
+                      {connection && <span className="flow-link-chip">{linkChipLabel(connection.link, lang)}</span>}
+                      <span className="count">{compName(s.component)}</span>
+                    </>
+                  );
+                }}
                 render={(step, setStep) => (
                   <>
                     <div className="frow">
@@ -146,6 +195,15 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
                   </>
                 )} />
 
+              {reflection.nonAdjacent.map(connection => (
+                <div className="flow-link-hint" key={`${connection.from}:${connection.to}`}>
+                  <Icon name="route" size={13} />
+                  {lang === 'fr' ? 'Ces étapes sont reliées sur le diagramme' : 'These steps are connected on the diagram'}
+                  {' · '}{compName(connection.from)} → {compName(connection.to)}
+                  {` · ${linkChipLabel(connection.link, lang)}`}
+                </div>
+              ))}
+
               <div className="preset-row" style={{ marginTop: 16, marginBottom: 0 }}>
                 <div>
                   <b>Save as a pattern</b>
@@ -160,14 +218,15 @@ export default function FlowsEditor({ doc, patch }: { doc: Architecture; patch: 
                   <Icon name="save" size={13} />{saving === flow.id ? 'Saving…' : 'Save'}
                 </button>
               </div>
-            </>
-          )} />
+              </>
+            );
+          }} />
       </Group>
 
-      {picking && (
-        <FlowPatterns doc={doc} onClose={() => setPicking(false)}
+      {picking && catalog && (
+        <FlowPatterns doc={doc} catalog={catalog} onClose={() => setPicking(false)}
           onInsert={(pattern, bindings, name, group) =>
-            patch(d => { insertFlow(d, { pattern, bindings, name, group }); return d; })} />
+            catalog && patch(d => { insertPlate(d, { pattern, bindings, name, group }, catalog); return d; })} />
       )}
     </Panel>
   );

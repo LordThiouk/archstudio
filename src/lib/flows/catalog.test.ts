@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { FLOW_CATALOG, resolveCatalog } from './catalog';
 import { matchSteps } from './match';
 import { insertFlow } from './apply';
-import { ICON_KEYS, blankArchitecture, normalizeArchitecture, slugify } from '../defaults';
+import { ICON_KEYS, blankArchitecture, normalizeArchitecture, slugify, STARTER_LAYERS } from '../defaults';
 import { LANGS, isL10nPair } from '../templates/types';
 import { TEMPLATES, instantiate } from '../templates/index';
 import demoJson from '../seed/demo.json';
@@ -70,7 +70,7 @@ test('icons are real, in the patterns and in the hints', () => {
 test('layer hints name layers some real document actually uses', () => {
   /* A layer id nobody uses is dead weight that reads as a working signal. */
   const known = new Set([
-    ...blankArchitecture().layers.map(l => l.id),
+    ...STARTER_LAYERS.map(l => l.id),
     ...DOCUMENTS.flatMap(([, d]) => d.layers.map(l => l.id))
   ]);
   for (const p of FLOW_CATALOG) {

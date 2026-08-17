@@ -379,7 +379,7 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .layer.over { background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .layer-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
 .layer-head b {
-  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: capitalize;
   color: var(--ink-3); font-weight: 400;
 }
 .layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }
@@ -549,6 +549,19 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   background: transparent; border: 1px solid var(--line-2); border-radius: 0;
   padding: 1px 7px; white-space: nowrap; flex: none;
 }
+.flow-link-chip {
+  font-family: var(--mono); font-size: 10px; color: var(--brand-ink);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  padding: 1px 7px; white-space: nowrap;
+}
+.flow-link-hint {
+  display: flex; align-items: center; gap: 6px; margin: 8px 0 0; padding: 7px 9px;
+  color: var(--ink-3); background: var(--panel-2); border-left: 2px solid var(--line-2);
+  font-size: 11.5px;
+}
+.flow-link-hint svg { flex: none; }
+.flow-orphan-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 16px; }
+.flow-orphan-row { margin: 0; }
 
 .cellgrid { display: grid; gap: 5px; align-items: start; }
 .cellgrid .gh {
@@ -627,6 +640,16 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .modal-head p.lede { margin: 0; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 .err { color: var(--danger); font-size: 12.5px; margin-top: 8px; }
+.dependency-sheet { width: min(620px, 100%); }
+.dependency-suggestion {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 0; border-top: 1px solid var(--line-2);
+}
+.dependency-suggestion:first-of-type { border-top: 0; }
+.dependency-suggestion b { font-size: 13.5px; }
+.dependency-suggestion p { margin: 4px 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+.dependency-suggestion small { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.dependency-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 
 /* ------------------------------------------------------- template picker */
 .tpl-blank, .tpl-card {

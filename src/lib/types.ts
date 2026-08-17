@@ -87,6 +87,8 @@ export interface Component {
   tech?: string[];
   url?: string;
   role?: string;
+  /** Stable Lego catalog identity; `role` remains human-readable prose. */
+  brick?: import('./lego/bricks').BrickId;
   features?: string[];
   notes?: string[];
   deps?: string[];

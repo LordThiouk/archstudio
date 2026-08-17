@@ -1,7 +1,7 @@
 {
   "agnostic · en": {
     "title": "Multi-service architecture",
-    "kicker": "Template: Multi-service architecture · Vendor-neutral · 2026-08-14",
+    "kicker": "Template: Multi-service architecture · Vendor-neutral · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Business services",
@@ -10,7 +10,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -59,7 +59,7 @@
   },
   "agnostic · fr": {
     "title": "Architecture multi-services",
-    "kicker": "Modèle : Architecture multi-services · Agnostique · 2026-08-14",
+    "kicker": "Modèle : Architecture multi-services · Agnostique · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Services métier",
@@ -68,7 +68,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -117,7 +117,7 @@
   },
   "aws · en": {
     "title": "Multi-service architecture",
-    "kicker": "Template: Multi-service architecture · AWS · 2026-08-14",
+    "kicker": "Template: Multi-service architecture · AWS · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Business services",
@@ -126,7 +126,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -177,7 +177,7 @@
   },
   "aws · fr": {
     "title": "Architecture multi-services",
-    "kicker": "Modèle : Architecture multi-services · AWS · 2026-08-14",
+    "kicker": "Modèle : Architecture multi-services · AWS · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Services métier",
@@ -186,7 +186,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -237,7 +237,7 @@
   },
   "gcp · en": {
     "title": "Multi-service architecture",
-    "kicker": "Template: Multi-service architecture · Google Cloud · 2026-08-14",
+    "kicker": "Template: Multi-service architecture · Google Cloud · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Business services",
@@ -246,7 +246,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -297,7 +297,7 @@
   },
   "gcp · fr": {
     "title": "Architecture multi-services",
-    "kicker": "Modèle : Architecture multi-services · Google Cloud · 2026-08-14",
+    "kicker": "Modèle : Architecture multi-services · Google Cloud · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Services métier",
@@ -306,7 +306,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -357,7 +357,7 @@
   },
   "azure · en": {
     "title": "Multi-service architecture",
-    "kicker": "Template: Multi-service architecture · Azure · 2026-08-14",
+    "kicker": "Template: Multi-service architecture · Azure · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Business services",
@@ -366,7 +366,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -417,7 +417,7 @@
   },
   "azure · fr": {
     "title": "Architecture multi-services",
-    "kicker": "Modèle : Architecture multi-services · Azure · 2026-08-14",
+    "kicker": "Modèle : Architecture multi-services · Azure · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Services métier",
@@ -426,7 +426,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"
@@ -477,7 +477,7 @@
   },
   "selfhosted · en": {
     "title": "Multi-service architecture",
-    "kicker": "Template: Multi-service architecture · Self-hosted · 2026-08-14",
+    "kicker": "Template: Multi-service architecture · Self-hosted · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Business services",
@@ -486,7 +486,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & gateway",
+      "edge: Edge & Gateway",
       "services: Services",
       "data: Data",
       "platform: Platform"
@@ -536,7 +536,7 @@
   },
   "selfhosted · fr": {
     "title": "Architecture multi-services",
-    "kicker": "Modèle : Architecture multi-services · Auto-hébergé · 2026-08-14",
+    "kicker": "Modèle : Architecture multi-services · Auto-hébergé · 2026-08-15",
     "groups": [
       "edge: Edge",
       "services: Services métier",
@@ -545,7 +545,7 @@
     ],
     "layers": [
       "clients: Clients",
-      "edge: Edge & passerelle",
+      "edge: Edge & Passerelle",
       "services: Services",
       "data: Données",
       "platform: Plateforme"

@@ -43,7 +43,9 @@ test('a bound pattern becomes a flow, descriptions and all', () => {
   assert.deepEqual(d.flows[0].steps[0], {
     component: 'web', title: 'Basket submitted', description: 'The customer confirms.'
   });
-  assert.equal('description' in d.flows[0].steps[1], false, 'no empty description field');
+  assert.equal(d.flows[0].steps[1].description, 'What this step does.');
+  assert.equal(d.flows[0].sub, 'Consumer · under an hour');
+  assert.ok(d.flows[0].note);
 });
 
 test('skipped and dead bindings are dropped and counted', () => {

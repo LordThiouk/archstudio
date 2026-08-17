@@ -471,6 +471,19 @@ There is no authentication. Put it behind your VPN, a reverse-proxy basic-auth, 
 network — do not expose it to the open internet as is. Adding auth means one middleware and a
 session check in the API routes; the data model does not need to change.
 
+**Docker** — a `Dockerfile` and `docker-compose.yml` ship at the repo root, mainly for anyone
+whose local Node is older than the `node:sqlite` floor above.
+
+```bash
+docker compose up --build            # http://localhost:3000
+```
+
+`./data` on the host is bind-mounted to `/app/data` in the container, so `data/studio.db`
+survives rebuilds. Run `npm run reset` on the **host**, not inside the container — `data` is the
+mount point there, and a mount point cannot remove itself. To use a document-reading provider, copy
+`.env.example` to `.env` and fill in the key(s) you need; `docker compose` reads it
+automatically.
+
 ---
 
 ## Roadmap

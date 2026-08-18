@@ -240,6 +240,11 @@ export function instantiate(tpl: Template, opts: InstantiateOptions): Architectu
     },
     groups,
     layers,
+    /* No template declares a zone. The six describe *abstract* architectures,
+     * and a deployment boundary is the most target-specific thing a diagram can
+     * carry — "OpenShift" is an answer to a question the template deliberately
+     * leaves to whoever instantiates it. */
+    zones: [],
     components,
     technologies,
     flows,

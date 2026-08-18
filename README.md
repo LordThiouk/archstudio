@@ -109,9 +109,13 @@ it as a draft: it is one reading of one document, and the dependencies especiall
 second pair of eyes.
 
 This is the one feature that leaves your machine, so it is opt-in and it is yours to point:
-choose a provider in **Settings** — Anthropic, OpenAI, Google Gemini, NVIDIA NIM, or anything
-that speaks the OpenAI API, including a model running on your own hardware. Configure nothing and
-both entry points do not exist. See [Reading documents](#reading-documents).
+choose a provider in **Settings** — Anthropic, OpenAI, Google Gemini, NVIDIA NIM, Poolside, or
+anything that speaks the OpenAI API, including a model running on your own hardware. Configure
+nothing and both entry points do not exist. See [Reading documents](#reading-documents).
+
+**Only Anthropic and Gemini can be handed a PDF.** Everything else in that list is text-only —
+the file picker narrows to Markdown and plain text on its own, rather than accepting a PDF and
+failing after the upload. Convert it first, or point the reading at Claude.
 
 ---
 
@@ -265,15 +269,161 @@ Each project stores one JSON document — the same shape the viewer consumes. It
 - **components** — anything nameable: an app, an API, a database, a bucket, a vendor.
 - **deps** — who calls whom. Direction matters: caller → callee.
 - **links** — optional, and only ever a *description* of a dependency `deps` already declares:
-  `{ to, kind, protocol, note }`. `deps` stays the single source of truth for whether an edge
+  `{ to, kind, protocol, note, state }`. `deps` stays the single source of truth for whether an edge
   exists, so the two cannot disagree — normalisation drops any link whose target is not in
   `deps`, and an edge nobody annotated has no entry at all. That is what keeps a document
   written before this field existed exporting byte-for-byte as it did.
+- **zones** — boundaries that cut *across* the layers. See below.
 
 Beyond that the format carries `flows`, `technologies` and editorial `sections`
 (`compare`, `cards`, `timeline`, `table`, `text`), all edited from the **Content** tab, plus the
 one optional field the printable document reads — `sections[].doc.chapter`. See
 `src/lib/types.ts` for the full contract.
+
+---
+
+## The landscape reading
+
+Four fields turn the diagram from a picture of a system into the kind of drawing an
+enterprise architect brings to a steering committee: a *landscape*. Every one of them is
+optional, and every one of them is absent from a document that does not use it — so nothing
+here changed a single diagram that already existed.
+
+**The constraint that shaped all four.** The reference diagrams in the wild encode this in
+colour: blue boxes for new, yellow for updated, hatched red for removed, a red badge for SSO.
+Colour here belongs to scope (rule 1) and teal to what the reader can act on (rule 2). So the
+four additions take the channels colour never claimed — the card's border, a monospace tick,
+the stroke weight, a plate on the line, a glyph in the header row. The side effect is that all
+of it survives a monochrome print and a reader who cannot separate two hues, which a hatched
+red box does not.
+
+### The protocol, on the line
+
+`ui.architecture.defaultProtocol: "REST"` names the protocol the architecture speaks, and only
+the edges that depart from it get a label — the "all calls are REST unless the line says
+otherwise" convention, which is also printed in words under the diagram. `protocolLabels`
+overrides what that implies: `all` labels every annotated edge, `off` keeps the sentence and
+drops the plates. Name nothing and no plate is drawn at all.
+
+The plate sits on the curve's midpoint, computed rather than measured: for the cubic the
+renderers draw, `t = .5` collapses to `((x1+x2)/2, (y1+y2)/2 + 3(k1+k2)/8)`. A cross-layer edge
+labels on its straight-line midpoint; a within-layer edge labels on the belly of its arc instead
+of inside the row it passes under.
+
+### The transition
+
+`component.state` and `link.state` take `new`, `changed` or `removed`. Unset means "already
+there", which is the common case and stays unwritten.
+
+```
+new      dashed border, tick NEW, heavier stroke, "+" in the plate
+changed  border pulled to full ink, tick MOD, heavier stroke, "~"
+removed  name struck, chip drained of its scope colour, tick DEL, ghosted line, "-"
+```
+
+**This is the field that makes a landscape worth keeping.** A landscape diagram is a picture of
+a *delta*, which is why it survives a year of committees on one page: you present the same
+drawing and move the marks. The toolbar gains **Transition** — on, the sheet shows the delta;
+off, the removals leave the flow entirely and what is left is the state you are heading for. An
+edge goes with it when it is retired *or* when either of its ends is: a dependency on something
+that will not be there is not a dependency that survives. `ui.architecture.transition` sets
+where the toggle starts; unset is on as soon as the document marks anything.
+
+History names the direction — `transition: existing → removed` — rather than reporting that a
+field moved. Marking a component for removal is the most consequential edit this format allows,
+and History is where someone decides whether to undo it.
+
+### Security marks
+
+`component.marks` is a closed set — `public`, `basic-auth`, `sso`, `secured`, `pii` — drawn as
+glyphs in the card's header row and always accompanied by a key. Weakest protection first, in
+both, because that is the reading a review scans for. The free-text `badge` stays for the one
+word that fits no category.
+
+Closed, not free text, for three reasons: the glyphs can have a legend, the viewer's search box
+can find every unauthenticated endpoint by typing either `sso` or `no authentication`, and
+`"SSO"` / `"sso"` / `"Sign-on"` cannot become three different things. They live in the header
+row rather than under the technology pills so they survive compact mode — a dense sheet is
+exactly where "which of these is reachable without a login" stops being answerable any other
+way.
+
+### Zones
+
+A `Zone` is a boundary that crosses the rows: `{ id, name, kind?, parent?, note? }`, with
+`component.zone` naming the innermost one. Layers are rows and scopes are colours, and neither
+can say "these six run on OpenShift" when three are front ends and three are APIs.
+
+`kind` is one of `platform`, `network`, `gateway`, `perimeter`, `vendor`, and it picks between
+**two** stroke treatments, not five: solid for a boundary you could point at in a room, dashed
+for one that exists in a document. Everything else is carried by the label, which is always
+drawn. Five dash patterns would be five things to look up; two and a name is one. Nesting
+darkens the ground by a hair per level and insets the outer rule further than its children's,
+which is the only thing saying that one neutral rectangle is inside another.
+
+**A zone is measured, not laid out.** The sheet is HTML flow — that is what makes it reflow when
+you zoom out — so a region spanning two rows cannot be a box in the DOM: it would have to
+contain the rows. The rectangles are computed after layout in the same pass as the edges, from
+*runs*: one element per zone per layer.
+
+**And measuring alone is not enough** — this is the part that took a second pass to get right.
+A rectangle around a zone's members on two rows is tall enough to hold both, so an unrelated
+card on the row between them falls inside it, and the drawing makes a claim the document never
+made. Ordering the cards, padding the box, tightening the union: all of them leave it
+accidentally right rather than right.
+
+So the space is **reserved**. Each bucket — the unzoned cards, then each zone — owns a *band* of
+columns that is identical on every layer, and a card is placed in its own bucket's band and
+nowhere else. A zone's rectangle can then only contain what was placed in its band, by
+construction rather than by luck:
+
+```
+band 1          band 2 (OpenShift)
+                ┌─ OPENSHIFT ────────┐
+Client Channels │ [Next.js]          │
+  [Flutter]     │                    │
+Services & APIs │                    │
+  [Anthropic]   │                    │
+Data & Storage  │ [Amazon Aurora]    │
+                └────────────────────┘
+```
+
+The plan is arithmetic, not measured: a card has a fixed width, so a band's width is a column
+count, and a column count is something you can count. That is what keeps it out of the measure
+pass and lets the printed sheet agree with the screen without a second layout. A band is as wide
+as its bucket's busiest layer, capped at `BAND_MAX` (six, the same number the density threshold
+uses); a bucket needing more wraps inside its own band rather than pushing every other band off
+the page. Nested zones get contiguous bands in tree order, so a parent is one range of columns
+and not two with a hole in the middle. The horizontal insets form a ladder — 7, 13, 19 px — that
+fits inside the 24 px gutter between two bands, because anything wider would draw over the
+neighbour's card and reintroduce exactly the false claim the bands exist to prevent.
+
+**Two things to know before you reach for them.**
+
+*Zones turn clustering off.* Two groupings cannot own one row: clustering splits a layer into
+one column per scope, zones group the same cards by where they run, and asking for both cuts the
+cards one way while drawing the rectangles around the other. Zones win, because a zone is drawn
+and a scope is already carried twice — by the colour on every chip and by the filter chips above
+the sheet. `cluster: true` on a zoned document is ignored.
+
+*A zoned sheet is wider.* A band stays reserved on the layers where its zone has nothing, which
+is the whole reason nothing foreign can wander into it — and the reason the drawing grows a
+column per zone whether or not every row uses it. That is the visible, honest price of a
+boundary that means what it draws.
+
+The **EXTERNAL / INTERNAL** divide those diagrams draw as a full-height vertical line does not
+transpose. This layout is horizontal bands; a vertical axis wants columns. Modelled as a zone it
+gives you a frame around the external services, which is legible and is not the same thing.
+
+```
+src/lib/links.ts       the protocol convention, and the plate's geometry
+src/lib/lifecycle.ts   the three transition marks and what each commits you to
+src/lib/marks.ts       the closed security set, its icons and its key
+src/lib/zones.ts       the zone tree, the run ordering, and the measured union
+```
+
+Each one is mirrored by hand in `viewer/engine.js`, which ships inside the export and cannot
+import them, and each one's *appearance* lives in the three stylesheets rather than in the
+renderers — a change to how a zone or a tick looks is a change to CSS, not to three files.
 
 ---
 
@@ -412,11 +562,28 @@ and choose who reads your documents:
 | Google Gemini | built in | yes | exact |
 | OpenAI | built in | text only | estimated |
 | NVIDIA NIM | built in | text only | estimated |
+| Poolside | editable | text only | estimated |
 | OpenAI-compatible | yours | text only | estimated |
 
 The last row is the interesting one: anything that speaks `/v1/chat/completions` — Ollama, LM
 Studio, vLLM, Groq, Together, OpenRouter, a model on your own GPU — is a base URL away, and needs
 no key at all when it is local and unauthenticated.
+
+**Poolside** is that row with the base URL filled in. Its Laguna models are coding models and all
+three are text-to-text, so a PDF has to become Markdown first. Two fields are deliberately loose:
+the base URL stays editable, because Poolside documents different ones per access method — their
+platform, Bedrock, OpenRouter, a self-hosted deployment — and no model is suggested, because the
+ids differ the same way. Nothing is claimed about JSON-schema output either: their documentation
+does not mention `response_format`, so the adapter sends OpenAI's form, falls back to
+`guided_json`, and *Test* is what settles it. Checked against `docs.poolside.ai` on 2026-08-18.
+
+**Six entries, three adapters.** OpenAI, NVIDIA, Poolside and the generic row are one code path.
+A named entry buys nothing that row cannot already do — it buys not having to know a base URL,
+and the one field the studio cannot guess: whether a PDF can be handed over as-is, which narrows
+the file picker *before* someone chooses a document the provider will refuse. Adding a seventh is
+one object in `src/lib/ai/providers/types.ts`; `registry.test.ts` holds the invariants, including
+the one with teeth — a provider on the OpenAI adapter may never claim PDF support, because that
+adapter throws on a PDF and the picker would have accepted the upload first.
 
 **Test before you trust it.** Two buttons in the dialog: *Load models* asks the provider what it
 can serve, and *Test* runs a real schema-constrained request. The second is the one that matters —
@@ -429,8 +596,17 @@ to encrypt it against, and a key derived from something on the machine would onl
 encryption — so: anyone who can read that file, or a backup of it, can read the key. It is never
 sent back to the browser, which only ever sees the last four characters. To keep it out of the
 data directory entirely, set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` /
-`NVIDIA_API_KEY` in the environment and leave the field empty; the dialog then says it is reading
-the environment.
+`NVIDIA_API_KEY` / `POOLSIDE_API_KEY` in the environment and leave the field empty; the dialog
+then says it is reading the environment.
+
+**An internal endpoint can come from the environment too.** The two providers whose endpoint is
+yours to choose — Poolside and OpenAI-compatible — read `POOLSIDE_BASE_URL` and
+`OPENAI_COMPATIBLE_BASE_URL`, with the same precedence as the key: what is typed into the dialog
+wins, the environment fills in behind it, the built-in default is the floor. For a company running
+its own Poolside instance that is the difference between a deployment that reproduces itself and
+one that needs the URL retyped on every fresh volume. The other providers deliberately have no
+such variable: their endpoint is presented as fixed, and an environment that could redirect it
+would do so with no field on screen to reveal it.
 
 **What it sends.** The file you choose, plus — for an enrichment — the id, name, scope and layer
 of each component already in *that one project*. Nothing else: not your other projects, not the

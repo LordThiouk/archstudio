@@ -12,4 +12,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - POOLSIDE_API_KEY=${POOLSIDE_API_KEY:-}
+      # The endpoint too, for the two providers whose endpoint is yours to pick —
+      # an internal Poolside instance, or your own vLLM alongside this container.
+      - POOLSIDE_BASE_URL=${POOLSIDE_BASE_URL:-}
+      - OPENAI_COMPATIBLE_BASE_URL=${OPENAI_COMPATIBLE_BASE_URL:-}
     restart: unless-stopped

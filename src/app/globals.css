@@ -371,6 +371,64 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 }
 .canvas-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible; }
 
+/* A zone's cards in one layer. Present only on a document that has zones, and it
+   mirrors `.layer-drop` exactly so a single run lays out like a bare row. Its job
+   is to be a *box*: the zone rectangle is measured from these, and a real element
+   is what stops a wrapped row from interleaving two zones' cards. */
+.zrun { display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+
+/* The reserved bands. A card has a fixed width, so a band is a column count and
+   the plan is arithmetic rather than measured — which is what lets all three
+   renderers agree without a second layout pass. The band stays reserved on
+   layers where its zone has nothing: that is why a zoned sheet is wider, and it
+   is the price of a rectangle that can only contain what was placed in it. */
+.canvas { --card-w: 206px; }
+/* 24 px between bands, not 10: every horizontal zone inset has to fit inside that
+   gutter (the ladder is 7/13/19) or a rule reaches into the next band's card.
+   MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+.layer-drop.banded {
+  display: grid; grid-template-columns: repeat(var(--cols), var(--card-w));
+  row-gap: 10px; column-gap: 24px; align-items: start; justify-content: start;
+}
+/* A run fills its band rather than shrinking to its cards, so the measured
+   rectangle is band-shaped on every layer instead of jumping in and out with the
+   card count. */
+.layer-drop.banded .zrun { min-width: 0; justify-self: stretch; }
+
+/* ------------------------------------------------------------------- zones
+   Measured after layout and drawn into the edge SVG, behind every card. Two
+   treatments and no hue — colour is scope's (rule 1):
+     solid   a boundary you could point at in a room — a platform, a vendor
+     dashed  one that exists in a document — a network zone, a perimeter
+   The ground darkens by a hair per nesting level, which is the only thing saying
+   that one neutral rectangle is inside another. */
+.zone rect { fill: color-mix(in srgb, var(--ink) 3%, transparent); stroke: var(--line-3); stroke-width: 1; }
+.zone[data-depth="1"] rect { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+.zone[data-depth="2"] rect { fill: color-mix(in srgb, var(--ink) 9%, transparent); }
+.zone-dashed rect { stroke-dasharray: 5 4; }
+.zone text {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+  fill: var(--ink-3);
+}
+
+/* The zone rows in the palette rail: name and count, then kind and nesting. */
+.zonerow { margin-bottom: 8px; }
+.zonerow .frow { display: flex; gap: 6px; margin-top: 4px; }
+.zonerow .select.sm { font-size: 10.5px; padding: 3px 6px; min-width: 0; flex: 1; }
+.zonerow .count {
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums; padding: 0 4px;
+}
+
+/* The protocol on the line — the same plate the viewer and the printed sheet
+   draw. Opaque rather than a halo: the curve runs underneath it, and a stroked
+   outline on 9 px type turns to mud. Monospace, muted ink: rule 3. */
+.edgelbl rect { fill: var(--panel); stroke: var(--line-3); stroke-width: 1; }
+.edgelbl text {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .02em;
+  fill: var(--ink-3); text-anchor: middle;
+}
+
 .layer {
   position: relative; z-index: 2; padding: 14px 0 8px; border-bottom: 1px dashed var(--line-3);
   border-radius: 0; transition: background .12s;
@@ -411,6 +469,22 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .ccard .ic { width: 20px; height: 20px; border-radius: 0; flex: none; display: grid; place-items: center; background: var(--c); }
 .ccard .ic svg { width: 12px; height: 12px; stroke: var(--on-fill); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .ccard .nm { font-size: 13px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; }
+/* ---------------------------------------------------------- security marks
+   In the header row, pushed to the right edge — the same place the viewer and
+   the printed sheet put them, so a dense diagram keeps them when it drops the
+   technology pills. Neutral ink, never a hue: colour is scope's (rule 1), and a
+   glyph in ink survives a photocopy where a red badge does not. */
+.ccard .marks { margin-left: auto; display: flex; gap: 5px; flex: none; }
+.ccard .marks i { display: grid; place-items: center; width: 15px; height: 15px; color: var(--ink-2); }
+.ccard.st-removed .marks i { color: var(--ink-3); }
+
+.markkey { display: flex; flex-direction: column; gap: 7px; padding: 2px 6px; }
+.markkey span {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+}
+.markkey i { display: grid; place-items: center; width: 15px; height: 15px; flex: none; color: var(--ink-2); }
+
 .ccard .tech { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
 .ccard .tech span {
   font-family: var(--mono); font-size: 10px; padding: 3px 7px; border-radius: 0; font-weight: 400;
@@ -421,6 +495,49 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   position: absolute; top: -1px; right: -1px; font-family: var(--mono); font-size: 9px; font-weight: 700;
   padding: 2px 6px; border-radius: 0; background: var(--ink); color: var(--panel);
 }
+/* ------------------------------------------------------------ the transition
+   The same three treatments the viewer and the printed sheet draw. Colour
+   belongs to scope (rule 1) and teal to what you can act on (rule 2), so the
+   marks take the border and a monospace tick:
+     new      dashed, because it is not there yet
+     changed  the neutral border pulled up to full ink: look here
+     removed  the name struck and the icon chip drained of its scope colour
+   Selection stays 2 px teal over all three — on the canvas, what you clicked
+   has to remain the loudest thing on the sheet. */
+.ccard.st-new { border-style: dashed; border-color: var(--ink-3); }
+.ccard.st-changed { border-color: var(--ink); }
+.ccard.st-removed .nm { text-decoration: line-through; }
+.ccard.st-removed .ic { filter: grayscale(1); }
+.ccard.st-removed .nm, .ccard.st-removed .tech span { color: var(--ink-3); }
+
+/* The tick takes the left corner: `.badge` already owns the right one, and the
+   tick is the mark a reader scans the sheet for. */
+.ccard .tick {
+  position: absolute; top: -1px; left: -1px;
+  font-family: var(--mono); font-size: 8px; letter-spacing: .1em; line-height: 1;
+  padding: 2px 4px; background: var(--ink); color: var(--panel);
+}
+.ccard.st-changed .tick {
+  background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink);
+}
+.ccard.st-removed .tick { background: var(--ink-3); }
+
+/* The key, in the inspector rail. `.tick` again, but in the flow. */
+.statekey { display: flex; flex-direction: column; gap: 7px; padding: 2px 6px; }
+.statekey span {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+}
+.statekey .tick {
+  position: static; display: grid; place-items: center; width: 14px; height: 14px; flex: none;
+  font-size: 10px; font-style: normal; line-height: 1; letter-spacing: 0;
+  background: var(--ink); color: var(--panel);
+}
+.statekey .tick.st-changed {
+  background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink);
+}
+.statekey .tick.st-removed { background: var(--ink-3); }
+
 /* Rule 4: a dependency handle is a node, so it is round. */
 .ccard .linkdot {
   position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
@@ -762,6 +879,13 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
 }
 .edgekey svg { width: 34px; height: 8px; flex: none; overflow: visible; }
+
+/* The protocol convention in words. Sits under the line-style key in the rail,
+   so both readings of an edge are explained in the same place. */
+.protonote {
+  font-family: var(--mono); font-size: 10px; line-height: 1.5;
+  color: var(--ink-3); padding: 2px 6px;
+}
 
 /* ------------------------------------------------------------------ history */
 /* One box, two scrollers. The list and the diff share the frame's height rather

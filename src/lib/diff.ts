@@ -10,11 +10,15 @@
  * resolved from whichever side still has the entity, so a removal can still say
  * what it was called.
  */
-import type { Architecture, Component, Flow, Group, Layer, Link, Section, Technology } from './types';
+import { STATE_LABELS, type Lifecycle } from './lifecycle';
+import type {
+  Architecture, Component, Flow, Group, Layer, Link, Section, Technology, Zone
+} from './types';
 
 export type ChangeKind = 'added' | 'removed' | 'changed';
 export type ChangeArea =
-  | 'component' | 'dependency' | 'layer' | 'scope' | 'flow' | 'section' | 'stack' | 'document';
+  | 'component' | 'dependency' | 'layer' | 'scope' | 'zone' | 'flow' | 'section' | 'stack'
+  | 'document';
 
 export interface Change {
   kind: ChangeKind;
@@ -40,6 +44,7 @@ export const AREA_LABELS: Record<ChangeArea, string> = {
   dependency: 'Dependencies',
   layer: 'Layers',
   scope: 'Scopes',
+  zone: 'Zones',
   flow: 'Flows',
   section: 'Sections',
   stack: 'Technology table',
@@ -67,6 +72,10 @@ const nameOf = (xs: { id: string; name?: string }[] | undefined, id: string) =>
 /** "A → B", the same grammar the diagram uses for an edge. */
 const edge = (caller: string, callee: string) => `${caller} → ${callee}`;
 
+/** Unset is a state with a name — "existing" — and a diff that omitted it would
+ *  read "transition:  → removed". */
+const stateWord = (s: Lifecycle | undefined) => (s ? STATE_LABELS[s].en : 'existing');
+
 /* ---------------------------------------------------------------- component */
 
 const COMPONENT_FIELDS: { key: keyof Component; label: string; list?: true }[] = [
@@ -74,6 +83,7 @@ const COMPONENT_FIELDS: { key: keyof Component; label: string; list?: true }[] =
   { key: 'badge', label: 'badge' },
   { key: 'url', label: 'URL' },
   { key: 'role', label: 'role' },
+  { key: 'marks', label: 'security marks', list: true },
   { key: 'tech', label: 'technologies', list: true },
   { key: 'features', label: 'responsibilities', list: true },
   { key: 'notes', label: 'notes', list: true }
@@ -109,6 +119,20 @@ function componentChanges(from: Architecture, to: Architecture): Change[] {
     }
     if (a.group !== b.group) {
       bits.push(`scope: ${nameOf(from.groups, a.group)} → ${nameOf(to.groups, b.group)}`);
+    }
+    /* Moving a component between zones is a deployment decision — out of the
+     * cluster, behind the gateway — so it is named with both sides' own
+     * vocabulary the way a layer move is, and "none" is a place. */
+    if (a.zone !== b.zone) {
+      const where = (doc: Architecture, id?: string) => (id ? nameOf(doc.zones, id) : 'no zone');
+      bits.push(`zone: ${where(from, a.zone)} → ${where(to, b.zone)}`);
+    }
+    /* Spelled out rather than folded into COMPONENT_FIELDS as the word "state":
+     * marking a component for removal is the single most consequential edit
+     * this format allows, and History is where someone decides whether to undo
+     * it. "state" would tell them a field moved; this tells them which way. */
+    if (a.state !== b.state) {
+      bits.push(`transition: ${stateWord(a.state)} → ${stateWord(b.state)}`);
     }
     for (const f of COMPONENT_FIELDS) {
       const same = f.list
@@ -215,10 +239,11 @@ function dependencyChanges(from: Architecture, to: Architecture): Change[] {
   return out;
 }
 
-/** "REST/HTTPS · async · read replica", or null when the edge says nothing. */
+/** "REST/HTTPS · async · read replica · removed", or null when the edge says
+ *  nothing. The transition mark last, matching `shortLink`. */
 function describe(link: Link | undefined): string | null {
   if (!link) return null;
-  const bits = [link.protocol, link.kind, link.note].filter(Boolean);
+  const bits = [link.protocol, link.kind, link.note, link.state].filter(Boolean);
   return bits.length ? bits.join(' · ') : null;
 }
 
@@ -245,6 +270,21 @@ function layerChanges(from: Architecture, to: Architecture): Change[] {
   }
   return out;
 }
+
+/* A zone's own edits — renamed, retyped, or moved to a different parent. Where
+ * its components sit is reported on the components, not here: a zone gaining a
+ * member is a fact about the member. */
+const zoneChanges = (from: Architecture, to: Architecture) =>
+  keyedChanges<Zone>('zone', from.zones, to.zones, (a, b) => {
+    const bits: string[] = [];
+    if (a.kind !== b.kind) bits.push(`kind: ${a.kind || 'untyped'} → ${b.kind || 'untyped'}`);
+    if (a.parent !== b.parent) {
+      const inside = (doc: Architecture, id?: string) => (id ? nameOf(doc.zones, id) : 'nothing');
+      bits.push(`inside: ${inside(from, a.parent)} → ${inside(to, b.parent)}`);
+    }
+    if (!textSame(a.note, b.note)) bits.push('note');
+    return bits;
+  });
 
 const scopeChanges = (from: Architecture, to: Architecture) =>
   keyedChanges<Group>('scope', from.groups, to.groups, (a, b) => {
@@ -388,6 +428,7 @@ export function diffArchitecture(from: Architecture, to: Architecture): Diff {
     ...dependencyChanges(from, to),
     ...layerChanges(from, to),
     ...scopeChanges(from, to),
+    ...zoneChanges(from, to),
     ...flowChanges(from, to),
     ...sectionChanges(from, to),
     ...stackChanges(from, to),

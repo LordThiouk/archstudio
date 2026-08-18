@@ -1,6 +1,9 @@
-import { LINK_KINDS, linkIsEmpty } from './links';
+import { isLifecycle } from './lifecycle';
+import { normalizeMarks } from './marks';
+import { isZoneKind } from './zones';
+import { LINK_KINDS, PROTOCOL_LABEL_MODES, linkIsEmpty } from './links';
 import { displayLayerLabel } from './layers';
-import type { Architecture, Flow, Group, Link, Section, SectionType } from './types';
+import type { Architecture, Flow, Group, Link, Section, SectionType, Ui, Zone } from './types';
 
 /* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
  * h = 200, 250, 290, 340, 150, lifted to L .72 / C .12 on a marine ground.
@@ -161,6 +164,7 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
     },
     groups: [],
     layers: [],
+    zones: [],
     components: [],
     technologies: [],
     flows: [],
@@ -197,6 +201,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
       views: { ...base.ui.views, ...(input.ui?.views || {}) },
       flows: { ...base.ui.flows, ...(input.ui?.flows || {}) },
       stack: { ...base.ui.stack, ...(input.ui?.stack || {}) },
+      architecture: normalizeArchitectureUi(input.ui?.architecture),
       flowSpeedMs: input.ui?.flowSpeedMs ?? base.ui.flowSpeedMs
     },
     groups: paintGroups(groups),
@@ -208,6 +213,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
         name: slugName ? displayLayerLabel(layer.id, lang) : displayLayerLabel(layer.name, lang)
       };
     }),
+    zones: normalizeZones(input.zones),
     components: input.components || [],
     technologies: input.technologies || [],
     flows: input.flows || [],
@@ -216,6 +222,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
 
   const groupIds = new Set(doc.groups.map(g => g.id));
   const layerIds = new Set(doc.layers.map(l => l.id));
+  const zoneIds = new Set(doc.zones.map(z => z.id));
   const compIds = new Set(doc.components.map(c => c.id));
 
   doc.components = doc.components.map(c => {
@@ -224,9 +231,18 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
       ...c,
       group: groupIds.has(c.group) ? c.group : (doc.groups[0]?.id ?? c.group),
       layer: layerIds.has(c.layer) ? c.layer : (doc.layers[0]?.id ?? c.layer),
+      /* A scope and a layer fall back to the first one, because a component has
+       * to be somewhere. A zone does not: unzoned is a real answer, and the
+       * only honest one for a pointer to a zone that is gone. */
+      zone: c.zone && zoneIds.has(c.zone) ? c.zone : undefined,
       tech: c.tech || [],
       features: c.features || [],
       notes: c.notes || [],
+      /* An invented mark would fall through every switch in three renderers and
+       * silently draw as "already there", which is the one reading a transition
+       * diagram must never give by accident. */
+      state: isLifecycle(c.state) ? c.state : undefined,
+      marks: normalizeMarks(c.marks),
       deps,
       links: normalizeLinks(c.links, deps)
     };
@@ -241,6 +257,68 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
     .map(f => fillFlowDefaults(f, lang));
 
   return doc;
+}
+
+/** Keep the zones that are well formed, and cut the two things that would hang
+ *  a renderer: a `parent` pointing at nothing, and a cycle.
+ *
+ *  A cycle is the dangerous one. Every surface walks the ancestry of a zone to
+ *  decide what a box contains and how far to inset it, so `a → b → a` is an
+ *  infinite loop in three renderers rather than a wrong drawing. `ancestry()`
+ *  also stops on a repeat, so this is the second of two guards, not the only
+ *  one — but it is the one that makes the stored document sane, which is what
+ *  the editor and the export both read back. */
+function normalizeZones(input: Zone[] | undefined): Zone[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const clean: Zone[] = [];
+
+  for (const z of input) {
+    if (!z || typeof z.id !== 'string' || !z.id || seen.has(z.id)) continue;
+    seen.add(z.id);
+    const out: Zone = { id: z.id, name: z.name?.trim() || z.id };
+    if (isZoneKind(z.kind)) out.kind = z.kind;
+    if (z.note?.trim()) out.note = z.note.trim();
+    if (typeof z.parent === 'string' && z.parent && z.parent !== z.id) out.parent = z.parent;
+    clean.push(out);
+  }
+
+  /* Parents are resolved in a second pass: a zone may be declared before the one
+   * it sits inside, and dropping a forward reference would make the order of the
+   * array meaningful, which it is not. */
+  const ids = new Set(clean.map(z => z.id));
+  const by = new Map(clean.map(z => [z.id, z]));
+  for (const z of clean) {
+    if (!z.parent) continue;
+    if (!ids.has(z.parent)) { delete z.parent; continue; }
+    const walked = new Set<string>([z.id]);
+    let at = by.get(z.parent);
+    while (at) {
+      if (walked.has(at.id)) { delete z.parent; break; }
+      walked.add(at.id);
+      at = at.parent ? by.get(at.parent) : undefined;
+    }
+  }
+
+  return clean;
+}
+
+/** Clean the diagram's own options.
+ *
+ *  Only the protocol convention needs it: a blank `defaultProtocol` would turn
+ *  labels on and then print "All calls are  unless…", and an invented
+ *  `protocolLabels` would fall through every switch in three renderers.
+ *  Returns `undefined` when the author has set nothing, so `ui.architecture`
+ *  stays absent from the JSON rather than appearing as an empty object. */
+function normalizeArchitectureUi(arch: Ui['architecture']): Ui['architecture'] {
+  if (!arch) return undefined;
+  const out: NonNullable<Ui['architecture']> = { ...arch };
+  const fallback = arch.defaultProtocol?.trim();
+  if (fallback) out.defaultProtocol = fallback; else delete out.defaultProtocol;
+  if (!arch.protocolLabels || !PROTOCOL_LABEL_MODES.includes(arch.protocolLabels)) {
+    delete out.protocolLabels;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** Keep only the annotations that describe a dependency this component still
@@ -264,6 +342,7 @@ function normalizeLinks(links: Link[] | undefined, deps: string[]): Link[] | und
     if (l.kind && LINK_KINDS.includes(l.kind)) clean.kind = l.kind;
     if (l.protocol?.trim()) clean.protocol = l.protocol.trim();
     if (l.note?.trim()) clean.note = l.note.trim();
+    if (isLifecycle(l.state)) clean.state = l.state;
     if (linkIsEmpty(clean)) continue;
     seen.add(l.to);
     out.push(clean);

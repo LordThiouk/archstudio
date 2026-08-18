@@ -68,7 +68,10 @@ const LABELS = {
     layers: 'layers', technologiesN: 'Technologies', groupsN: 'Scopes',
     compact: 'Compact', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit',
     zoomHint: 'Ctrl + wheel = zoom · drag = pan',
-    fullscreen: 'Full screen', exitFullscreen: 'Leave full screen'
+    fullscreen: 'Full screen', exitFullscreen: 'Leave full screen',
+    protoNote: 'All calls are {p} unless the line says otherwise.',
+    transition: 'Transition', transitionHint: 'Off, the sheet shows the target state only',
+    transitionNote: 'Unmarked components and calls already exist.'
   },
   fr: {
     searchPlaceholder: 'Rechercher un composant, une techno…',
@@ -86,7 +89,10 @@ const LABELS = {
     layers: 'couches', technologiesN: 'Technologies', groupsN: 'Périmètres',
     compact: 'Compact', zoomIn: 'Zoomer', zoomOut: 'Dézoomer', fit: 'Ajuster',
     zoomHint: 'Ctrl + molette = zoom · glisser = déplacer',
-    fullscreen: 'Plein écran', exitFullscreen: 'Quitter le plein écran'
+    fullscreen: 'Plein écran', exitFullscreen: 'Quitter le plein écran',
+    protoNote: 'Tous les appels sont en {p}, sauf mention contraire sur la ligne.',
+    transition: 'Transition', transitionHint: 'Éteint, la planche montre uniquement l’état cible',
+    transitionNote: 'Les composants et les appels sans marque existent déjà.'
   }
 };
 
@@ -147,6 +153,7 @@ function normalize(raw) {
   d.ui = d.ui || {};
   d.groups = d.groups || [];
   d.layers = d.layers || [];
+  d.zones = Array.isArray(d.zones) ? d.zones : [];
   d.components = d.components || [];
   d.technologies = d.technologies || [];
   d.flows = d.flows || [];
@@ -166,6 +173,32 @@ function normalize(raw) {
   const gById = Object.fromEntries(d.groups.map(g => [g.id, g]));
   const lById = Object.fromEntries(d.layers.map(l => [l.id, l]));
 
+  /* A zone whose parent is missing, or which sits inside itself through any
+   * chain, becomes a root. Every surface walks a zone's ancestry to decide what
+   * its rectangle holds, so a cycle is a hang rather than a wrong drawing —
+   * `zoneAncestry` guards it a second time, but a document that arrives here
+   * broken should not stay broken in the tree the rest of the file reads. */
+  const zById = Object.fromEntries(d.zones.map(z => [z.id, z]));
+  d.zones.forEach(z => {
+    if (!z.parent) return;
+    if (!zById[z.parent] || z.parent === z.id) {
+      warn(`zone "${z.id}": unknown parent "${z.parent}" — treated as a root`);
+      z.parent = undefined;
+      return;
+    }
+    const walked = { [z.id]: 1 };
+    let at = zById[z.parent];
+    while (at) {
+      if (walked[at.id]) {
+        warn(`zone "${z.id}": nesting is circular — treated as a root`);
+        z.parent = undefined;
+        break;
+      }
+      walked[at.id] = 1;
+      at = at.parent ? zById[at.parent] : undefined;
+    }
+  });
+
   d.components.forEach(c => {
     if (!gById[c.group]) { warn(`component "${c.id}": unknown group "${c.group}" → falling back to "${d.groups[0].id}"`); c.group = d.groups[0].id; }
     if (!lById[c.layer]) { warn(`component "${c.id}": unknown layer "${c.layer}" → falling back to "${d.layers[0].id}"`); c.layer = d.layers[0].id; }
@@ -173,6 +206,13 @@ function normalize(raw) {
     c.features = c.features || [];
     c.notes = c.notes || [];
     c.deps = c.deps || [];
+    /* Unzoned is a real answer, so a pointer at a zone that is not in the list
+     * falls back to it rather than to the first zone — unlike a group or a
+     * layer, where the component has to be *somewhere*. */
+    if (c.zone && !zById[c.zone]) {
+      warn(`component "${c.id}": unknown zone "${c.zone}" → unzoned`);
+      c.zone = undefined;
+    }
   });
 
   const cById = Object.fromEntries(d.components.map(c => [c.id, c]));
@@ -242,7 +282,242 @@ const dashFor = kind => (kind && LINK_DASH[kind]) || '';
 const describeLink = link => {
   if (!link) return '';
   const kinds = LINK_KIND_LABELS[DATA.lang] || LINK_KIND_LABELS.en;
-  return [link.protocol, link.kind ? kinds[link.kind] : null].filter(Boolean).join(' · ');
+  const words = STATE_LABELS[DATA.lang] || STATE_LABELS.en;
+  return [link.protocol, link.kind ? kinds[link.kind] : null,
+    link.state ? words[link.state] : null].filter(Boolean).join(' · ');
+};
+
+/* The protocol convention: name the protocol the architecture speaks and only
+ * the departures get written on their line. Naming one is what turns the
+ * labels on — `protocolLabels` overrides, which is how you keep the sentence
+ * under the diagram and drop the plates.
+ *
+ * MIRROR of protocolConvention / edgeLabel / edgeLabelSvg in src/lib/links.ts. */
+const ARCH_OPTS = DATA.ui.architecture || {};
+const PROTO_FALLBACK = (ARCH_OPTS.defaultProtocol || '').trim() || null;
+const PROTO_MODE = ['off', 'exceptions', 'all'].includes(ARCH_OPTS.protocolLabels)
+  ? ARCH_OPTS.protocolLabels
+  : (PROTO_FALLBACK ? 'exceptions' : 'off');
+const PROTO_NOTE = () => PROTO_FALLBACK ? T.protoNote.replace('{p}', PROTO_FALLBACK) : null;
+
+const edgeLabel = link => {
+  if (PROTO_MODE === 'off') return null;
+  const p = (link && link.protocol || '').trim();
+  if (!p) return null;
+  if (PROTO_MODE === 'exceptions' && PROTO_FALLBACK
+      && p.toLowerCase() === PROTO_FALLBACK.toLowerCase()) return null;
+  return p;
+};
+
+/* t = .5 on `M(x1,y1) C(x1,y1+k1) (x2,y2+k2) (x2,y2)`: the x term collapses to
+ * the average, the y term to (y1+y2)/2 + 3(k1+k2)/8 — so a within-layer edge
+ * labels on the belly of its arc instead of inside the row it passes under. */
+const edgeLabelSvg = (x1, y1, k1, x2, y2, k2, text) => {
+  const x = (x1 + x2) / 2, y = (4 * y1 + 4 * y2 + 3 * k1 + 3 * k2) / 8;
+  const w = text.length * 5.4 + 11;
+  return `<rect x="${(x - w / 2).toFixed(1)}" y="${(y - 6.5).toFixed(1)}" `
+    + `width="${w.toFixed(1)}" height="13"></rect>`
+    + `<text x="${x.toFixed(1)}" y="${(y + 3.2).toFixed(1)}">${esc(text)}</text>`;
+};
+
+/* the transition
+ *
+ * A landscape diagram draws a delta: what exists, what we add, what goes away.
+ * Colour belongs to scope (rule 1), so the marks take the channels colour never
+ * claimed — the card's border and a monospace tick, the stroke weight and a sign
+ * in the plate the protocol already established.
+ *
+ * MIRROR of src/lib/lifecycle.ts. Change both together. */
+const LIFECYCLES = ['new', 'changed', 'removed'];
+const STATE_TICK = { new: 'NEW', changed: 'MOD', removed: 'DEL' };
+const STATE_SIGN = { new: '+', changed: '~', removed: '-' };
+const STATE_LABELS = {
+  en: { new: 'new', changed: 'updated', removed: 'removed' },
+  fr: { new: 'nouveau', changed: 'modifié', removed: 'supprimé' }
+};
+const STATE_STROKE = { new: 2, changed: 2, removed: 1.2 };
+const REMOVED_GHOST = .45;
+
+const STATES_IN_USE = LIFECYCLES.filter(s => DATA.components.some(c =>
+  c.state === s || (c.links || []).some(l => l.state === s)));
+
+/* security marks
+ *
+ * The second legend every landscape diagram carries: how a component is
+ * reached, and what it holds. A closed set, so the glyphs can have a key —
+ * and neutral ink rather than the reference diagrams' red badge, because
+ * colour is scope's (rule 1) and a glyph survives a monochrome print.
+ *
+ * Weakest protection first: that is the reading a review scans for.
+ *
+ * MIRROR of src/lib/marks.ts. Change both together. */
+const SECURITY_MARKS = ['public', 'basic-auth', 'sso', 'secured', 'pii'];
+const MARK_ICON = {
+  public: 'globe', 'basic-auth': 'users', sso: 'key', secured: 'lock', pii: 'eye'
+};
+const MARK_LABELS = {
+  en: {
+    public: 'no authentication', 'basic-auth': 'basic authentication',
+    sso: 'SSO protected', secured: 'secured', pii: 'holds personal data'
+  },
+  fr: {
+    public: 'sans authentification', 'basic-auth': 'authentification basique',
+    sso: 'protégé par SSO', secured: 'sécurisé', pii: 'contient des données personnelles'
+  }
+};
+const MARKS_IN_USE = SECURITY_MARKS.filter(m =>
+  DATA.components.some(c => (c.marks || []).includes(m)));
+
+/** The marks a component carries, in declaration order — so a card and the key
+ *  read the same way round on every sheet, whatever order the JSON listed. */
+const marksOf = c => SECURITY_MARKS.filter(m => (c.marks || []).includes(m));
+
+/* zones — the boundaries that cut across the layers
+ *
+ * A zone can span rows and the sheet is HTML flow, so it cannot be a box in the
+ * DOM: it would have to contain the rows. It is measured after layout instead,
+ * from the *runs* — one element per zone per layer, which keeps a zone's cards
+ * contiguous even when the row wraps, and keeps the rectangle from enclosing a
+ * card it does not hold.
+ *
+ * Two stroke treatments and no hue (colour is scope's, rule 1): solid for a
+ * boundary you could point at in a room, dashed for one that exists in a
+ * document. Everything else is carried by the label.
+ *
+ * MIRROR of src/lib/zones.ts. Change both together. */
+const ZONES = Array.isArray(DATA.zones) ? DATA.zones : [];
+const ZONE_BY = Object.fromEntries(ZONES.map(z => [z.id, z]));
+const ZONE_ORDER = Object.fromEntries(ZONES.map((z, i) => [z.id, i]));
+const ZONE_PHYSICAL = ['platform', 'vendor'];
+const ZONE_KIND_LABELS = {
+  en: { platform: 'platform', network: 'network zone', gateway: 'gateway',
+        perimeter: 'perimeter', vendor: 'third party' },
+  fr: { platform: 'plateforme', network: 'zone réseau', gateway: 'passerelle',
+        perimeter: 'périmètre', vendor: 'tiers' }
+};
+
+/** Root-first, self last. Stops on a repeat, so a cycle that reached the export
+ *  from somewhere other than the editor cannot hang the renderer. */
+const zoneAncestry = id => {
+  const out = [], seen = {};
+  let at = id;
+  while (at && ZONE_BY[at] && !seen[at]) { seen[at] = 1; out.unshift(at); at = ZONE_BY[at].parent; }
+  return out;
+};
+const zoneDepth = id => Math.max(0, zoneAncestry(id).length - 1);
+const zoneFamily = id => ZONES.filter(z => zoneAncestry(z.id).includes(id)).map(z => z.id);
+const zoneSubtreeHeight = id => ZONES.reduce((deepest, z) => {
+  const path = zoneAncestry(z.id), at = path.indexOf(id);
+  return at < 0 ? deepest : Math.max(deepest, path.length - 1 - at);
+}, 0);
+/** An outer rule is inset further than its children's on both axes, because two
+ *  rules on top of each other is what makes nesting unreadable. Asymmetric: the
+ *  horizontal ladder (7, 13, 19) has to fit inside the 24 px gutter between two
+ *  bands, or a rule reaches into the neighbouring one; the vertical inset has no
+ *  such ceiling and also has to clear the label on the box's own top edge. */
+const zonePad = id => {
+  const h = zoneSubtreeHeight(id);
+  return { x: 7 + 6 * h, y: 14 + 9 * h };
+};
+
+const zoneLabel = z => {
+  const words = ZONE_KIND_LABELS[DATA.lang] || ZONE_KIND_LABELS.en;
+  return z.kind && words[z.kind] ? `${z.name} — ${words[z.kind]}` : z.name;
+};
+
+/* Outermost first: the fill tint stacks in one direction only, so a nested box
+ * has to paint over its parent rather than under it. */
+const ZONES_IN_USE = (() => {
+  const held = {};
+  DATA.components.forEach(c => zoneAncestry(c.zone).forEach(id => { held[id] = 1; }));
+  return ZONES.filter(z => held[z.id])
+    .sort((a, b) => zoneAncestry(a.id).length - zoneAncestry(b.id).length);
+})();
+
+/* The bands.
+ *
+ * Measuring a rectangle around a zone's members is not enough: on two rows the
+ * box is tall enough to hold both, and an unrelated card on the row between them
+ * falls inside it — a claim the document never made. So the space is *reserved*.
+ * Each bucket — the unzoned cards, then each zone — owns a range of columns that
+ * is identical on every layer, and a card is placed in its own bucket's range and
+ * nowhere else. The rectangle can then only hold what belongs to it.
+ *
+ * Arithmetic, not measured: a card has a fixed width, so a band's width is a
+ * column count. The cost is that a band is reserved on layers where its zone has
+ * nothing, which makes a zoned sheet wider than the same sheet unzoned.
+ *
+ * MIRROR of bandPlan in src/lib/zones.ts. */
+const BAND_MAX = 6;
+
+/** Zones in tree order, so a subtree's bands are contiguous and a parent's box
+ *  is one range of columns rather than two with a hole in the middle. */
+const ZONES_TREE_ORDER = (() => {
+  const key = id => zoneAncestry(id)
+    .map(x => String(ZONE_ORDER[x] ?? 999).padStart(3, '0')).join('.');
+  return ZONES.map(z => z.id).sort((a, b) => key(a).localeCompare(key(b)));
+})();
+
+/* A zone with no *direct* member gets no band: its rectangle is the union of its
+ * descendants', and a band nothing can be placed in would only widen the sheet. */
+const BAND_PLAN = (() => {
+  if (!ZONES.length) return null;
+  const bucketOf = c => (c.zone && ZONE_BY[c.zone] ? c.zone : '');
+  const buckets = new Set(DATA.components.map(bucketOf));
+  if (!buckets.size) return null;
+
+  const widest = {};
+  const rows = DATA.layers.length ? DATA.layers.map(l => l.id) : [null];
+  rows.forEach(layer => {
+    const here = layer == null ? DATA.components : DATA.components.filter(c => c.layer === layer);
+    buckets.forEach(b => {
+      const n = here.filter(c => bucketOf(c) === b).length;
+      widest[b] = Math.max(widest[b] || 0, n);
+    });
+  });
+
+  const ordered = [...(buckets.has('') ? [''] : []), ...ZONES_TREE_ORDER.filter(id => buckets.has(id))];
+  const byBucket = {};
+  let at = 1;
+  ordered.forEach(b => {
+    const span = Math.min(BAND_MAX, Math.max(1, widest[b] || 0));
+    byBucket[b] = { start: at, span };
+    at += span;
+  });
+  return { byBucket, total: at - 1 };
+})();
+
+/** `grid-column` for a run, or '' when the sheet reserves no bands. */
+const bandStyle = zone => {
+  if (!BAND_PLAN) return '';
+  const b = BAND_PLAN.byBucket[zone || ''];
+  return b ? ` style="grid-column:${b.start} / span ${b.span}"` : '';
+};
+
+/** One run per zone within a layer, unzoned first, then zones in declaration
+ *  order — the same order on every layer, so a bucket's cards always land in
+ *  that bucket's band. */
+function layerRuns(components) {
+  const runs = new Map();
+  components.forEach(c => {
+    const key = c.zone && ZONE_BY[c.zone] ? c.zone : '';
+    if (runs.has(key)) runs.get(key).push(c); else runs.set(key, [c]);
+  });
+  const keys = [...runs.keys()].sort((a, b) => {
+    if (a === b) return 0;
+    if (!a) return -1;
+    if (!b) return 1;
+    return (ZONE_ORDER[a] ?? 999) - (ZONE_ORDER[b] ?? 999);
+  });
+  return keys.map(k => ({ zone: k || null, items: runs.get(k) }));
+}
+
+/** The plate on the line: the transition sign, the protocol, or both. The sign
+ *  does not wait for a protocol convention — a document can describe a
+ *  transition without ever naming a protocol. */
+const edgePlateText = link => {
+  const bits = [link && link.state ? STATE_SIGN[link.state] : null, edgeLabel(link)].filter(Boolean);
+  return bits.length ? bits.join(' ') : null;
 };
 
 const EDGES = [];
@@ -281,8 +556,18 @@ const LAYER_INDEX = Object.fromEntries(DATA.layers.map((l, i) => [l.id, i]));
  * toolbar — what is authored is only where it starts. */
 const DENSE = DATA.components.length >= 24
   || DATA.layers.some(l => DATA.components.filter(c => c.layer === l.id).length > 8);
-const ARCH_OPTS = DATA.ui.architecture || {};
-const CLUSTER = ARCH_OPTS.cluster == null ? DENSE : !!ARCH_OPTS.cluster;
+/* Two groupings cannot own one row. Clustering splits a layer into one column
+ * per scope; zones group the same cards by where they run. Asked for both, the
+ * cards are cut one way and the rectangles are drawn around the other, and every
+ * zone box ends up enclosing half the sheet.
+ *
+ * Zones win, because a zone is drawn and a scope is already carried twice over —
+ * by the colour on every chip and by the filter chips above the sheet. An author
+ * who sets `cluster: true` on a zoned document gets the zones, and the README
+ * says so. */
+const CLUSTER = ZONES_IN_USE.length ? false
+  : ARCH_OPTS.cluster == null ? DENSE
+  : !!ARCH_OPTS.cluster;
 
 /* ------------------------------------------------------------------ theme */
 function injectTheme() {
@@ -335,7 +620,11 @@ function buildTabs() {
 
 const TABS = buildTabs();
 let state = { tab: TABS[0]?.id, group: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all',
-  compact: ARCH_OPTS.compact == null ? DENSE : !!ARCH_OPTS.compact };
+  compact: ARCH_OPTS.compact == null ? DENSE : !!ARCH_OPTS.compact,
+  /* On as soon as the document marks anything: a landscape opens on the delta
+   * it was drawn for. Off, the removals leave the sheet and what is left is the
+   * state we are heading for. */
+  transition: ARCH_OPTS.transition == null ? !!STATES_IN_USE.length : !!ARCH_OPTS.transition };
 
 /* ======================================================================== *
  * VIEW: OVERVIEW
@@ -430,6 +719,8 @@ function renderArchitecture() {
       <div class="filters">${chips}
         <span class="hintline">${T.hintDiagram} · ${T.zoomHint}</span>
         <div class="tools">
+          ${STATES_IN_USE.length ? `<button class="chip" id="transition"
+            aria-pressed="${state.transition}" title="${esc(T.transitionHint)}">${T.transition}</button>` : ''}
           <button class="chip" id="density" aria-pressed="${state.compact}">${T.compact}</button>
           <div class="zoombar">
             <button class="zb" id="zout" aria-label="${esc(T.zoomOut)}" title="${esc(T.zoomOut)}">
@@ -446,6 +737,8 @@ function renderArchitecture() {
       <div class="diagram" id="diagram">
         <div class="canvas${state.compact ? ' compact' : ''}" id="canvas"><svg id="edges"></svg>${layers}</div>
       </div>
+      ${markKeyHTML()}
+      ${stateKeyHTML()}
       ${edgeKeyHTML()}
     </div>
     ${SUPPORT_LAYER ? `<div style="height:14px"></div><div class="note">${T.infraNote}</div>` : ''}`;
@@ -470,7 +763,17 @@ function layerHTML(l) {
           <div class="cluster-head">${esc(g.short)}<span>${own.length}</span></div>
           <div class="nodes">${own.map(nodeHTML).join('')}</div></div>`;
       }).join('')}</div>`
-    : `<div class="nodes">${nodes.map(nodeHTML).join('')}</div>`;
+    /* One run per zone, so a zone's cards stay contiguous even when the row
+     * wraps — that contiguity is what keeps its measured rectangle from
+     * enclosing a card it does not hold. The wrapper appears only on a document
+     * that has zones: a row of cards and a row of one-run-of-cards lay out the
+     * same in theory, and not adding the element is how that stops being a thing
+     * to verify. */
+    : BAND_PLAN
+      ? `<div class="nodes banded" style="--cols:${BAND_PLAN.total}">${layerRuns(nodes).map(run =>
+          `<div class="zrun"${run.zone ? ` data-zone="${esc(run.zone)}"` : ''}${
+            bandStyle(run.zone)}>${run.items.map(nodeHTML).join('')}</div>`).join('')}</div>`
+      : `<div class="nodes">${nodes.map(nodeHTML).join('')}</div>`;
 
   return `<div class="layer" data-layer="${esc(l.id)}">${head}${body}</div>`;
 }
@@ -478,20 +781,51 @@ function layerHTML(l) {
 /* The key for the line styles, drawn only for the kinds this document uses. A
  * diagram whose edges are all solid needs no explanation of what solid means. */
 function edgeKeyHTML() {
-  if (!KINDS_IN_USE.length) return '';
+  const note = PROTO_NOTE();
+  if (!KINDS_IN_USE.length && !note) return '';
   const kinds = LINK_KIND_LABELS[DATA.lang] || LINK_KIND_LABELS.en;
-  return `<div class="edgekey">${KINDS_IN_USE.map(k => {
+  const styles = KINDS_IN_USE.map(k => {
     const dash = LINK_DASH[k];
     return `<span><svg viewBox="0 0 34 8" aria-hidden="true"><path d="M1 4h32" fill="none"
       stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
       ${dash ? `stroke-dasharray="${dash}"` : ''}/></svg>${esc(kinds[k])}</span>`;
-  }).join('')}</div>`;
+  }).join('');
+  /* The convention rides in the same rail as the line styles: both answer
+   * "what does this drawing mean", and splitting them puts one of the two
+   * answers somewhere the reader has to go looking for it. */
+  return `<div class="edgekey">${styles}${note ? `<span class="protonote">${esc(note)}</span>` : ''}</div>`;
+}
+
+/* The security key. Drawn only for the marks in use, and it has to be a key:
+ * a glyph in neutral ink says "something about how this is reached" and nothing
+ * more until the legend names it. */
+function markKeyHTML() {
+  if (!MARKS_IN_USE.length) return '';
+  const words = MARK_LABELS[DATA.lang] || MARK_LABELS.en;
+  return `<div class="markkey">${MARKS_IN_USE.map(m =>
+    `<span><i>${svgIcon(MARK_ICON[m])}</i>${esc(words[m])}</span>`
+  ).join('')}</div>`;
+}
+
+/* The transition key, drawn only for the marks this document actually uses —
+ * and it names the unmarked case in words, because "already there" is the one
+ * state that has no mark to point at and is by far the most common. */
+function stateKeyHTML() {
+  if (!STATES_IN_USE.length) return '';
+  const words = STATE_LABELS[DATA.lang] || STATE_LABELS.en;
+  return `<div class="statekey">${STATES_IN_USE.map(s =>
+    `<span><i class="tick st-${s}">${STATE_SIGN[s]}</i>${esc(words[s])}</span>`
+  ).join('')}<span class="protonote">${esc(T.transitionNote)}</span></div>`;
 }
 
 function nodeHTML(c) {
-  return `<button class="node" id="n-${esc(c.id)}" data-id="${esc(c.id)}" style="--c:${gvar(c.group)}">
+  return `<button class="node${c.state ? ` st-${c.state}` : ''}" id="n-${esc(c.id)}" data-id="${esc(c.id)}" style="--c:${gvar(c.group)}">
+    ${c.state ? `<span class="tick">${STATE_TICK[c.state]}</span>` : ''}
     ${c.badge ? `<span class="badge">${esc(c.badge)}</span>` : ''}
-    <div class="nh"><span class="ic">${svgIcon(c.icon)}</span><span class="nm">${esc(c.name)}</span></div>
+    <div class="nh"><span class="ic">${svgIcon(c.icon)}</span><span class="nm">${esc(c.name)}</span>${
+      marksOf(c).length ? `<span class="marks">${marksOf(c).map(m =>
+        `<i title="${esc((MARK_LABELS[DATA.lang] || MARK_LABELS.en)[m])}">${svgIcon(MARK_ICON[m])}</i>`
+      ).join('')}</span>` : ''}</div>
     ${c.tech.length ? `<div class="tech">${c.tech.slice(0, 3).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.url ? `<div class="url mono">${esc(c.url)}</div>` : ''}
   </button>`;
@@ -515,21 +849,44 @@ function bindArchitecture() {
     applyZoom();
     drawEdges();
   };
+  /* Through applyFilter rather than drawEdges alone: dropping the removals
+   * changes the layout, so the emptied columns have to leave with them and the
+   * edges have to be measured against the sheet that is left. */
+  const trans = $('#transition');
+  if (trans) trans.onclick = () => {
+    state.transition = !state.transition;
+    trans.setAttribute('aria-pressed', state.transition);
+    applyFilter();
+  };
   bindZoom();
 }
 
 function matches(c) {
+  /* Asked for the target state, a component on its way out is not part of the
+   * answer — and an edge to it must not be drawn either, which falls out of
+   * drawEdges skipping anything dimmed. */
+  if (!state.transition && c.state === 'removed') return false;
   if (state.group !== 'all' && c.group !== state.group) return false;
   const q = state.q.trim().toLowerCase();
   if (!q) return true;
-  return [c.name, c.url, c.tech.join(' '), c.role, c.features.join(' ')]
+  /* The marks are searchable in words as well as by glyph: "no authentication"
+   * typed into the box is how a reviewer finds every one of them on a sheet too
+   * dense to scan, and the ids are in there too so "sso" works. */
+  const words = MARK_LABELS[DATA.lang] || MARK_LABELS.en;
+  const marks = (c.marks || []).map(m => `${m} ${words[m] || ''}`).join(' ');
+  return [c.name, c.url, c.tech.join(' '), c.role, c.features.join(' '), marks]
     .join(' ').toLowerCase().includes(q);
 }
 
 function applyFilter() {
   DATA.components.forEach(c => {
     const el = $('#n-' + CSS.escape(c.id));
-    if (el) el.classList.toggle('dim', !matches(c));
+    if (!el) return;
+    el.classList.toggle('dim', !matches(c));
+    /* A filter fades what does not match, because you are still looking for it.
+     * The target state is a different question: the thing is not there, so it
+     * leaves the flow entirely rather than sitting on the sheet at 16 %. */
+    el.classList.toggle('dropped', !state.transition && c.state === 'removed');
   });
   /* A filter that only fades leaves the sheet as tall and as wide as it was,
    * which on a dense diagram is most of the complaint: you asked for one scope
@@ -758,8 +1115,24 @@ function setFocus(id) {
    * direction, so they have to dim with the line they belong to. */
   $$('#edges g.edge').forEach(g => {
     const active = id && (g.dataset.a === id || g.dataset.b === id);
-    g.setAttribute('opacity', id ? (active ? 1 : .07) : .3);
-    g.querySelector('path').setAttribute('stroke-width', active ? 2 : 1.2);
+    /* Resting values come back from the mark, not from the constants: this runs
+     * on every hover and would otherwise flatten a ghosted removal into an
+     * ordinary edge the first time the pointer crossed the sheet. Hovering it
+     * still lifts it to full strength — a retired call is exactly what you are
+     * hovering the node to read. */
+    const st = g.dataset.state;
+    const rest = st === 'removed' ? .3 * REMOVED_GHOST : .3;
+    g.setAttribute('opacity', id ? (active ? 1 : .07) : rest);
+    g.querySelector('path').setAttribute('stroke-width',
+      active ? 2 : (st ? STATE_STROKE[st] : 1.2));
+  });
+  /* The protocol plate follows its line, with a floor: at rest it stays fully
+   * legible where the curve sits at 30 %, because reading which call is not
+   * REST is the reason it is drawn — but a label whose edge has been faded out
+   * of the conversation has to go with it. */
+  $$('#edges g.edgelbl').forEach(g => {
+    const active = id && (g.dataset.a === id || g.dataset.b === id);
+    g.setAttribute('opacity', id ? (active ? 1 : .07) : 1);
   });
 }
 
@@ -778,6 +1151,9 @@ function drawEdges() {
   const css = getComputedStyle(document.documentElement);
   const col = {}; DATA.groups.forEach(g => col[g.id] = css.getPropertyValue(g.var).trim());
   let out = '';
+  /* Collected apart and appended after every line, so a plate is never buried
+   * under a curve drawn later in the loop. */
+  let labels = '';
   EDGES.forEach(([a, b]) => {
     if (SUPPORT_LAYER && (C[a].layer === SUPPORT_LAYER || C[b].layer === SUPPORT_LAYER)) return;
     const ea = $('#n-' + CSS.escape(a)), eb = $('#n-' + CSS.escape(b));
@@ -808,19 +1184,75 @@ function drawEdges() {
      * Grouped so the fade in applyFilter takes the endpoints with the line,
      * and so the open circle's paper fill still punches through. */
     const colour = col[C[a].group];
-    const dash = dashFor((linkOf(C[a], b) || {}).kind);
-    out += `<g class="edge" opacity=".3" data-a="${esc(a)}" data-b="${esc(b)}">`
+    const link = linkOf(C[a], b) || {};
+    /* A call being retired is not part of the target state, even when both of
+     * its endpoints survive it. (The other direction — an endpoint leaving —
+     * is already handled: the node is dimmed, and dimmed edges are skipped
+     * above.) */
+    if (!state.transition && link.state === 'removed') return;
+    const dash = dashFor(link.kind);
+    /* The plate carries the same data attributes as the line it belongs to:
+     * hovering a node has to take the label with the curve, or a dimmed edge
+     * leaves its protocol floating over the sheet at full strength. */
+    const label = edgePlateText(link);
+    if (label) {
+      labels += `<g class="edgelbl" data-a="${esc(a)}" data-b="${esc(b)}">`
+        + edgeLabelSvg(x1, y1, k1, x2, y2, k2, label) + `</g>`;
+    }
+    /* The transition takes the stroke weight and the resting opacity: heavier
+     * for a departure from what exists, a ghost for what goes away. Neither is
+     * a colour — rule 1 — and both survive a monochrome print. */
+    const rest = link.state === 'removed' ? (.3 * REMOVED_GHOST).toFixed(3) : '.3';
+    const wide = link.state ? STATE_STROKE[link.state] : 1.2;
+    out += `<g class="edge" opacity="${rest}" data-a="${esc(a)}" data-b="${esc(b)}"`
+         + `${link.state ? ` data-state="${link.state}"` : ''}>`
          + `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} C${x1.toFixed(1)},${(y1 + k1).toFixed(1)} `
          + `${x2.toFixed(1)},${(y2 + k2).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" `
-         + `stroke="${colour}" stroke-width="1.2" stroke-linecap="round"`
+         + `stroke="${colour}" stroke-width="${wide}" stroke-linecap="round"`
          + `${dash ? ` stroke-dasharray="${dash}"` : ''}></path>`
          + `<circle cx="${x1.toFixed(1)}" cy="${y1.toFixed(1)}" r="3.5" fill="${colour}"></circle>`
          + `<circle cx="${x2.toFixed(1)}" cy="${y2.toFixed(1)}" r="3" style="fill:var(--panel)" `
          + `stroke="${colour}" stroke-width="1.5"></circle>`
          + `</g>`;
   });
-  svg.innerHTML = out;
+  /* Zones first, so every line and every card paints over the region rather
+   * than under it. Measured from the runs and not the cards: a run is already a
+   * tight box around a zone's members in one row, so the union is a handful of
+   * rects instead of one per component — and a run whose cards have all been
+   * filtered out measures zero and drops out of the union by itself. */
+  svg.innerHTML = zoneLayerSvg(cv, box, sc) + out + labels;
   if (focused) setFocus(focused);
+}
+
+/* The zone rectangles. Geometry only — fill, stroke and dash live in
+ * `viewer/style.css`, keyed on the classes below, so how a zone looks is a
+ * change to one stylesheet and not to three renderers.
+ *
+ * MIRROR of zoneSvg / inflatedUnion in src/lib/zones.ts. */
+function zoneLayerSvg(cv, box, sc) {
+  if (!ZONES_IN_USE.length) return '';
+  return ZONES_IN_USE.map(zone => {
+    const family = zoneFamily(zone.id);
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    family.forEach(id => {
+      $$(`.zrun[data-zone="${CSS.escape(id)}"]`, cv).forEach(run => {
+        const r = run.getBoundingClientRect();
+        if (!r.width && !r.height) return;
+        const left = (r.left - box.left) / sc, top = (r.top - box.top) / sc;
+        x1 = Math.min(x1, left); y1 = Math.min(y1, top);
+        x2 = Math.max(x2, left + r.width / sc); y2 = Math.max(y2, top + r.height / sc);
+      });
+    });
+    if (x1 === Infinity) return '';
+    const pad = zonePad(zone.id);
+    const cls = ZONE_PHYSICAL.includes(zone.kind) ? 'zone-solid' : 'zone-dashed';
+    const bx = x1 - pad.x, by = y1 - pad.y;
+    return `<g class="zone ${cls}" data-zone="${esc(zone.id)}" data-depth="${zoneDepth(zone.id)}">`
+      + `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" `
+      + `width="${((x2 - x1) + pad.x * 2).toFixed(1)}" height="${((y2 - y1) + pad.y * 2).toFixed(1)}"></rect>`
+      + `<text x="${(bx + 9).toFixed(1)}" y="${(by + 11).toFixed(1)}">${esc(zoneLabel(zone))}</text>`
+      + `</g>`;
+  }).join('');
 }
 
 /* ======================================================================== *
@@ -1052,6 +1484,10 @@ function openDrawer(id) {
   $('#dh').innerHTML = `
     <button class="iconbtn dclose" id="dclose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <span class="pill"><i style="width:7px;height:7px;border-radius:50%;background:${col};display:inline-block"></i>${esc(G[c.group].name)}</span>
+    ${c.state ? `<span class="pill statepill st-${c.state}">${esc(
+      (STATE_LABELS[DATA.lang] || STATE_LABELS.en)[c.state])}</span>` : ''}
+    ${marksOf(c).map(m => `<span class="pill markpill">${svgIcon(MARK_ICON[m])}${esc(
+      (MARK_LABELS[DATA.lang] || MARK_LABELS.en)[m])}</span>`).join('')}
     <h3>${esc(c.name)}</h3>
     <div class="sub">${esc(layer ? layer.name : '')}${c.url ? ` · <span class="mono">${esc(c.url)}</span>` : ''}</div>`;
 

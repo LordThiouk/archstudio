@@ -44,6 +44,10 @@ export interface Ui {
      *  "REST", "HTTPS". Naming it draws the exceptions on their edges and puts
      *  the convention in words under the diagram. */
     defaultProtocol?: string;
+    /** Tint each layer's label and the rule under it, from a ramp separate from
+     *  the scope palette. On unless set to `false`, which emits no colour at all
+     *  and leaves the neutral bands exactly as they were. */
+    layerTint?: boolean;
     /** Where the Transition toggle starts. Unset = on as soon as the document
      *  marks anything, so a landscape opens on the delta it was drawn for; the
      *  reader can still flip to the target state from the toolbar. */

@@ -13,7 +13,7 @@ import History from './History';
 import PlacementWizard from './editors/PlacementWizard';
 import { EnrichDialog, useAiStatus } from './Analyse';
 import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
-import { displayLayerLabel } from '@/lib/layers';
+import { displayLayerLabel, layerTintEnabled, layerTintVar } from '@/lib/layers';
 import { ensurePlacementScaffold, componentBrick } from '@/lib/lego/place';
 import { syncTechnologies } from '@/lib/lego/stack';
 import { loadLegoCatalog } from '@/lib/lego/client';
@@ -632,22 +632,25 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
           No layers yet — add a layer in the palette, or place a brick (it creates the layer it needs).
         </div>
       )}
-      {doc.layers.map(layer => (
+      {doc.layers.map((layer, i) => (
         <LayerRow key={layer.id} layer={layer} doc={doc} patch={patch}
           selected={selected} setSelected={setSelected} hoverTarget={hoverTarget}
-          onStartLink={onStartLink} groupColor={groupColor} plan={plan} />
+          onStartLink={onStartLink} groupColor={groupColor} plan={plan} index={i} />
       ))}
     </div>
   );
 }
 
-function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onStartLink, groupColor, plan }: {
+function LayerRow({
+  layer, doc, patch, selected, setSelected, hoverTarget, onStartLink, groupColor, plan, index
+}: {
   layer: { id: string; name: string; desc?: string };
   doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
   selected: string | null; setSelected: (id: string | null) => void; hoverTarget: string | null;
   onStartLink: (id: string, x: number, y: number) => void;
   groupColor: (id: string) => { light: string; dark: string };
   plan: BandPlan | null;
+  index: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `layer:${layer.id}` });
   const items = doc.components.filter(c => c.layer === layer.id);
@@ -658,8 +661,15 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
       onSelect={() => setSelected(c.id)} onStartLink={onStartLink} />
   );
 
+  /* Only the index travels: the six values live in the stylesheet, which is what
+   * makes them follow the theme without a second table in here. Off emits no
+   * property and every rule falls back to the neutral it had before. */
+  const tint = layerTintEnabled(doc.ui.architecture)
+    ? { ['--lc' as string]: layerTintVar(index) }
+    : undefined;
+
   return (
-    <div className={`layer${isOver ? ' over' : ''}`}>
+    <div className={`layer${isOver ? ' over' : ''}`} style={tint}>
       <div className="layer-head">
         <b>{displayLayerLabel(layer.name)}</b>
         {layer.desc && <em>{layer.desc}</em>}

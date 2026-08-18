@@ -90,6 +90,11 @@ a.paper-btn { border-bottom-width: 1px; }
   --ink: #0B1B2B;
   --ink-2: #3D566B;
   --ink-3: #8CA1B2;
+
+  /* The layer ramp, transposed from the screen unchanged — a label and a
+     hairline are exactly the two things a print can still carry. */
+  --lt1: #5B7FA6; --lt2: #5E9070; --lt3: #9A8149;
+  --lt4: #A5735F; --lt5: #8474A8; --lt6: #4E8C93;
   --line: #E7EEF2;
   --line-2: #DCE5EB;
   --line-3: #D3DEE5;
@@ -275,12 +280,15 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-edges { position: absolute; inset: 0; pointer-events: none; }
 
 /* `.layer` / `.layer-head` / `.nodes` */
-.paper-layer { position: static; padding: 16px 0 6px; border-bottom: 1px dashed var(--line-3); }
+.paper-layer {
+  position: static; padding: 16px 0 6px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--lc, var(--line-3)) 42%, var(--line-3));
+}
 .paper-layer:last-child { border-bottom: 0; }
 .paper-layer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .paper-layer-head b {
   font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: capitalize;
-  color: var(--ink-3); font-weight: 400;
+  color: var(--lc, var(--ink-3)); font-weight: 400;
 }
 .paper-layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }
 .paper-layer-row { display: flex; flex-wrap: wrap; gap: 12px; }

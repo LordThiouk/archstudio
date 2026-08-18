@@ -103,6 +103,13 @@
   --line-2: #DCE5EB;
   --line-3: #D3DEE5;         /* card edge on the calque ground */
 
+  /* The layer ramp — a separate palette from the scopes, and separate on
+     purpose: lower chroma, a wider arc including warm hues the scope circle
+     never reaches, and it appears only on a band's label and the rule under it,
+     never on a chip or a pill. Position is what keeps the two readings apart. */
+  --lt1: #5B7FA6; --lt2: #5E9070; --lt3: #9A8149;
+  --lt4: #A5735F; --lt5: #8474A8; --lt6: #4E8C93;
+
   --danger: #B3261E;
   --ok: #2E7D4F;
 
@@ -142,6 +149,10 @@ html[data-theme="dark"] {
   --line: #1C3549;
   --line-2: #274459;
   --line-3: #2F4E64;
+
+  /* The same six hues lifted onto the marine ground. */
+  --lt1: #8FB3D9; --lt2: #8FC7A2; --lt3: #CFB57E;
+  --lt4: #D6A492; --lt5: #B5A6D6; --lt6: #85C0C7;
 
   --danger: #FF8A80;
   --ok: #6FD39B;
@@ -430,7 +441,10 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 }
 
 .layer {
-  position: relative; z-index: 2; padding: 14px 0 8px; border-bottom: 1px dashed var(--line-3);
+  position: relative; z-index: 2; padding: 14px 0 8px;
+  /* `--lc` is the band's tint, set by the renderer; the fallback is what the
+     rule was before, so turning tints off is the absence of this look. */
+  border-bottom: 1px dashed color-mix(in srgb, var(--lc, var(--line-3)) 42%, var(--line-3));
   border-radius: 0; transition: background .12s;
 }
 .layer:last-child { border-bottom: 0; }
@@ -438,7 +452,7 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .layer-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
 .layer-head b {
   font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: capitalize;
-  color: var(--ink-3); font-weight: 400;
+  color: var(--lc, var(--ink-3)); font-weight: 400;
 }
 .layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }
 .layer-head .layer-tools { margin-left: auto; display: none; gap: 2px; }

@@ -19,6 +19,13 @@
   --brand-soft:color-mix(in srgb,#0E7C8A 8%,transparent);
   --accent:#0E7C8A; --cyan:#00E5FF; --on-fill:#FFFFFF;
   --p1:#0099A0; --p2:#4F8AC6; --p3:#857AC4; --p4:#B26B9B; --p5:#519962;
+  /* The layer ramp. A separate palette from the scopes above, and separate on
+     purpose: lower chroma, a wider arc that includes warm hues the scope circle
+     never reaches, and it only ever appears on a band's label and the rule under
+     it — never on a chip or a pill. Position is what keeps the two readings
+     apart; the low chroma is what keeps a band from competing with a card. */
+  --lt1:#5B7FA6; --lt2:#5E9070; --lt3:#9A8149;
+  --lt4:#A5735F; --lt5:#8474A8; --lt6:#4E8C93;
   --bg:#EEF3F6; --panel:#FFFFFF; --panel-2:#F5F8FA; --panel-3:#F0F5F8;
   --ink:#0B1B2B; --ink-2:#3D566B; --ink-3:#8CA1B2;
   --line:#E7EEF2; --line-2:#DCE5EB; --line-3:#D3DEE5;
@@ -36,6 +43,10 @@ html[data-theme="dark"]{
   --brand-soft:color-mix(in srgb,#00E5FF 14%,transparent);
   --accent:#00E5FF; --cyan:#00E5FF; --on-fill:#0B1B2B;
   --p1:#14BBC2; --p2:#67AAED; --p3:#A497EA; --p4:#D686BC; --p5:#69BA7C;
+  /* The same six hues lifted onto the marine ground, where a .55-lightness ink
+     sinks into the navy and stops reading as a label at all. */
+  --lt1:#8FB3D9; --lt2:#8FC7A2; --lt3:#CFB57E;
+  --lt4:#D6A492; --lt5:#B5A6D6; --lt6:#85C0C7;
   --bg:#0B1B2B; --panel:#10263A; --panel-2:#142D42; --panel-3:#1A3650;
   --ink:#FFFFFF; --ink-2:#C3D0DA; --ink-3:#8CA1B2;
   --line:#1C3549; --line-2:#274459; --line-3:#2F4E64;
@@ -208,10 +219,16 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
   font-family:var(--mono);font-size:9px;letter-spacing:.02em;
   fill:var(--ink-3);text-anchor:middle;
 }
-.layer{position:relative;z-index:2;padding:16px 0 6px;border-bottom:1px dashed var(--line-3)}
+/* `--lc` is the band's tint, set by the renderer. Every rule that uses it falls
+   back to the neutral it used before, so `layerTint:false` — which emits no
+   property at all — is the absence of this look rather than a second one. */
+.layer{
+  position:relative;z-index:2;padding:16px 0 6px;
+  border-bottom:1px dashed color-mix(in srgb,var(--lc,var(--line-3)) 42%,var(--line-3));
+}
 .layer:last-child{border-bottom:0}
 .layer-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.layer-head b{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:capitalize;color:var(--ink-3);font-weight:400}
+.layer-head b{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:capitalize;color:var(--lc,var(--ink-3));font-weight:400}
 .layer-head em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--ink-3);opacity:.8}
 .nodes{display:flex;flex-wrap:wrap;gap:12px}
 /* A zone's cards in one layer. Present only on a document that has zones, and

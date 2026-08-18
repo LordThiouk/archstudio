@@ -215,6 +215,19 @@ export function layerRuns(components: Component[], zones: Zone[]): ZoneRun[] {
  *  pushing every other band off the page. */
 export const BAND_MAX = 6;
 
+/** Columns the whole sheet may reserve, across every band.
+ *
+ *  `BAND_MAX` caps one band; nothing capped their sum, so each zone added a
+ *  column-load of width and a sheet with four of them ran off the right of the
+ *  frame — where the editor has no zoom to pull it back, only a scrollbar to
+ *  discover it with. Twelve columns is about 2 900 px, which fits a laptop at
+ *  the viewer's Fit and stays scrollable everywhere else.
+ *
+ *  This is a ceiling, not a promise: a document with more buckets than columns
+ *  gets one column each and is wider than this. One card per band is the floor,
+ *  and below it there is nothing left to take. */
+export const BAND_BUDGET = 12;
+
 export interface Band {
   zone?: string;
   /** 1-based, for `grid-column`. */
@@ -267,12 +280,29 @@ export function bandPlan(components: Component[], zones: Zone[], layers: Layer[]
     ...zonesInTreeOrder(zones).map(z => z.id).filter(id => buckets.has(id))
   ];
 
+  /* What each bucket would take if width were free, then narrowed until the
+   * sheet fits the budget: the widest band gives up a column at a time, so the
+   * pressure lands on whatever is making the drawing wide rather than being
+   * spread evenly over buckets that were already narrow. A band that loses a
+   * column does not lose a card — it wraps inside itself and the layer grows
+   * taller, which is the trade a reader can actually scroll. */
+  const spans = ordered.map(zone => Math.min(BAND_MAX, Math.max(1, widest.get(zone) ?? 0)));
+  let total = spans.reduce((a, b) => a + b, 0);
+  while (total > BAND_BUDGET) {
+    /* Ties go to the earliest band, which keeps the result independent of how
+     * the zones happen to be ordered in the file. */
+    let widestAt = -1;
+    spans.forEach((s, i) => { if (s > 1 && (widestAt < 0 || s > spans[widestAt])) widestAt = i; });
+    if (widestAt < 0) break;   // every band is down to one column
+    spans[widestAt] -= 1;
+    total -= 1;
+  }
+
   const bands: Band[] = [];
   let at = 1;
-  ordered.forEach(zone => {
-    const span = Math.min(BAND_MAX, Math.max(1, widest.get(zone) ?? 0));
-    bands.push({ zone, start: at, span });
-    at += span;
+  ordered.forEach((zone, i) => {
+    bands.push({ zone, start: at, span: spans[i] });
+    at += spans[i];
   });
 
   const index = new Map(bands.map(b => [b.zone, b]));
@@ -294,6 +324,39 @@ export function zonesInUse(zones: Zone[], components: Component[]): Zone[] {
     .filter(z => held.has(z.id))
     .sort((a, b) => ancestry(a.id, by).length - ancestry(b.id, by).length);
 }
+
+/** Move a zone one place earlier or later *among its own siblings*.
+ *
+ *  Not a plain array swap. Band order comes from `zonesInTreeOrder`, where the
+ *  array index only ever breaks ties between zones sharing a parent — so
+ *  swapping with whatever happens to sit next in the array usually moves
+ *  nothing at all, and a button that sometimes does nothing is worse than no
+ *  button. This swaps with the nearest zone at the same level, which is exactly
+ *  the movement the drawing shows: the band slides one place left or right, and
+ *  its children follow it because their keys are built from its index.
+ *
+ *  Returns the list unchanged when there is no sibling that way, so the caller
+ *  can compare identity to decide whether the button is live. */
+export function moveZone(zones: Zone[], id: string, delta: -1 | 1): Zone[] {
+  const at = zones.findIndex(z => z.id === id);
+  if (at < 0) return zones;
+  const parent = zones[at].parent;
+
+  const siblings = zones
+    .map((z, i) => ({ z, i }))
+    .filter(({ z }) => z.parent === parent);
+  const seat = siblings.findIndex(({ z }) => z.id === id);
+  const target = siblings[seat + delta];
+  if (!target) return zones;
+
+  const out = [...zones];
+  [out[at], out[target.i]] = [out[target.i], out[at]];
+  return out;
+}
+
+/** Has this zone a sibling in that direction? Drives the buttons' disabled state. */
+export const canMoveZone = (zones: Zone[], id: string, delta: -1 | 1): boolean =>
+  moveZone(zones, id, delta) !== zones;
 
 export const zoneOf = (zones: Zone[], id: string | undefined): Zone | undefined =>
   id ? zones.find(z => z.id === id) : undefined;

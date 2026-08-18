@@ -410,6 +410,23 @@ is the whole reason nothing foreign can wander into it — and the reason the dr
 column per zone whether or not every row uses it. That is the visible, honest price of a
 boundary that means what it draws.
 
+**The sheet is capped, and the order is yours.** `BAND_MAX` caps one band at six columns; nothing
+capped their *sum*, so a fourth zone could push the drawing off the right of the frame — where the
+editor has no zoom to pull it back, only a scrollbar to find it with. `BAND_BUDGET` is twelve
+columns, about 2 900 px, and when the bands ask for more the widest gives up a column at a time
+until they fit. No card is lost: a narrowed band wraps inside itself and its layer grows taller,
+which is the trade a reader can scroll. It is a ceiling and not a promise — a document with more
+buckets than columns gets one each and is wider than that, because one card per band is the floor.
+
+The **Zones** panel moves a zone left or right among its own siblings. Left and right rather than
+up and down, because a zone *is* a band of columns and that is the direction it moves on the sheet;
+among siblings, because the band order comes from the zone tree, where the array position only ever
+breaks ties between zones sharing a parent — a plain array swap would usually move nothing at all.
+A nested zone slides inside its parent and never out of it, and its children travel with it.
+
+To see a wide sheet whole, use **Preview**: it renders the real exported viewer, which has zoom,
+pan and a **Fit** button. The editor canvas has none of those — it scrolls.
+
 The **EXTERNAL / INTERNAL** divide those diagrams draw as a full-height vertical line does not
 transpose. This layout is horizontal bands; a vertical axis wants columns. Modelled as a zone it
 gives you a frame around the external services, which is legible and is not the same thing.

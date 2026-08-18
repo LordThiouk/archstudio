@@ -449,6 +449,11 @@ const ZONES_IN_USE = (() => {
  *
  * MIRROR of bandPlan in src/lib/zones.ts. */
 const BAND_MAX = 6;
+/* `BAND_MAX` caps one band; nothing capped their sum, so each zone added a
+ * column-load of width and four of them ran the sheet off the frame. Twelve is
+ * a ceiling, not a promise: more buckets than columns means one column each and
+ * a sheet wider than this, because one card per band is the floor. */
+const BAND_BUDGET = 12;
 
 /** Zones in tree order, so a subtree's bands are contiguous and a parent's box
  *  is one range of columns rather than two with a hole in the middle. */
@@ -477,13 +482,24 @@ const BAND_PLAN = (() => {
   });
 
   const ordered = [...(buckets.has('') ? [''] : []), ...ZONES_TREE_ORDER.filter(id => buckets.has(id))];
+
+  /* Narrowed until the sheet fits: the widest band gives up a column at a time,
+   * so the pressure lands on what is making the drawing wide. A band that loses
+   * a column keeps its cards — it wraps inside itself and the layer grows
+   * taller, which is the trade a reader can scroll. */
+  const spans = ordered.map(b => Math.min(BAND_MAX, Math.max(1, widest[b] || 0)));
+  let total = spans.reduce((a, b) => a + b, 0);
+  while (total > BAND_BUDGET) {
+    let widestAt = -1;
+    spans.forEach((s, i) => { if (s > 1 && (widestAt < 0 || s > spans[widestAt])) widestAt = i; });
+    if (widestAt < 0) break;
+    spans[widestAt] -= 1;
+    total -= 1;
+  }
+
   const byBucket = {};
   let at = 1;
-  ordered.forEach(b => {
-    const span = Math.min(BAND_MAX, Math.max(1, widest[b] || 0));
-    byBucket[b] = { start: at, span };
-    at += span;
-  });
+  ordered.forEach((b, i) => { byBucket[b] = { start: at, span: spans[i] }; at += spans[i]; });
   return { byBucket, total: at - 1 };
 })();
 

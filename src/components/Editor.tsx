@@ -28,8 +28,8 @@ import {
 } from '@/lib/lifecycle';
 import { MARK_BLURBS, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
-  bandPlan, describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
-  zonesInUse, ZONE_KINDS, ZONE_KIND_BLURBS, ZONE_KIND_LABELS,
+  bandPlan, canMoveZone, describeZone, inflatedUnion, layerRuns, moveZone, withDescendants,
+  zoneDepth, zonePad, zoneSvg, zonesInUse, ZONE_KINDS, ZONE_KIND_BLURBS, ZONE_KIND_LABELS,
   type BandPlan, type Box, type ZoneKind
 } from '@/lib/zones';
 import { protocolLabel, suggestedLinkForBrick } from '@/lib/lego/protocols';
@@ -923,6 +923,20 @@ function ZonesPanel({ doc, patch }: {
                 return d;
               })} />
             <span className="count">{counts.get(z.id) ?? 0}</span>
+            {/* Left and right, not up and down: a zone is a band of columns, so
+                this is the direction it actually moves on the sheet. Among its
+                own siblings — a nested zone slides inside its parent, never out
+                of it, because the drawing could not show that anyway. */}
+            <button className="iconbtn" style={{ width: 22, height: 22 }} title="Move left"
+              disabled={!canMoveZone(doc.zones, z.id, -1)}
+              onClick={() => patch(d => { d.zones = moveZone(d.zones, z.id, -1); return d; })}>
+              <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+            <button className="iconbtn" style={{ width: 22, height: 22 }} title="Move right"
+              disabled={!canMoveZone(doc.zones, z.id, 1)}
+              onClick={() => patch(d => { d.zones = moveZone(d.zones, z.id, 1); return d; })}>
+              <Icon name="chevron" size={12} />
+            </button>
             <button className="iconbtn" style={{ width: 22, height: 22 }} title="Delete zone"
               onClick={() => {
                 const held = counts.get(z.id) ?? 0;

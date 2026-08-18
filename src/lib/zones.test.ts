@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { blankArchitecture, normalizeArchitecture } from './defaults';
 import { diffArchitecture } from './diff';
 import {
-  ancestry, BAND_GUTTER, BAND_MAX, bandPlan, describeZone, inflatedUnion, isZoneKind, layerRuns, subtreeHeight,
+  ancestry, BAND_BUDGET, BAND_GUTTER, BAND_MAX, bandPlan, canMoveZone, moveZone, describeZone, inflatedUnion, isZoneKind, layerRuns, subtreeHeight,
   withDescendants, zonesInTreeOrder,
   zoneDepth, zoneIndex, zonePad, zoneSortKey, zoneSvg, zonesInUse, type Box, type ZoneKind
 } from './zones';
@@ -407,4 +407,117 @@ test('a document with no layers still gets one band per bucket', () => {
   const plan = bandPlan([comp('a', { zone: 'ocp' }), comp('b')], NESTED, []);
   assert.deepEqual(plan.bands.map(b => b.zone), [undefined, 'ocp']);
   assert.equal(plan.total, 2);
+});
+
+/* ------------------------------------------- the budget and the reordering */
+
+const WIDE: Zone[] = [
+  { id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }, { id: 'd', name: 'D' }
+];
+
+/** `n` components in `zone`, all on the same layer — the busiest-layer case. */
+const fill = (zone: string | undefined, n: number, layer = 'clients') =>
+  Array.from({ length: n }, (_, i) => comp(`${zone ?? 'bare'}${i}`, { layer, zone }));
+
+test('a sheet that fits the budget is left exactly as it was', () => {
+  const items = [...fill(undefined, 2), ...fill('a', 3), ...fill('b', 1)];
+  const plan = bandPlan(items, WIDE, LAYERS);
+  assert.deepEqual(plan.bands.map(b => b.span), [2, 3, 1]);
+  assert.equal(plan.total, 6);
+});
+
+test('four full bands would run off the frame, so the sheet is narrowed to the budget', () => {
+  /* Unbounded before this: BAND_MAX capped one band and nothing capped the sum,
+   * so each zone added a column-load of width until the drawing left the frame
+   * — with no zoom in the editor to pull it back, only a scrollbar. */
+  const items = [
+    ...fill(undefined, 6), ...fill('a', 6), ...fill('b', 6), ...fill('c', 6)
+  ];
+  const plan = bandPlan(items, WIDE, LAYERS);
+  assert.equal(plan.total, BAND_BUDGET);
+  /* No card is lost — a narrowed band wraps inside itself. */
+  assert.ok(plan.bands.every(b => b.span >= 1));
+});
+
+test('the widest band gives up its columns first', () => {
+  const items = [...fill(undefined, 1), ...fill('a', 6), ...fill('b', 6), ...fill('c', 2)];
+  const plan = bandPlan(items, WIDE, LAYERS);
+  const span = (z?: string) => plan.band(z)!.span;
+  assert.equal(plan.total, BAND_BUDGET);
+  /* The two six-wide bands absorbed the whole reduction; the narrow ones did
+   * not pay for a width they were not causing. */
+  assert.equal(span(undefined), 1);
+  assert.equal(span('c'), 2);
+  assert.equal(span('a') + span('b'), BAND_BUDGET - 3);
+});
+
+test('bands still tile without a gap after the budget has narrowed them', () => {
+  const items = [...fill('a', 6), ...fill('b', 6), ...fill('c', 6), ...fill('d', 6)];
+  const plan = bandPlan(items, WIDE, LAYERS);
+  let expected = 1;
+  for (const b of plan.bands) {
+    assert.equal(b.start, expected);
+    expected += b.span;
+  }
+  assert.equal(plan.total, expected - 1);
+});
+
+test('more buckets than columns means one each — the floor, not a crash', () => {
+  /* The budget is a ceiling, not a promise: below one column per band there is
+   * nothing left to take, and the loop has to stop rather than spin. */
+  const many: Zone[] = Array.from({ length: 15 }, (_, i) => ({ id: `z${i}`, name: `Z${i}` }));
+  const items = many.flatMap(z => fill(z.id, 2));
+  const plan = bandPlan(items, many, LAYERS);
+  assert.equal(plan.bands.length, 15);
+  assert.ok(plan.bands.every(b => b.span === 1));
+  assert.equal(plan.total, 15);
+});
+
+test('the plan does not depend on how the zones happen to be ordered in the file', () => {
+  /* Ties go to the earliest band, so the *set* of spans is stable even when the
+   * declaration order changes — otherwise reordering a zone would silently
+   * reflow every other one. */
+  const items = [...fill('a', 6), ...fill('b', 6), ...fill('c', 6)];
+  const spans = (zones: Zone[]) =>
+    bandPlan(items, zones, LAYERS).bands.map(b => b.span).sort();
+  assert.deepEqual(spans(WIDE), spans([WIDE[2], WIDE[0], WIDE[1], WIDE[3]]));
+});
+
+test('a zone moves among its siblings, and its children follow it', () => {
+  const zones: Zone[] = [
+    { id: 'a', name: 'A' },
+    { id: 'b', name: 'B' },
+    { id: 'b1', name: 'B1', parent: 'b' },
+    { id: 'c', name: 'C' }
+  ];
+  const moved = moveZone(zones, 'b', -1);
+  assert.deepEqual(zonesInTreeOrder(moved).map(z => z.id), ['b', 'b1', 'a', 'c']);
+  /* Contiguity survives: the child stayed with the parent it belongs to. */
+  assert.deepEqual(zonesInTreeOrder(zones).map(z => z.id), ['a', 'b', 'b1', 'c']);
+});
+
+test('a nested zone slides inside its parent and never out of it', () => {
+  const zones: Zone[] = [
+    { id: 'p', name: 'P' },
+    { id: 'x', name: 'X', parent: 'p' },
+    { id: 'y', name: 'Y', parent: 'p' },
+    { id: 'outside', name: 'Outside' }
+  ];
+  assert.deepEqual(zonesInTreeOrder(moveZone(zones, 'y', -1)).map(z => z.id),
+    ['p', 'y', 'x', 'outside']);
+  /* `y` is already the last child of `p`; the zone after it in the array is a
+   * root, which is not its sibling, so the move is refused rather than
+   * reparenting it. */
+  assert.equal(moveZone(zones, 'y', 1), zones);
+  assert.equal(canMoveZone(zones, 'y', 1), false);
+  assert.equal(canMoveZone(zones, 'y', -1), true);
+});
+
+test('a move with no sibling that way is refused by identity, not by a copy', () => {
+  /* The buttons read `canMoveZone`, which compares identity — a function that
+   * returned a fresh equal array would light both buttons for ever. */
+  const zones: Zone[] = [{ id: 'only', name: 'Only' }];
+  assert.equal(moveZone(zones, 'only', -1), zones);
+  assert.equal(moveZone(zones, 'only', 1), zones);
+  assert.equal(moveZone(zones, 'ghost', 1), zones);
 });

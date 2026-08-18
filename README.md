@@ -109,9 +109,13 @@ it as a draft: it is one reading of one document, and the dependencies especiall
 second pair of eyes.
 
 This is the one feature that leaves your machine, so it is opt-in and it is yours to point:
-choose a provider in **Settings** — Anthropic, OpenAI, Google Gemini, NVIDIA NIM, or anything
-that speaks the OpenAI API, including a model running on your own hardware. Configure nothing and
-both entry points do not exist. See [Reading documents](#reading-documents).
+choose a provider in **Settings** — Anthropic, OpenAI, Google Gemini, NVIDIA NIM, Poolside, or
+anything that speaks the OpenAI API, including a model running on your own hardware. Configure
+nothing and both entry points do not exist. See [Reading documents](#reading-documents).
+
+**Only Anthropic and Gemini can be handed a PDF.** Everything else in that list is text-only —
+the file picker narrows to Markdown and plain text on its own, rather than accepting a PDF and
+failing after the upload. Convert it first, or point the reading at Claude.
 
 ---
 
@@ -558,11 +562,28 @@ and choose who reads your documents:
 | Google Gemini | built in | yes | exact |
 | OpenAI | built in | text only | estimated |
 | NVIDIA NIM | built in | text only | estimated |
+| Poolside | editable | text only | estimated |
 | OpenAI-compatible | yours | text only | estimated |
 
 The last row is the interesting one: anything that speaks `/v1/chat/completions` — Ollama, LM
 Studio, vLLM, Groq, Together, OpenRouter, a model on your own GPU — is a base URL away, and needs
 no key at all when it is local and unauthenticated.
+
+**Poolside** is that row with the base URL filled in. Its Laguna models are coding models and all
+three are text-to-text, so a PDF has to become Markdown first. Two fields are deliberately loose:
+the base URL stays editable, because Poolside documents different ones per access method — their
+platform, Bedrock, OpenRouter, a self-hosted deployment — and no model is suggested, because the
+ids differ the same way. Nothing is claimed about JSON-schema output either: their documentation
+does not mention `response_format`, so the adapter sends OpenAI's form, falls back to
+`guided_json`, and *Test* is what settles it. Checked against `docs.poolside.ai` on 2026-08-18.
+
+**Six entries, three adapters.** OpenAI, NVIDIA, Poolside and the generic row are one code path.
+A named entry buys nothing that row cannot already do — it buys not having to know a base URL,
+and the one field the studio cannot guess: whether a PDF can be handed over as-is, which narrows
+the file picker *before* someone chooses a document the provider will refuse. Adding a seventh is
+one object in `src/lib/ai/providers/types.ts`; `registry.test.ts` holds the invariants, including
+the one with teeth — a provider on the OpenAI adapter may never claim PDF support, because that
+adapter throws on a PDF and the picker would have accepted the upload first.
 
 **Test before you trust it.** Two buttons in the dialog: *Load models* asks the provider what it
 can serve, and *Test* runs a real schema-constrained request. The second is the one that matters —
@@ -575,8 +596,17 @@ to encrypt it against, and a key derived from something on the machine would onl
 encryption — so: anyone who can read that file, or a backup of it, can read the key. It is never
 sent back to the browser, which only ever sees the last four characters. To keep it out of the
 data directory entirely, set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` /
-`NVIDIA_API_KEY` in the environment and leave the field empty; the dialog then says it is reading
-the environment.
+`NVIDIA_API_KEY` / `POOLSIDE_API_KEY` in the environment and leave the field empty; the dialog
+then says it is reading the environment.
+
+**An internal endpoint can come from the environment too.** The two providers whose endpoint is
+yours to choose — Poolside and OpenAI-compatible — read `POOLSIDE_BASE_URL` and
+`OPENAI_COMPATIBLE_BASE_URL`, with the same precedence as the key: what is typed into the dialog
+wins, the environment fills in behind it, the built-in default is the floor. For a company running
+its own Poolside instance that is the difference between a deployment that reproduces itself and
+one that needs the URL retyped on every fresh volume. The other providers deliberately have no
+such variable: their endpoint is presented as fixed, and an environment that could redirect it
+would do so with no field on screen to reveal it.
 
 **What it sends.** The file you choose, plus — for an enrichment — the id, name, scope and layer
 of each component already in *that one project*. Nothing else: not your other projects, not the

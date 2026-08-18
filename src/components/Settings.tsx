@@ -19,11 +19,12 @@ interface ProviderInfo {
   id: string; label: string; blurb: string;
   keyUrl: string; keyPlaceholder: string; keyPrefixes?: string[];
   defaultBaseUrl?: string; baseUrlEditable: boolean;
-  defaultModel?: string; supportsPdf: boolean; envKey?: string;
+  defaultModel?: string; supportsPdf: boolean; envKey?: string; envBaseUrl?: string;
 }
 
 interface PublicSettings {
   configured: boolean; provider: string; model: string; baseUrl: string;
+  baseUrlFromEnv: boolean;
   hasKey: boolean; keyHint: string; keyFromEnv: boolean;
   inputPrice?: number; outputPrice?: number;
 }
@@ -169,9 +170,22 @@ export function SettingsDialog({ onClose, reason }: {
 
             {info?.baseUrlEditable && (
               <label className="field"><span>Endpoint</span>
+                {/* The provider's own default, not a hard-coded Ollama address:
+                    two providers use this field now, and suggesting the wrong
+                    vendor's URL is worse than suggesting none. */}
                 <input className="input" value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
-                  placeholder="http://localhost:11434/v1" spellCheck={false} />
-                <div className="hint">The base URL, ending in <code>/v1</code>. Must be reachable from the server, not from your browser.</div>
+                  placeholder={info.defaultBaseUrl} spellCheck={false} />
+                <div className="hint">
+                  The base URL, ending in <code>/v1</code>. Must be reachable from the server,
+                  not from your browser.
+                  {info.envBaseUrl && (
+                    <>
+                      {' '}An internal instance can be set once with{' '}
+                      <code>{info.envBaseUrl}</code> in the environment instead
+                      {saved?.baseUrlFromEnv ? ', which is where this one comes from.' : '.'}
+                    </>
+                  )}
+                </div>
               </label>
             )}
 

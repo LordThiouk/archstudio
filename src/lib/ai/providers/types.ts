@@ -7,11 +7,17 @@
  * different name for the same field in each. The adapters below absorb that,
  * and nothing above this directory knows which vendor answered.
  *
- * Five entries, three adapters: OpenAI, NVIDIA and "anything OpenAI-compatible"
- * are one code path, which is also what makes Ollama, vLLM, Groq, Together and
- * OpenRouter work without a line of their own. */
+ * Six entries, three adapters: OpenAI, NVIDIA, Poolside and "anything
+ * OpenAI-compatible" are one code path, which is also what makes Ollama, vLLM,
+ * Groq, Together and OpenRouter work without a line of their own.
+ *
+ * A named entry buys nothing the `compatible` row cannot already do — it buys
+ * the operator not having to know a base URL, and it buys the one field the
+ * studio cannot guess: `supportsPdf`, which narrows the file picker before
+ * someone chooses a document the provider will refuse. */
 
-export type ProviderId = 'anthropic' | 'openai' | 'gemini' | 'nvidia' | 'compatible';
+export type ProviderId =
+  | 'anthropic' | 'openai' | 'gemini' | 'nvidia' | 'poolside' | 'compatible';
 export type AdapterId = 'anthropic' | 'openai' | 'gemini';
 
 /** What the studio holds about one provider. The key never leaves the server. */
@@ -76,6 +82,14 @@ export interface ProviderInfo {
   supportsPdf: boolean;
   /** Read when no key is stored, so a container can pass one in. */
   envKey?: string;
+  /* Read when no endpoint is stored — only on the providers whose endpoint is
+   * the operator's to choose, which is what `baseUrlEditable` marks. An
+   * enterprise running its own inference instance would otherwise have to open
+   * the dialog and retype the URL on every fresh deployment, while its key
+   * arrives from the environment: the same configuration, half of it
+   * automatable. Overriding an endpoint the dialog presents as fixed is a
+   * different feature and deliberately not this one. */
+  envBaseUrl?: string;
   /* How this provider's keys begin. Used only to notice that a key belongs to
    * a *different* provider — never to reject one, because a vendor is free to
    * change the shape of its keys tomorrow and a studio that refused the new
@@ -142,6 +156,33 @@ export const PROVIDERS: ProviderInfo[] = [
     envKey: 'NVIDIA_API_KEY',
     structured: 'guided_json'
   },
+  /* Poolside's models are coding models: text-to-text, no image and no document
+   * input on any of the three, so a PDF has to become Markdown first.
+   *
+   * Two things are deliberately loose here. The base URL is editable because
+   * Poolside's own documentation says it differs by access method — their
+   * platform, Bedrock, OpenRouter, a self-hosted deployment — and a wrong
+   * default you can correct in the field beats a right one that only holds for
+   * one of the four. And nothing is claimed about structured output, because
+   * their documentation does not mention `response_format`: the adapter sends
+   * OpenAI's form and falls back to `guided_json`, and the Test button runs a
+   * real schema-constrained completion, which is the only thing that settles it.
+   * Verified against docs.poolside.ai on 2026-08-18. */
+  {
+    id: 'poolside', label: 'Poolside', adapter: 'openai',
+    blurb: 'Laguna — coding models, text documents only. Check the base URL against your access method, and press Test: JSON-schema output is not documented, so it is worth proving before a run.',
+    keyUrl: 'https://docs.poolside.ai/api/overview',
+    keyPlaceholder: 'your Poolside API key',
+    defaultBaseUrl: 'https://inference.poolside.ai/v1',
+    baseUrlEditable: true,
+    /* No suggested model, like OpenAI, Gemini and NIM: their ids churn, and the
+     * settings dialog can ask the endpoint what it serves. Poolside documents
+     * three Laguna models and says the ids differ by access method, which makes
+     * a hard-coded default a guess that would be wrong for three of the four. */
+    supportsPdf: false,
+    envKey: 'POOLSIDE_API_KEY',
+    envBaseUrl: 'POOLSIDE_BASE_URL'
+  },
   {
     id: 'compatible', label: 'OpenAI-compatible', adapter: 'openai',
     blurb: 'Anything that speaks /v1/chat/completions — Ollama, LM Studio, vLLM, Groq, Together, OpenRouter. The model must support JSON-schema output.',
@@ -149,7 +190,8 @@ export const PROVIDERS: ProviderInfo[] = [
     keyPlaceholder: 'left empty for a local server',
     defaultBaseUrl: 'http://localhost:11434/v1',
     baseUrlEditable: true,
-    supportsPdf: false
+    supportsPdf: false,
+    envBaseUrl: 'OPENAI_COMPATIBLE_BASE_URL'
   }
 ];
 

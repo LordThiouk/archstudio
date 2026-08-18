@@ -36,6 +36,8 @@ export interface PublicAiSettings {
   provider: ProviderId;
   model: string;
   baseUrl: string;
+  /** True when the endpoint comes from the environment rather than this dialog. */
+  baseUrlFromEnv: boolean;
   hasKey: boolean;
   /** "…7f3a" — enough to tell two keys apart, not enough to use one. */
   keyHint: string;
@@ -67,10 +69,24 @@ const envKeyFor = (provider: ProviderId): string => {
   return name ? (process.env[name]?.trim() ?? '') : '';
 };
 
+/* The endpoint, from the environment. Same precedence as the key — what is
+ * stored wins, the environment fills in behind it, the registry default is the
+ * floor — because an operator running an internal inference instance is
+ * configuring one thing, not two, and having to type half of it into a dialog
+ * on every fresh volume is how a deployment stops being reproducible. */
+const envBaseUrlFor = (provider: ProviderId): string => {
+  const name = providerInfo(provider).envBaseUrl;
+  return name ? (process.env[name]?.trim() ?? '') : '';
+};
+
+/* No `baseUrl` here, deliberately. Every resolver reads a stored endpoint as an
+ * operator decision that outranks the environment, so seeding the row with the
+ * registry default would switch `POOLSIDE_BASE_URL` off for anyone who ever
+ * opened the dialog. The default is applied at the *end* of the resolution
+ * chain instead, where it belongs, and never written down. */
 const defaults = (provider: ProviderId): StoredAi => ({
   provider,
-  model: providerInfo(provider).defaultModel ?? '',
-  baseUrl: providerInfo(provider).defaultBaseUrl
+  model: providerInfo(provider).defaultModel ?? ''
 });
 
 /** The config a run will use, or null when there is not enough to run one. */
@@ -80,7 +96,8 @@ export function resolveAiConfig(): AiConfig | null {
 
   const info = providerInfo(stored.provider);
   const apiKey = stored.apiKey?.trim() || envKeyFor(stored.provider);
-  const baseUrl = stored.baseUrl?.trim() || info.defaultBaseUrl || '';
+  const baseUrl = stored.baseUrl?.trim() || envBaseUrlFor(stored.provider)
+    || info.defaultBaseUrl || '';
 
   /* A local OpenAI-compatible server is normally unauthenticated, so an empty
    * key is a valid configuration there and only there. */
@@ -103,12 +120,18 @@ export function publicAiSettings(): PublicAiSettings {
   const own = stored.apiKey?.trim() ?? '';
   const env = envKeyFor(stored.provider);
   const key = own || env;
+  /* Resolved through the same chain `resolveAiConfig` uses, so the URL the
+   * dialog shows is the URL a run will call. They disagreed before this: one
+   * fell back to the registry default and the other did not. */
+  const ownUrl = stored.baseUrl?.trim() ?? '';
+  const envUrl = envBaseUrlFor(stored.provider);
 
   return {
     configured: resolveAiConfig() !== null,
     provider: stored.provider,
     model: stored.model ?? '',
-    baseUrl: stored.baseUrl ?? info.defaultBaseUrl ?? '',
+    baseUrl: ownUrl || envUrl || info.defaultBaseUrl || '',
+    baseUrlFromEnv: !ownUrl && envUrl.length > 0,
     hasKey: key.length > 0,
     keyHint: key ? `…${key.slice(-4)}` : '',
     keyFromEnv: !own && env.length > 0,
@@ -133,6 +156,7 @@ export function candidateAiConfig(patch: AiSettingsPatch): AiConfig | null {
     || envKeyFor(provider);
   const baseUrl = patch.baseUrl?.trim()
     || (sameProvider ? stored?.baseUrl?.trim() ?? '' : '')
+    || envBaseUrlFor(provider)
     || info.defaultBaseUrl || '';
 
   if (!apiKey && provider !== 'compatible') return null;
@@ -168,10 +192,21 @@ export function saveAiSettings(patch: AiSettingsPatch): PublicAiSettings {
   const switched = previous?.provider !== undefined && previous.provider !== provider;
   const base = switched ? defaults(provider) : (previous ?? defaults(provider));
 
+  /* Only what the operator actually chose is stored. Baking the registry default
+   * into the row would look harmless — the resolved URL is the same — but it
+   * makes the stored value non-empty, and every resolver treats a stored value
+   * as an operator decision that outranks the environment. `POOLSIDE_BASE_URL`
+   * would then be live on a fresh install and dead the moment anyone opened this
+   * dialog, which is the worst possible shape for a deployment setting.
+   *
+   * The same reasoning does not apply to the default *model*: there is no
+   * environment layer under it, so storing it costs nothing. */
+  const chosenBaseUrl = patch.baseUrl?.trim() || base.baseUrl || undefined;
+
   const next: StoredAi = {
     provider,
     model: patch.model?.trim() ?? base.model ?? '',
-    baseUrl: patch.baseUrl?.trim() || base.baseUrl || providerInfo(provider).defaultBaseUrl,
+    baseUrl: chosenBaseUrl,
     apiKey: patch.apiKey === null ? undefined
       : patch.apiKey !== undefined ? patch.apiKey.trim() || undefined
       : (switched ? undefined : base.apiKey),

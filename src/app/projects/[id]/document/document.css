@@ -285,6 +285,30 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }
 .paper-layer-row { display: flex; flex-wrap: wrap; gap: 12px; }
 
+/* A zone's cards in one layer. Static, like `.paper-layer-row` above it, so a
+   run's offset parent is `.paper-stage` — exactly as a card's is, which is what
+   lets the zone rectangles be measured through the same `offsetLeft` family the
+   edges use rather than through a second mechanism. */
+.zrun { display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; position: static; }
+
+/* ------------------------------------------------------------------- zones
+   The screen's two treatments transposed, and the reason they are treatments and
+   not colours: this rectangle has to survive being printed. Solid is a boundary
+   you could point at in a room; dashed is one that exists in a document. Depth
+   is a hair of extra ground, which needs background graphics left on in the print
+   dialog — the same condition the scope colours already have. */
+.paper-edges .zone rect {
+  fill: color-mix(in srgb, var(--ink) 3%, transparent);
+  stroke: var(--line-3); stroke-width: 1;
+}
+.paper-edges .zone[data-depth="1"] rect { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+.paper-edges .zone[data-depth="2"] rect { fill: color-mix(in srgb, var(--ink) 9%, transparent); }
+.paper-edges .zone-dashed rect { stroke-dasharray: 5 4; }
+.paper-edges .zone text {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+  fill: var(--ink-3);
+}
+
 /* `.node`, verbatim minus the interaction states. */
 .paper-node {
   position: static;
@@ -311,6 +335,66 @@ a.paper-btn { border-bottom-width: 1px; }
   color: color-mix(in srgb, var(--c) 70%, var(--ink));
 }
 
+/* ---------------------------------------------------------- security marks
+   The screen's placement transposed: header row, right edge, neutral ink. On
+   paper the key is not a convenience — there is no tooltip to hover and no
+   search box to type "sso" into, so the glyph is unreadable without it, which
+   is why `Figure` draws one whenever a single mark is in use. */
+.paper-node .marks { margin-left: auto; display: flex; gap: 4px; flex: none; }
+.paper-node .marks i { display: grid; place-items: center; width: 13px; height: 13px; color: var(--ink-2); }
+.paper-node.st-removed .marks i { color: var(--ink-3); }
+
+.paper-markkey i { display: grid; place-items: center; width: 14px; height: 14px; flex: none; color: var(--ink-2); }
+
+/* On a detail sheet the marks are words, not glyphs: this is the page someone
+   quotes in a meeting, and "lock" is not a sentence. */
+.paper-marks { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin: 0 0 6px; }
+.paper-tick {
+  margin-left: 6px; font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em;
+  padding: 2px 4px; background: var(--ink); color: var(--panel); vertical-align: middle;
+}
+
+/* ------------------------------------------------------------ the transition
+   The screen's three treatments, transposed unchanged — border and a monospace
+   tick, never a hue, which is exactly why they survive being printed and
+   photocopied. Paper prints the whole delta: there is no Transition toggle to
+   flip, so a removal is drawn quieter rather than dropped.
+
+   `position: relative` only on a card that carries a tick. `.paper-node` is
+   static on purpose — the edge geometry reads `offsetLeft/offsetTop` against
+   `.paper-stage` — and while an element's own `position: relative` leaves its
+   own offsets alone, narrowing it to the three state classes keeps the
+   exception where it can be read next to the reason for it. */
+.paper-node.st-new, .paper-node.st-changed, .paper-node.st-removed { position: relative; }
+.paper-node.st-new { border-style: dashed; border-color: var(--ink-3); }
+.paper-node.st-changed { border-color: var(--ink); }
+.paper-node.st-removed .nm { text-decoration: line-through; }
+.paper-node.st-removed .ic { filter: grayscale(1); }
+.paper-node.st-removed .nm, .paper-node.st-removed .tech span { color: var(--ink-3); }
+
+.paper-node .tick {
+  position: absolute; top: -1px; left: -1px;
+  font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; line-height: 1;
+  padding: 2px 4px; background: var(--ink); color: var(--panel);
+}
+.paper-node.st-changed .tick {
+  background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink);
+}
+.paper-node.st-removed .tick { background: var(--ink-3); }
+
+/* The key rides the edge key's row rules and only restyles the tick, which
+   here sits in the flow rather than in a card's corner. */
+.paper-statekey .tick {
+  position: static; display: grid; place-items: center; width: 13px; height: 13px; flex: none;
+  font-size: 9px; font-style: normal; letter-spacing: 0;
+  background: var(--ink); color: var(--panel);
+}
+.paper-statekey .tick.st-changed {
+  background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink);
+}
+.paper-statekey .tick.st-removed { background: var(--ink-3); }
+.paper-statenote { color: var(--ink-3); }
+
 /* `.ub` — the legend reuses the used-by chip. */
 .paper-legend { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
 .paper-legend li {
@@ -332,6 +416,25 @@ a.paper-btn { border-bottom-width: 1px; }
   font-family: var(--mono); font-size: 9.5px; color: var(--ink-2);
 }
 .paper-edgekey svg { width: 30px; height: 8px; flex: none; overflow: visible; }
+
+/* The protocol convention in words, next to the key that it completes — and
+   outside `.paper-frame` for the same reason: the page-fit transform must not
+   shrink the reading of the figure along with the figure. */
+.paper-protonote {
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-2);
+  margin: 6px 0 0;
+}
+
+/* The protocol on the line, inside the scaled stage. `.edgelbl` unprefixed on
+   purpose: it is emitted by `src/lib/links.ts`, which all three renderers
+   share, so the one class name has to work in all three stylesheets. The plate
+   is opaque because the curve runs underneath it — and at the print scale of
+   .67 a halo would disappear before the type did. */
+.paper-edges .edgelbl rect { fill: var(--panel); stroke: var(--line-3); stroke-width: 1; }
+.paper-edges .edgelbl text {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .02em;
+  fill: var(--ink-2); text-anchor: middle;
+}
 
 /* ------------------------------------------------------------------- tables */
 

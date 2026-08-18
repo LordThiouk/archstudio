@@ -19,7 +19,18 @@ import { syncTechnologies } from '@/lib/lego/stack';
 import { loadLegoCatalog } from '@/lib/lego/client';
 import { addSuggestedDependency, matchesSuggestionTarget, matchingDependencyTarget, visibleDependencies } from '@/lib/lego/dependencies';
 import type { LegoCatalogSnapshot, LegoDependencySuggestion } from '@/lib/lego/types';
-import { dashFor, describeLink, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
+import {
+  dashFor, describeLink, edgeLabelSvg, edgePlateText, kindsInUse, LINK_DASH, LINK_KIND_LABELS,
+  linkOf, protocolConvention, protocolNote
+} from '@/lib/links';
+import {
+  edgeOpacity, edgeStroke, STATE_LABELS, STATE_SIGN, stateTick, statesInUse
+} from '@/lib/lifecycle';
+import { MARK_BLURBS, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
+import {
+  describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
+  zonesInUse, ZONE_KINDS, ZONE_KIND_BLURBS, ZONE_KIND_LABELS, type Box, type ZoneKind
+} from '@/lib/zones';
 import { protocolLabel, suggestedLinkForBrick } from '@/lib/lego/protocols';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
 
@@ -498,6 +509,35 @@ function edgeGlyph(
     + `</g>`;
 }
 
+/* The zone rectangles, measured after layout and drawn behind everything else.
+ *
+ * A zone can span rows, and the sheet is HTML flow, so it cannot be a box in the
+ * DOM — it would have to contain the rows. What it can be is a rectangle around
+ * what it holds, computed once layout has happened. Outermost first: the tint
+ * stacks in one direction only, and that is what makes nesting read.
+ *
+ * Kept in step with `zoneLayer` in viewer/engine.js and `PaperDiagram` in the
+ * document renderer — three surfaces, one geometry, one table in lib/zones.ts. */
+function zoneLayer(host: HTMLElement, box: DOMRect, doc: Architecture): string {
+  const live = zonesInUse(doc.zones, doc.components);
+  if (!live.length) return '';
+
+  return live.map(zone => {
+    const family = withDescendants(zone.id, doc.zones);
+    const boxes: Box[] = [];
+    family.forEach(id => {
+      host.querySelectorAll<HTMLElement>(`.zrun[data-zone="${CSS.escape(id)}"]`).forEach(run => {
+        const r = run.getBoundingClientRect();
+        if (!r.width && !r.height) return;
+        boxes.push({ x: r.left - box.left, y: r.top - box.top, w: r.width, h: r.height });
+      });
+    });
+    const rect = inflatedUnion(boxes, zonePad(zone.id, doc.zones));
+    if (!rect) return '';
+    return zoneSvg(zone, rect, zoneDepth(zone.id, doc.zones), describeZone(zone, 'en'));
+  }).join('');
+}
+
 /* -------------------------------------------------------------------- canvas */
 
 function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink, groupColor, patch }: {
@@ -516,7 +556,11 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
     const box = host.getBoundingClientRect();
     const index = Object.fromEntries(doc.layers.map((l, i) => [l.id, i]));
     const byId = Object.fromEntries(doc.components.map(c => [c.id, c]));
+    const conv = protocolConvention(doc.ui.architecture);
     let out = '';
+    /* Labels are collected apart and appended, so every plate paints over
+     * every line rather than only over the ones drawn before it. */
+    let labels = '';
     doc.components.forEach(c => (c.deps || []).forEach(dep => {
       const a = host.querySelector(`[data-comp="${CSS.escape(c.id)}"]`);
       const b = host.querySelector(`[data-comp="${CSS.escape(dep)}"]`);
@@ -537,10 +581,26 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
       }
       const active = selected === c.id || selected === dep;
       const colour = groupColor(c.group).light;
-      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, active ? 1 : .34, active ? 2 : 1.2,
-        dashFor(linkOf(c, dep)?.kind));
+      const link = linkOf(c, dep);
+      /* The transition takes the two channels colour never claimed: a departure
+       * from the existing state is drawn heavier, and a removal is a ghost of an
+       * ordinary edge. Selection still wins over both — the canvas is where you
+       * work, and what you have clicked has to stay the loudest thing on it. */
+      const opacity = active ? 1 : edgeOpacity(link?.state, .34);
+      const width = active ? 2 : edgeStroke(link?.state, 1.2);
+      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, opacity, width, dashFor(link?.kind));
+      /* Full strength even on an unselected edge: this is the surface where the
+       * protocol and the mark are authored, so they have to be legible before
+       * you have clicked the thing they belong to. */
+      const label = edgePlateText(link, conv);
+      if (label) labels += edgeLabelSvg(x1, y1, k1, x2, y2, k2, label);
     }));
-    setEdges(out);
+    /* Zones are measured from the runs, not from the cards: a run is already a
+     * tight box around a zone's members in one row, so the union is a handful of
+     * rects instead of one per component. Emitted first, so every line and every
+     * card paints over the region rather than under it. */
+    setEdges(zoneLayer(host, box, doc) + out
+      + (labels ? `<g class="edgelbl">${labels}</g>` : ''));
   }, [doc, selected, groupColor]);
 
   useLayoutEffect(() => { draw(); }, [draw]);
@@ -582,6 +642,12 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
   const { setNodeRef, isOver } = useDroppable({ id: `layer:${layer.id}` });
   const items = doc.components.filter(c => c.layer === layer.id);
 
+  const card = (c: Component) => (
+    <ComponentCard key={c.id} comp={c} colour={groupColor(c.group).light}
+      selected={selected === c.id} isLinkTarget={hoverTarget === c.id}
+      onSelect={() => setSelected(c.id)} onStartLink={onStartLink} />
+  );
+
   return (
     <div className={`layer${isOver ? ' over' : ''}`}>
       <div className="layer-head">
@@ -616,11 +682,19 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
       </div>
       <div ref={setNodeRef} className={`layer-drop${items.length ? '' : ' empty-hint'}`}>
         {items.length === 0 && 'Drop a component here'}
-        {items.map(c => (
-          <ComponentCard key={c.id} comp={c} colour={groupColor(c.group).light}
-            selected={selected === c.id} isLinkTarget={hoverTarget === c.id}
-            onSelect={() => setSelected(c.id)} onStartLink={onStartLink} />
-        ))}
+        {/* One run per zone, so a zone's cards stay contiguous even when the row
+            wraps — that contiguity is what keeps the measured rectangle from
+            enclosing a card it does not hold.
+            The wrapper appears only on a document that has zones. A row of cards
+            and a row of one-run-of-cards lay out the same in theory; not adding
+            the element at all is how that stops being a thing to verify. */}
+        {doc.zones.length
+          ? layerRuns(items, doc.zones).map(run => (
+              <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}>
+                {run.items.map(card)}
+              </div>
+            ))
+          : items.map(card)}
       </div>
     </div>
   );
@@ -638,14 +712,30 @@ function ComponentCard({ comp, colour, selected, isLinkTarget, onSelect, onStart
       ref={node => { setNodeRef(node); dropRef(node); }}
       {...listeners} {...attributes}
       data-comp={comp.id}
-      className={`ccard${selected ? ' selected' : ''}${isDragging ? ' dragging' : ''}${isLinkTarget ? ' linktarget' : ''}`}
+      className={`ccard${selected ? ' selected' : ''}${isDragging ? ' dragging' : ''}${isLinkTarget ? ' linktarget' : ''}${comp.state ? ` st-${comp.state}` : ''}`}
       style={{ ['--c' as string]: colour }}
       onClick={e => { e.stopPropagation(); onSelect(); }}
     >
+      {/* The transition tick and the author's own badge share the top edge and
+          would collide, so the tick takes the left corner. It goes first because
+          it is the one the reader is scanning the sheet for. */}
+      {comp.state && <span className="tick">{stateTick(comp.state)}</span>}
       {comp.badge && <span className="badge">{comp.badge}</span>}
       <div className="nh">
         <span className="ic"><Icon name={comp.icon || 'box'} size={13} /></span>
         <span className="nm">{comp.name}</span>
+        {/* In the header row rather than below the technologies, so the marks
+            survive compact mode: a dense sheet is exactly where "which of these
+            is reachable without a login" stops being answerable any other way. */}
+        {!!comp.marks?.length && (
+          <span className="marks">
+            {comp.marks.map(m => (
+              <i key={m} title={`${MARK_LABELS[m].en} — ${MARK_BLURBS[m]}`}>
+                <Icon name={MARK_ICON[m]} size={11} />
+              </i>
+            ))}
+          </span>
+        )}
       </div>
       {!!comp.tech?.length && (
         <div className="tech">{comp.tech.slice(0, 3).map(t => <span key={t}>{t}</span>)}</div>
@@ -762,31 +852,153 @@ function Palette({ doc, patch, catalog, onOpenPlacement }: {
         </div>
       ))}
 
+      <ZonesPanel doc={doc} patch={patch} />
+
       <EdgeLegend doc={doc} />
     </aside>
   );
 }
 
-/* Only drawn once the document actually annotates an edge. A legend explaining
- * three line styles on a diagram that uses one is furniture. */
-function EdgeLegend({ doc }: { doc: Architecture }) {
-  const kinds = kindsInUse(doc.components);
-  if (!kinds.length) return null;
+/* Zones live in the rail with the layers and the scopes, because all three are
+ * the diagram's structure rather than its content. Unlike those two they are not
+ * derived from placement: an empty zone is a perimeter someone drew before
+ * filling it, so nothing prunes it.
+ *
+ * `parent` is a select over the other zones. It cannot offer a descendant —
+ * `normalizeZones` would cut the cycle back out on the next save, and an edit
+ * that silently undoes itself is worse than an option that was never there. */
+function ZonesPanel({ doc, patch }: {
+  doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
+}) {
+  const counts = new Map(doc.zones.map(z => [
+    z.id,
+    doc.components.filter(c => c.zone && withDescendants(z.id, doc.zones).has(c.zone)).length
+  ]));
 
   return (
     <>
-      <div className="sect-label">Dependencies</div>
-      <div className="edgekey">
-        {kinds.map(k => (
-          <span key={k}>
-            <svg viewBox="0 0 34 8" aria-hidden="true">
-              <path d="M1 4h32" fill="none" stroke="currentColor" strokeWidth="1.6"
-                strokeLinecap="round" strokeDasharray={LINK_DASH[k] || undefined} />
-            </svg>
-            {LINK_KIND_LABELS[k].en}
-          </span>
-        ))}
+      <div className="sect-label">
+        Zones<span className="spacer" />
+        <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add zone"
+          onClick={() => {
+            const name = prompt('Zone name — OpenShift, API gateway, DMZ…');
+            if (!name?.trim()) return;
+            patch(d => {
+              d.zones.push({ id: slugify(name, d.zones.map(z => z.id)), name: name.trim() });
+              return d;
+            });
+          }}><Icon name="plus" size={13} /></button>
       </div>
+      {!doc.zones.length && (
+        <div className="hint" style={{ padding: '2px 6px' }}>
+          A boundary that crosses the layers — a platform, a network zone, the
+          perimeter of a migration.
+        </div>
+      )}
+      {doc.zones.map(z => (
+        <div className="zonerow" key={z.id}>
+          <div className="grouprow">
+            <input value={z.name}
+              onChange={e => patch(d => {
+                const x = d.zones.find(y => y.id === z.id);
+                if (x) x.name = e.target.value;
+                return d;
+              })} />
+            <span className="count">{counts.get(z.id) ?? 0}</span>
+            <button className="iconbtn" style={{ width: 22, height: 22 }} title="Delete zone"
+              onClick={() => {
+                const held = counts.get(z.id) ?? 0;
+                if (held && !confirm(`Delete "${z.name}"? Its ${held} component(s) become unzoned.`)) return;
+                patch(d => {
+                  d.zones = d.zones.filter(y => y.id !== z.id)
+                    .map(y => (y.parent === z.id ? { ...y, parent: z.parent } : y));
+                  d.components.forEach(c => { if (c.zone === z.id) c.zone = undefined; });
+                  return d;
+                });
+              }}><Icon name="trash" size={13} /></button>
+          </div>
+          <div className="frow">
+            <select className="select sm" value={z.kind || ''}
+              onChange={e => patch(d => {
+                const x = d.zones.find(y => y.id === z.id);
+                if (x) x.kind = (e.target.value || undefined) as ZoneKind | undefined;
+                return d;
+              })}
+              title={z.kind ? ZONE_KIND_BLURBS[z.kind] : 'Untyped zones are drawn dashed.'}>
+              <option value="">kind…</option>
+              {ZONE_KINDS.map(k => (
+                <option key={k} value={k}>{ZONE_KIND_LABELS[k].en}</option>
+              ))}
+            </select>
+            <select className="select sm" value={z.parent || ''}
+              onChange={e => patch(d => {
+                const x = d.zones.find(y => y.id === z.id);
+                if (x) x.parent = e.target.value || undefined;
+                return d;
+              })}>
+              <option value="">no parent</option>
+              {doc.zones
+                .filter(y => y.id !== z.id && !withDescendants(z.id, doc.zones).has(y.id))
+                .map(y => <option key={y.id} value={y.id}>in {y.name}</option>)}
+            </select>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/* Only drawn once the document actually annotates an edge. A legend explaining
+ * three line styles on a diagram that uses one is furniture — and the same
+ * goes for the protocol convention, which appears only once one is declared. */
+function EdgeLegend({ doc }: { doc: Architecture }) {
+  const kinds = kindsInUse(doc.components);
+  const states = statesInUse(doc.components);
+  const marks = marksInUse(doc.components);
+  const note = protocolNote(protocolConvention(doc.ui.architecture), 'en');
+  if (!kinds.length && !states.length && !marks.length && !note) return null;
+
+  return (
+    <>
+      {!!marks.length && (
+        <>
+          <div className="sect-label">Security</div>
+          <div className="markkey">
+            {marks.map(m => (
+              <span key={m} title={MARK_BLURBS[m]}>
+                <i><Icon name={MARK_ICON[m]} size={11} /></i>{MARK_LABELS[m].en}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+      {!!states.length && (
+        <>
+          <div className="sect-label">Transition</div>
+          <div className="statekey">
+            {states.map(s => (
+              <span key={s}>
+                <i className={`tick st-${s}`}>{STATE_SIGN[s]}</i>{STATE_LABELS[s].en}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="sect-label">Dependencies</div>
+      {!!kinds.length && (
+        <div className="edgekey">
+          {kinds.map(k => (
+            <span key={k}>
+              <svg viewBox="0 0 34 8" aria-hidden="true">
+                <path d="M1 4h32" fill="none" stroke="currentColor" strokeWidth="1.6"
+                  strokeLinecap="round" strokeDasharray={LINK_DASH[k] || undefined} />
+              </svg>
+              {LINK_KIND_LABELS[k].en}
+            </span>
+          ))}
+        </div>
+      )}
+      {note && <div className="protonote">{note}</div>}
     </>
   );
 }

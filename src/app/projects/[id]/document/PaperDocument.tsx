@@ -20,7 +20,18 @@ import { Icon } from '@/components/Icon';
 import { Mark, Wordmark } from '@/components/Brand';
 import { PALETTE } from '@/lib/defaults';
 import { displayLayerLabel } from '@/lib/layers';
-import { dashFor, describeLink, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
+import {
+  dashFor, describeLink, edgeLabelSvg, edgePlateText, kindsInUse, LINK_DASH, LINK_KIND_LABELS,
+  linkOf, protocolConvention, protocolNote
+} from '@/lib/links';
+import {
+  edgeOpacity, edgeStroke, STATE_LABELS, STATE_SIGN, stateTick, statesInUse
+} from '@/lib/lifecycle';
+import { describeMarks, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
+import {
+  describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
+  zonesInUse, type Box
+} from '@/lib/zones';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
   Architecture, CardItem, CardsSection, CompareSection, Component, Flow,
@@ -184,10 +195,13 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
    * scaled by a transform to fit the page, and a legend shrunk to 67 % of an
    * already small type size stops being readable. */
   const kinds = kindsInUse(doc.components);
+  const states = statesInUse(doc.components);
+  const marks = marksInUse(doc.components);
+  const note = protocolNote(protocolConvention(doc.ui.architecture), lang);
 
   return (
     <figure className="paper-figure">
-      <PaperDiagram doc={doc} />
+      <PaperDiagram doc={doc} lang={lang} />
       <figcaption>{T.figure}</figcaption>
       <ul className="paper-legend">
         {doc.groups.map(g => (
@@ -196,6 +210,32 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
           </li>
         ))}
       </ul>
+      {/* The security key. On paper it earns its place twice over: the reader
+          has no tooltip to hover and no search box to type "sso" into, so the
+          glyph is unreadable without it. */}
+      {!!marks.length && (
+        <div className="paper-edgekey paper-markkey">
+          {marks.map(m => (
+            <span key={m}><i><Icon name={MARK_ICON[m]} size={11} /></i>{MARK_LABELS[m][lang]}</span>
+          ))}
+        </div>
+      )}
+      {/* The transition key comes before the line-style key: on a landscape
+          sheet it is the reading the page was drawn to carry. Like the other
+          two it names the unmarked case, which is the only state with no mark
+          to point at and by far the most common. */}
+      {!!states.length && (
+        <div className="paper-edgekey paper-statekey">
+          {states.map(s => (
+            <span key={s}><i className={`tick st-${s}`}>{STATE_SIGN[s]}</i>{STATE_LABELS[s][lang]}</span>
+          ))}
+          <span className="paper-statenote">
+            {lang === 'fr'
+              ? 'Les composants et les appels sans marque existent déjà.'
+              : 'Unmarked components and calls already exist.'}
+          </span>
+        </div>
+      )}
       {!!kinds.length && (
         <div className="paper-edgekey">
           {kinds.map(k => (
@@ -209,11 +249,12 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
           ))}
         </div>
       )}
+      {note && <p className="paper-protonote">{note}</p>}
     </figure>
   );
 }
 
-function PaperDiagram({ doc }: { doc: Architecture }) {
+function PaperDiagram({ doc, lang }: { doc: Architecture; lang: 'en' | 'fr' }) {
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState('');
@@ -233,7 +274,11 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
     const support = supportLayerId(doc);
     const index = Object.fromEntries(doc.layers.map((l, i) => [l.id, i]));
     const byId = Object.fromEntries(doc.components.map(c => [c.id, c]));
+    const conv = protocolConvention(doc.ui.architecture);
     let out = '';
+    /* Apart, and appended: every plate has to paint over every line, not only
+     * over the ones that happen to be drawn before it. */
+    let labels = '';
 
     doc.components.forEach(c => (c.deps || []).forEach(dep => {
       const target = byId[dep];
@@ -265,19 +310,47 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
        * the print scale of .67 a 30 %-opacity endpoint disappears into the
        * paper. */
       const col = colour(c.group);
-      const dash = dashFor(linkOf(c, dep)?.kind);
-      out += `<g opacity=".45">`
+      const link = linkOf(c, dep);
+      const dash = dashFor(link?.kind);
+      /* The sheet is printed at ~.67, so the plate is the only thing keeping
+       * 9 px type off the curve it labels. Full strength: paper has no hover
+       * to reveal what it faded. */
+      const label = edgePlateText(link, conv);
+      if (label) labels += edgeLabelSvg(x1, y1, k1, x2, y2, k2, label);
+      /* Paper prints the whole delta — there is no Transition toggle to flip,
+       * so a removal is a ghost of an ordinary edge rather than absent. */
+      out += `<g opacity="${edgeOpacity(link?.state, .45).toFixed(3)}">`
            + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
-           + `stroke="${col}" stroke-width="1.2" stroke-linecap="round"`
+           + `stroke="${col}" stroke-width="${edgeStroke(link?.state, 1.2)}" stroke-linecap="round"`
            + `${dash ? ` stroke-dasharray="${dash}"` : ''}/>`
            + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${col}"/>`
            + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${col}" stroke-width="1.5"/>`
            + `</g>`;
     }));
 
-    setEdges(out);
+    /* Zones first, so every line and every card paints over the region rather
+     * than under it. Measured from the runs, through the same `offsetLeft`
+     * family the edges use: `.zrun` is static and `.paper-layer-row` is static,
+     * so a run's offset parent is `.paper-stage`, exactly as a card's is. */
+    let zones = '';
+    zonesInUse(doc.zones, doc.components).forEach(zone => {
+      const family = withDescendants(zone.id, doc.zones);
+      const boxes: Box[] = [];
+      family.forEach(id => {
+        host.querySelectorAll<HTMLElement>(`.zrun[data-zone="${CSS.escape(id)}"]`).forEach(run => {
+          if (!run.offsetWidth && !run.offsetHeight) return;
+          boxes.push({
+            x: run.offsetLeft, y: run.offsetTop, w: run.offsetWidth, h: run.offsetHeight
+          });
+        });
+      });
+      const rect = inflatedUnion(boxes, zonePad(zone.id, doc.zones));
+      if (rect) zones += zoneSvg(zone, rect, zoneDepth(zone.id, doc.zones), describeZone(zone, lang));
+    });
+
+    setEdges(zones + out + (labels ? `<g class="edgelbl">${labels}</g>` : ''));
     setHeight(host.offsetHeight);
-  }, [doc, colour]);
+  }, [doc, colour, lang]);
 
   useLayoutEffect(() => { draw(); }, [draw]);
 
@@ -325,23 +398,51 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
               <b>{displayLayerLabel(layer.name)}</b>{layer.desc && <em>{layer.desc}</em>}
             </div>
             <div className="paper-layer-row">
-              {doc.components.filter(c => c.layer === layer.id).map(c => (
-                <div className="paper-node" key={c.id} data-comp={c.id}
-                  style={{ ['--c' as string]: colour(c.group) }}>
-                  <div className="nh">
-                    <span className="ic"><Icon name={c.icon || 'box'} size={13} /></span>
-                    <span className="nm">{c.name}</span>
-                  </div>
-                  {!!c.tech?.length && (
-                    <div className="tech">{c.tech.map(t => <span key={t}>{t}</span>)}</div>
-                  )}
-                </div>
-              ))}
+              <LayerCards doc={doc} layer={layer.id} colour={colour} />
             </div>
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+/* One run per zone, so a zone's cards stay contiguous even when the row wraps —
+ * that contiguity is what keeps its measured rectangle from enclosing a card it
+ * does not hold. The wrapper appears only on a document that has zones: not
+ * adding the element is how "a row of cards lays out like a row of one run of
+ * cards" stops being a thing anyone has to verify. */
+function LayerCards({ doc, layer, colour }: {
+  doc: Architecture; layer: string; colour: (gid: string) => string;
+}) {
+  const items = doc.components.filter(c => c.layer === layer);
+
+  const card = (c: Component) => (
+    <div className={`paper-node${c.state ? ` st-${c.state}` : ''}`} key={c.id}
+      data-comp={c.id} style={{ ['--c' as string]: colour(c.group) }}>
+      {c.state && <span className="tick">{stateTick(c.state)}</span>}
+      <div className="nh">
+        <span className="ic"><Icon name={c.icon || 'box'} size={13} /></span>
+        <span className="nm">{c.name}</span>
+        {!!c.marks?.length && (
+          <span className="marks">
+            {c.marks.map(m => <i key={m}><Icon name={MARK_ICON[m]} size={10} /></i>)}
+          </span>
+        )}
+      </div>
+      {!!c.tech?.length && <div className="tech">{c.tech.map(t => <span key={t}>{t}</span>)}</div>}
+    </div>
+  );
+
+  if (!doc.zones.length) return <>{items.map(card)}</>;
+  return (
+    <>
+      {layerRuns(items, doc.zones).map(run => (
+        <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}>
+          {run.items.map(card)}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -352,7 +453,11 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
   const colour = (id: string) => doc.groups.find(g => g.id === id)?.color || '#94A3B8';
   const named = (id: string) => doc.components.find(c => c.id === id)?.name || id;
   const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
-  const detailed = doc.components.filter(c => c.features?.length || c.notes?.length || c.deps?.length);
+  /* A component whose only content is a transition mark or a security mark
+   * still earns a sheet: on paper those are the two readings with no tooltip
+   * and no drawer to fall back on. */
+  const detailed = doc.components.filter(c =>
+    c.features?.length || c.notes?.length || c.deps?.length || c.marks?.length || c.state);
 
   return (
     <>
@@ -408,7 +513,13 @@ function Sheet({ comp, named, colour, T, lang }: {
       <h4>
         <span className="paper-ic"><Icon name={comp.icon || 'box'} size={14} /></span>
         {comp.name}
+        {comp.state && <span className="paper-tick">{stateTick(comp.state)}</span>}
       </h4>
+      {/* Spelled out in words, not left to the glyph: this is the sheet someone
+          quotes in a meeting, and "lock" is not a sentence. */}
+      {!!comp.marks?.length && (
+        <p className="paper-marks">{describeMarks(comp.marks, lang)}</p>
+      )}
       {comp.role && <p {...rich(comp.role)} />}
       {!!comp.features?.length && (
         <ul className="paper-bullets">{comp.features.map((f, i) => <li key={i} {...rich(f)} />)}</ul>

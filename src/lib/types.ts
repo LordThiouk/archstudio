@@ -40,6 +40,18 @@ export interface Ui {
     cluster?: boolean;
     /** Start with the nodes stripped to icon and name. Unset = on past ~24 components. */
     compact?: boolean;
+    /** The protocol the architecture speaks unless a line says otherwise —
+     *  "REST", "HTTPS". Naming it draws the exceptions on their edges and puts
+     *  the convention in words under the diagram. */
+    defaultProtocol?: string;
+    /** Where the Transition toggle starts. Unset = on as soon as the document
+     *  marks anything, so a landscape opens on the delta it was drawn for; the
+     *  reader can still flip to the target state from the toolbar. */
+    transition?: boolean;
+    /** Override what `defaultProtocol` implies: `exceptions` (the default once
+     *  one is named), `all` to label every annotated edge, `off` to keep the
+     *  note and draw no labels. Unset with no default = no labels at all. */
+    protocolLabels?: import('./links').ProtocolLabels;
   };
   flows?: { title?: string; subtitle?: string };
   stack?: { title?: string; subtitle?: string };
@@ -55,6 +67,23 @@ export interface Group {
 }
 
 export interface Layer { id: string; name: string; desc?: string }
+
+/** A boundary that cuts across the layers — a platform, a network zone, an API
+ *  gateway, the perimeter of a migration.
+ *
+ *  Layers are rows and scopes are colours, and neither can say "these six run on
+ *  OpenShift" when three are front ends and three are APIs. A zone can, and it
+ *  nests: `parent` puts a gateway inside an internal network. See
+ *  `src/lib/zones.ts` for how one is drawn and what the nesting costs. */
+export interface Zone {
+  id: string;
+  name: string;
+  kind?: import('./zones').ZoneKind;
+  /** The zone this one sits inside. Unknown ids and cycles are dropped. */
+  parent?: string;
+  /** One line under the label — "All communications are REST calls". */
+  note?: string;
+}
 
 /* How a caller reaches a callee. `sync` is the default reading and is left
  * unset rather than written out, so a document that never says anything about
@@ -75,6 +104,9 @@ export interface Link {
   protocol?: string;
   /** Anything the two fields above cannot say: "read replica", "nightly 02:00". */
   note?: string;
+  /** Where this call sits in the transition. Unset = it already exists.
+   *  See `src/lib/lifecycle.ts` for what each mark commits you to. */
+  state?: import('./lifecycle').Lifecycle;
 }
 
 export interface Component {
@@ -82,8 +114,14 @@ export interface Component {
   name: string;
   group: string;
   layer: string;
+  /** The innermost zone holding this component. Its ancestors are implied. */
+  zone?: string;
   icon?: string;
   badge?: string;
+  /** How this component is reached, and what it holds — a closed set, drawn as
+   *  glyphs on the card with a legend. `badge` stays for the one word that fits
+   *  no category. See `src/lib/marks.ts`. */
+  marks?: import('./marks').SecurityMark[];
   tech?: string[];
   url?: string;
   role?: string;
@@ -93,6 +131,10 @@ export interface Component {
   notes?: string[];
   deps?: string[];
   links?: Link[];
+  /** Where this component sits in the transition — new, changed, or on its way
+   *  out. Unset = it already exists, which is the common case and stays unwritten
+   *  so a document that describes no transition exports exactly as it did. */
+  state?: import('./lifecycle').Lifecycle;
 }
 
 export interface Technology {
@@ -163,6 +205,9 @@ export interface Architecture {
   ui: Ui;
   groups: Group[];
   layers: Layer[];
+  /** Optional throughout: a document with no zones draws exactly as it did
+   *  before the field existed, and normalisation leaves the key at `[]`. */
+  zones: Zone[];
   components: Component[];
   technologies: Technology[];
   flows: Flow[];

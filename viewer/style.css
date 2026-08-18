@@ -137,6 +137,8 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .edgekey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
 .edgekey span{display:inline-flex;align-items:center;gap:7px}
 .edgekey svg{width:34px;height:8px;flex:none;overflow:visible}
+/* The convention in words, in the same rail as the line styles it completes. */
+.edgekey .protonote{opacity:.85}
 
 /* ---------- Filters ---------- */
 .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
@@ -198,12 +200,41 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
   background-size:24px 24px;opacity:.05;
 }
 #edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+/* The protocol on the line. An opaque plate rather than a halo: the curve runs
+   underneath, and a stroked outline on 9 px type turns to mud. Monospace and
+   muted ink — rule 3, this is something the machine knows, not prose. */
+.edgelbl rect{fill:var(--panel);stroke:var(--line-3);stroke-width:1}
+.edgelbl text{
+  font-family:var(--mono);font-size:9px;letter-spacing:.02em;
+  fill:var(--ink-3);text-anchor:middle;
+}
 .layer{position:relative;z-index:2;padding:16px 0 6px;border-bottom:1px dashed var(--line-3)}
 .layer:last-child{border-bottom:0}
 .layer-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .layer-head b{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:capitalize;color:var(--ink-3);font-weight:400}
 .layer-head em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--ink-3);opacity:.8}
 .nodes{display:flex;flex-wrap:wrap;gap:12px}
+/* A zone's cards in one layer. Present only on a document that has zones, and
+   it mirrors its parent exactly so a single run lays out like a bare row. Its
+   job is to be a *box*: the zone rectangle is measured from these, and a real
+   element is what stops a wrapped row from interleaving two zones' cards. */
+.zrun{display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start}
+
+/* --------------------------------------------------------------- zones
+   Measured after layout and drawn into the edge SVG, behind every card. Two
+   treatments and no hue — colour is scope's (rule 1):
+     solid   a boundary you could point at in a room — a platform, a vendor
+     dashed  one that exists in a document — a network zone, a perimeter
+   The ground darkens by a hair per nesting level, which is the only thing
+   saying that one neutral rectangle is inside another. */
+.zone rect{fill:color-mix(in srgb,var(--ink) 3%,transparent);stroke:var(--line-3);stroke-width:1}
+.zone[data-depth="1"] rect{fill:color-mix(in srgb,var(--ink) 6%,transparent)}
+.zone[data-depth="2"] rect{fill:color-mix(in srgb,var(--ink) 9%,transparent)}
+.zone-dashed rect{stroke-dasharray:5 4}
+.zone text{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  fill:var(--ink-3);
+}
 /* A layer split into one column per scope. The rule carries the scope colour
    and the label names it, so the column needs no card around it — rule 1: the
    colour is an index, not a decoration. */
@@ -229,6 +260,26 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .node .ic{width:20px;height:20px;border-radius:0;background:var(--c);display:grid;place-items:center;flex:none}
 .node .ic svg{width:12px;height:12px;stroke:var(--on-fill);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .node .nm{font-size:13px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+/* --------------------------------------------------------- security marks
+   In the header row and pushed to the right edge, so they survive compact mode
+   — a dense sheet is exactly where "which of these is reachable without a
+   login" stops being answerable any other way. Neutral ink, never a hue: the
+   reference diagrams paint the SSO badge red, and colour is scope's (rule 1).
+   The glyph says "something about how this is reached"; the key says what. */
+.marks{margin-left:auto;display:flex;gap:5px;flex:none}
+.marks i{display:grid;place-items:center;width:15px;height:15px;color:var(--ink-2)}
+.marks svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.node.st-removed .marks i{color:var(--ink-3)}
+
+.markkey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.markkey span{display:inline-flex;align-items:center;gap:7px}
+.markkey i{display:grid;place-items:center;width:15px;height:15px;flex:none;color:var(--ink-2)}
+.markkey svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* The mark spelled out in the drawer, where there is room for the word. */
+.markpill{gap:5px}
+.markpill svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
 .node .tech{margin-top:9px;display:flex;flex-wrap:wrap;gap:5px}
 .node .tech span{
   font-family:var(--mono);font-size:10px;padding:3px 7px;border-radius:0;font-weight:400;
@@ -237,6 +288,49 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 }
 .node .url{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .node.dim{opacity:.16}
+
+/* ---------------------------------------------------------- the transition
+   Colour belongs to scope (rule 1) and teal to what you can act on (rule 2),
+   so the three marks take the border and a monospace tick — both of which
+   survive a monochrome print and a reader who cannot separate two hues.
+     new      dashed, because it is not there yet
+     changed  the neutral border pulled up to full ink: look here
+     removed  the name struck and the chip drained of its scope colour
+   `dropped` is the Transition toggle off: the thing is not in the target
+   state, so it leaves the flow instead of sitting there at 16 %. */
+.node.st-new{border-style:dashed;border-color:var(--ink-3)}
+.node.st-changed{border-color:var(--ink)}
+.node.st-removed .nm{text-decoration:line-through}
+.node.st-removed .ic{filter:grayscale(1)}
+.node.st-removed .nm,.node.st-removed .tech span{color:var(--ink-3)}
+.node.dropped{display:none}
+
+.node .tick,.ccard .tick{
+  position:absolute;top:-1px;left:-1px;
+  font-family:var(--mono);font-size:8px;letter-spacing:.1em;line-height:1;
+  padding:2px 4px;background:var(--ink);color:var(--panel);
+}
+.node.st-changed .tick{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.node.st-removed .tick{background:var(--ink-3)}
+
+/* The key. `.tick` again, but in the flow — the legend has no card corner. */
+.statekey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.statekey span{display:inline-flex;align-items:center;gap:7px}
+.statekey .tick{
+  position:static;display:grid;place-items:center;width:14px;height:14px;flex:none;
+  font-family:var(--mono);font-size:10px;font-style:normal;line-height:1;
+  background:var(--ink);color:var(--panel);
+}
+.statekey .tick.st-changed{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.statekey .tick.st-removed{background:var(--ink-3)}
+.statekey .protonote{opacity:.85}
+
+/* The mark spelled out in the drawer. The tick is three letters on a card
+   because a card has no room; the sheet has room, so it says the word. */
+.statepill{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase}
+.statepill.st-new,.statepill.st-changed{box-shadow:inset 0 0 0 1px var(--ink);color:var(--ink)}
+.statepill.st-new{border-style:dashed}
+.statepill.st-removed{color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-2)}
 /* Selection and hit are teal, because they are the reader acting — rule 2.
    The 1 px of padding given back keeps the row from shifting. */
 .node.hit{border:2px solid var(--ink);padding:11px 12px}

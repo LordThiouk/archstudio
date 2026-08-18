@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, deleteComponent, slugify } from '@/lib/defaults';
 import { displayLayerLabel } from '@/lib/layers';
-import { LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkOf, shortLink } from '@/lib/links';
+import {
+  LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkIsEmpty, linkOf, shortLink
+} from '@/lib/links';
+import { LIFECYCLES, STATE_BLURBS, STATE_LABELS } from '@/lib/lifecycle';
+import { MARK_BLURBS, MARK_ICON, MARK_LABELS, SECURITY_MARKS } from '@/lib/marks';
+import { describeZone } from '@/lib/zones';
 import type { Architecture, Component, Link, LinkKind } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
@@ -67,6 +72,22 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         </label>
       </div>
 
+      {/* Only offered once a zone exists — the picker is created in the palette
+          rail, next to the layers and the scopes. Unzoned is a real answer and
+          stays the first option, not a placeholder. The innermost zone is the
+          one to name: its ancestors are implied by the nesting. */}
+      {!!doc.zones.length && (
+        <label className="field"><span>Zone</span>
+          <select className="select" value={comp.zone || ''}
+            onChange={e => set(c => { c.zone = e.target.value || undefined; })}>
+            <option value="">no zone</option>
+            {doc.zones.map(z => (
+              <option key={z.id} value={z.id}>{describeZone(z)}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="field">
         <span>Icon</span>
         <button className="btn sm" onClick={() => setShowIcons(s => !s)} style={{ width: '100%', justifyContent: 'flex-start' }}>
@@ -93,6 +114,54 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
           <input className="input" value={comp.url || ''} placeholder="api.example.com"
             onChange={e => set(c => { c.url = e.target.value || undefined; })} />
         </label>
+      </div>
+
+      {/* A closed set, so the diagram can carry a key and a reader can search
+          for "no authentication". Multi-select: SSO in front of a service that
+          also holds personal data is two facts, not a choice between them. */}
+      <div className="field">
+        <span>Security</span>
+        <div className="radio-row">
+          {SECURITY_MARKS.map(m => {
+            const on = (comp.marks || []).includes(m);
+            return (
+              <button key={m} className={`radio${on ? ' on' : ''}`} title={MARK_BLURBS[m]}
+                onClick={() => set(c => {
+                  /* Rebuilt from the canonical order rather than pushed onto the
+                   * end, so the glyphs on a card never depend on the order the
+                   * author happened to click them in. */
+                  const next = new Set(c.marks || []);
+                  if (on) next.delete(m); else next.add(m);
+                  c.marks = SECURITY_MARKS.filter(x => next.has(x));
+                  if (!c.marks.length) c.marks = undefined;
+                })}>
+                <Icon name={MARK_ICON[m]} size={12} /> {MARK_LABELS[m].en}
+              </button>
+            );
+          })}
+        </div>
+        <div className="hint">
+          {(comp.marks || []).map(m => MARK_BLURBS[m]).join(' ')
+            || 'Unset says nothing about how this component is reached.'}
+        </div>
+      </div>
+
+      {/* The transition mark. Unset is the common case and stays unwritten, so a
+          document that describes no transition keeps exporting as it did. */}
+      <div className="field">
+        <span>In the transition</span>
+        <div className="radio-row">
+          {LIFECYCLES.map(s => (
+            <button key={s} className={`radio${comp.state === s ? ' on' : ''}`}
+              title={STATE_BLURBS[s]}
+              onClick={() => set(c => { c.state = c.state === s ? undefined : s; })}>
+              <i /> {STATE_LABELS[s].en}
+            </button>
+          ))}
+        </div>
+        <div className="hint">
+          {comp.state ? STATE_BLURBS[comp.state] : 'Unset means this component already exists.'}
+        </div>
       </div>
 
       <div className="field">
@@ -204,7 +273,7 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
     const links = [...(c.links || [])];
     const i = links.findIndex(l => l.to === target.id);
     const next: Link = { ...(i >= 0 ? links[i] : { to: target.id }), ...patch };
-    if (!next.kind && !next.protocol?.trim() && !next.note?.trim()) {
+    if (linkIsEmpty(next)) {
       c.links = links.filter(l => l.to !== target.id);
     } else if (i >= 0) { links[i] = next; c.links = links; }
     else c.links = [...links, next];
@@ -254,10 +323,30 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
               onChange={e => edit({ protocol: e.target.value })} />
           </label>
 
-          <label className="field" style={{ marginBottom: 0 }}><span>Note</span>
+          <label className="field"><span>Note</span>
             <input className="input" value={link?.note || ''} placeholder="Read replica, at-least-once, nightly 02:00…"
               onChange={e => edit({ note: e.target.value })} />
           </label>
+
+          {/* Where this call sits in the transition. Marked on the edge rather
+              than inferred from its endpoints, because the two are different
+              statements: rewiring an existing component to a new one adds a
+              call between two things that both already exist. */}
+          <div className="field" style={{ marginBottom: 0 }}>
+            <span>In the transition</span>
+            <div className="radio-row">
+              {LIFECYCLES.map(s => (
+                <button key={s} className={`radio${link?.state === s ? ' on' : ''}`}
+                  title={STATE_BLURBS[s]}
+                  onClick={() => edit({ state: link?.state === s ? undefined : s })}>
+                  <i /> {STATE_LABELS[s].en}
+                </button>
+              ))}
+            </div>
+            <div className="hint">
+              {link?.state ? STATE_BLURBS[link.state] : 'Unset means this call already exists.'}
+            </div>
+          </div>
         </div>
       )}
     </div>

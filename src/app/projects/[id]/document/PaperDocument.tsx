@@ -29,8 +29,8 @@ import {
 } from '@/lib/lifecycle';
 import { describeMarks, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
-  describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
-  zonesInUse, type Box
+  bandPlan, describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
+  zonesInUse, type BandPlan, type Box
 } from '@/lib/zones';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
@@ -265,6 +265,14 @@ function PaperDiagram({ doc, lang }: { doc: Architecture; lang: 'en' | 'fr' }) {
     [doc.groups]
   );
 
+  /* One plan for the sheet, not one per layer: a band is the same range of
+   * columns on every row, which is the whole reason a zone's rectangle can only
+   * hold what belongs to it. */
+  const plan = useMemo(
+    () => (doc.zones.length ? bandPlan(doc.components, doc.zones, doc.layers) : null),
+    [doc.zones, doc.components, doc.layers]
+  );
+
   /* Coordinates come from `offsetLeft/offsetTop`, not `getBoundingClientRect`:
    * the stage is scaled by a transform, and only the offset family is immune
    * to it. `.paper-stage` is the offset parent, so these are stage-local. */
@@ -397,8 +405,9 @@ function PaperDiagram({ doc, lang }: { doc: Architecture; lang: 'en' | 'fr' }) {
             <div className="paper-layer-head">
               <b>{displayLayerLabel(layer.name)}</b>{layer.desc && <em>{layer.desc}</em>}
             </div>
-            <div className="paper-layer-row">
-              <LayerCards doc={doc} layer={layer.id} colour={colour} />
+            <div className={`paper-layer-row${plan ? ' banded' : ''}`}
+              style={plan ? { ['--cols' as string]: plan.total } : undefined}>
+              <LayerCards doc={doc} layer={layer.id} colour={colour} plan={plan} />
             </div>
           </div>
         ))}
@@ -412,8 +421,8 @@ function PaperDiagram({ doc, lang }: { doc: Architecture; lang: 'en' | 'fr' }) {
  * does not hold. The wrapper appears only on a document that has zones: not
  * adding the element is how "a row of cards lays out like a row of one run of
  * cards" stops being a thing anyone has to verify. */
-function LayerCards({ doc, layer, colour }: {
-  doc: Architecture; layer: string; colour: (gid: string) => string;
+function LayerCards({ doc, layer, colour, plan }: {
+  doc: Architecture; layer: string; colour: (gid: string) => string; plan: BandPlan | null;
 }) {
   const items = doc.components.filter(c => c.layer === layer);
 
@@ -434,14 +443,18 @@ function LayerCards({ doc, layer, colour }: {
     </div>
   );
 
-  if (!doc.zones.length) return <>{items.map(card)}</>;
+  if (!plan) return <>{items.map(card)}</>;
   return (
     <>
-      {layerRuns(items, doc.zones).map(run => (
-        <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}>
-          {run.items.map(card)}
-        </div>
-      ))}
+      {layerRuns(items, doc.zones).map(run => {
+        const band = plan.band(run.zone);
+        return (
+          <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}
+            style={band ? { gridColumn: `${band.start} / span ${band.span}` } : undefined}>
+            {run.items.map(card)}
+          </div>
+        );
+      })}
     </>
   );
 }

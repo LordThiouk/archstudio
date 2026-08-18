@@ -359,10 +359,39 @@ which is the only thing saying that one neutral rectangle is inside another.
 **A zone is measured, not laid out.** The sheet is HTML flow — that is what makes it reflow when
 you zoom out — so a region spanning two rows cannot be a box in the DOM: it would have to
 contain the rows. The rectangles are computed after layout in the same pass as the edges, from
-*runs*: one element per zone per layer, so a zone's cards stay contiguous even when the row
-wraps and the rectangle cannot enclose a card it does not hold. The run wrapper appears only on
-a document that has zones — not adding the element is how "a row of cards lays out like a row
-of one run of cards" stops being something anyone has to verify.
+*runs*: one element per zone per layer.
+
+**And measuring alone is not enough** — this is the part that took a second pass to get right.
+A rectangle around a zone's members on two rows is tall enough to hold both, so an unrelated
+card on the row between them falls inside it, and the drawing makes a claim the document never
+made. Ordering the cards, padding the box, tightening the union: all of them leave it
+accidentally right rather than right.
+
+So the space is **reserved**. Each bucket — the unzoned cards, then each zone — owns a *band* of
+columns that is identical on every layer, and a card is placed in its own bucket's band and
+nowhere else. A zone's rectangle can then only contain what was placed in its band, by
+construction rather than by luck:
+
+```
+band 1          band 2 (OpenShift)
+                ┌─ OPENSHIFT ────────┐
+Client Channels │ [Next.js]          │
+  [Flutter]     │                    │
+Services & APIs │                    │
+  [Anthropic]   │                    │
+Data & Storage  │ [Amazon Aurora]    │
+                └────────────────────┘
+```
+
+The plan is arithmetic, not measured: a card has a fixed width, so a band's width is a column
+count, and a column count is something you can count. That is what keeps it out of the measure
+pass and lets the printed sheet agree with the screen without a second layout. A band is as wide
+as its bucket's busiest layer, capped at `BAND_MAX` (six, the same number the density threshold
+uses); a bucket needing more wraps inside its own band rather than pushing every other band off
+the page. Nested zones get contiguous bands in tree order, so a parent is one range of columns
+and not two with a hole in the middle. The horizontal insets form a ladder — 7, 13, 19 px — that
+fits inside the 24 px gutter between two bands, because anything wider would draw over the
+neighbour's card and reintroduce exactly the false claim the bands exist to prevent.
 
 **Two things to know before you reach for them.**
 
@@ -372,11 +401,10 @@ cards one way while drawing the rectangles around the other. Zones win, because 
 and a scope is already carried twice — by the colour on every chip and by the filter chips above
 the sheet. `cluster: true` on a zoned document is ignored.
 
-*A cross-layer rectangle is still a rectangle.* A zone whose runs sit at different x on
-different layers gets a box wide enough to hold both, and an unrelated card on an intermediate
-row can fall inside it. Runs are emitted in zone-declaration order on every layer, which makes
-that rare rather than impossible. The reference diagrams draw a rectangle too; this is the cost
-of the reading, not a bug to be fixed by a better union.
+*A zoned sheet is wider.* A band stays reserved on the layers where its zone has nothing, which
+is the whole reason nothing foreign can wander into it — and the reason the drawing grows a
+column per zone whether or not every row uses it. That is the visible, honest price of a
+boundary that means what it draws.
 
 The **EXTERNAL / INTERNAL** divide those diagrams draw as a full-height vertical line does not
 transpose. This layout is horizontal bands; a vertical axis wants columns. Modelled as a zone it

@@ -410,9 +410,15 @@ const zoneSubtreeHeight = id => ZONES.reduce((deepest, z) => {
   const path = zoneAncestry(z.id), at = path.indexOf(id);
   return at < 0 ? deepest : Math.max(deepest, path.length - 1 - at);
 }, 0);
-/** An outer rule is inset further than its children's, by enough that the two
- *  never sit on top of each other — the only thing making nesting readable. */
-const zonePad = id => 13 + 9 * zoneSubtreeHeight(id);
+/** An outer rule is inset further than its children's on both axes, because two
+ *  rules on top of each other is what makes nesting unreadable. Asymmetric: the
+ *  horizontal ladder (7, 13, 19) has to fit inside the 24 px gutter between two
+ *  bands, or a rule reaches into the neighbouring one; the vertical inset has no
+ *  such ceiling and also has to clear the label on the box's own top edge. */
+const zonePad = id => {
+  const h = zoneSubtreeHeight(id);
+  return { x: 7 + 6 * h, y: 14 + 9 * h };
+};
 
 const zoneLabel = z => {
   const words = ZONE_KIND_LABELS[DATA.lang] || ZONE_KIND_LABELS.en;
@@ -428,9 +434,69 @@ const ZONES_IN_USE = (() => {
     .sort((a, b) => zoneAncestry(a.id).length - zoneAncestry(b.id).length);
 })();
 
+/* The bands.
+ *
+ * Measuring a rectangle around a zone's members is not enough: on two rows the
+ * box is tall enough to hold both, and an unrelated card on the row between them
+ * falls inside it — a claim the document never made. So the space is *reserved*.
+ * Each bucket — the unzoned cards, then each zone — owns a range of columns that
+ * is identical on every layer, and a card is placed in its own bucket's range and
+ * nowhere else. The rectangle can then only hold what belongs to it.
+ *
+ * Arithmetic, not measured: a card has a fixed width, so a band's width is a
+ * column count. The cost is that a band is reserved on layers where its zone has
+ * nothing, which makes a zoned sheet wider than the same sheet unzoned.
+ *
+ * MIRROR of bandPlan in src/lib/zones.ts. */
+const BAND_MAX = 6;
+
+/** Zones in tree order, so a subtree's bands are contiguous and a parent's box
+ *  is one range of columns rather than two with a hole in the middle. */
+const ZONES_TREE_ORDER = (() => {
+  const key = id => zoneAncestry(id)
+    .map(x => String(ZONE_ORDER[x] ?? 999).padStart(3, '0')).join('.');
+  return ZONES.map(z => z.id).sort((a, b) => key(a).localeCompare(key(b)));
+})();
+
+/* A zone with no *direct* member gets no band: its rectangle is the union of its
+ * descendants', and a band nothing can be placed in would only widen the sheet. */
+const BAND_PLAN = (() => {
+  if (!ZONES.length) return null;
+  const bucketOf = c => (c.zone && ZONE_BY[c.zone] ? c.zone : '');
+  const buckets = new Set(DATA.components.map(bucketOf));
+  if (!buckets.size) return null;
+
+  const widest = {};
+  const rows = DATA.layers.length ? DATA.layers.map(l => l.id) : [null];
+  rows.forEach(layer => {
+    const here = layer == null ? DATA.components : DATA.components.filter(c => c.layer === layer);
+    buckets.forEach(b => {
+      const n = here.filter(c => bucketOf(c) === b).length;
+      widest[b] = Math.max(widest[b] || 0, n);
+    });
+  });
+
+  const ordered = [...(buckets.has('') ? [''] : []), ...ZONES_TREE_ORDER.filter(id => buckets.has(id))];
+  const byBucket = {};
+  let at = 1;
+  ordered.forEach(b => {
+    const span = Math.min(BAND_MAX, Math.max(1, widest[b] || 0));
+    byBucket[b] = { start: at, span };
+    at += span;
+  });
+  return { byBucket, total: at - 1 };
+})();
+
+/** `grid-column` for a run, or '' when the sheet reserves no bands. */
+const bandStyle = zone => {
+  if (!BAND_PLAN) return '';
+  const b = BAND_PLAN.byBucket[zone || ''];
+  return b ? ` style="grid-column:${b.start} / span ${b.span}"` : '';
+};
+
 /** One run per zone within a layer, unzoned first, then zones in declaration
- *  order — the same order on every layer, which is what keeps a zone's runs
- *  roughly aligned and its rectangle tight. */
+ *  order — the same order on every layer, so a bucket's cards always land in
+ *  that bucket's band. */
 function layerRuns(components) {
   const runs = new Map();
   components.forEach(c => {
@@ -703,10 +769,10 @@ function layerHTML(l) {
      * that has zones: a row of cards and a row of one-run-of-cards lay out the
      * same in theory, and not adding the element is how that stops being a thing
      * to verify. */
-    : ZONES.length
-      ? `<div class="nodes">${layerRuns(nodes).map(run =>
-          `<div class="zrun"${run.zone ? ` data-zone="${esc(run.zone)}"` : ''}>${
-            run.items.map(nodeHTML).join('')}</div>`).join('')}</div>`
+    : BAND_PLAN
+      ? `<div class="nodes banded" style="--cols:${BAND_PLAN.total}">${layerRuns(nodes).map(run =>
+          `<div class="zrun"${run.zone ? ` data-zone="${esc(run.zone)}"` : ''}${
+            bandStyle(run.zone)}>${run.items.map(nodeHTML).join('')}</div>`).join('')}</div>`
       : `<div class="nodes">${nodes.map(nodeHTML).join('')}</div>`;
 
   return `<div class="layer" data-layer="${esc(l.id)}">${head}${body}</div>`;
@@ -1180,10 +1246,10 @@ function zoneLayerSvg(cv, box, sc) {
     if (x1 === Infinity) return '';
     const pad = zonePad(zone.id);
     const cls = ZONE_PHYSICAL.includes(zone.kind) ? 'zone-solid' : 'zone-dashed';
-    const bx = x1 - pad, by = y1 - pad;
+    const bx = x1 - pad.x, by = y1 - pad.y;
     return `<g class="zone ${cls}" data-zone="${esc(zone.id)}" data-depth="${zoneDepth(zone.id)}">`
       + `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" `
-      + `width="${((x2 - x1) + pad * 2).toFixed(1)}" height="${((y2 - y1) + pad * 2).toFixed(1)}"></rect>`
+      + `width="${((x2 - x1) + pad.x * 2).toFixed(1)}" height="${((y2 - y1) + pad.y * 2).toFixed(1)}"></rect>`
       + `<text x="${(bx + 9).toFixed(1)}" y="${(by + 11).toFixed(1)}">${esc(zoneLabel(zone))}</text>`
       + `</g>`;
   }).join('');

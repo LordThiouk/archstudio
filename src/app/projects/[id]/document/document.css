@@ -291,6 +291,21 @@ a.paper-btn { border-bottom-width: 1px; }
    edges use rather than through a second mechanism. */
 .zrun { display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; position: static; }
 
+/* The reserved bands, on a 1000 px stage. Arithmetic rather than measured is what
+   makes this work on paper at all: the print layout is not the screen layout, and
+   a band computed from a column count is the same band in both. */
+.paper-stage { --card-w: 212px; }
+/* 24 px between bands: every horizontal zone inset has to fit inside that gutter
+   (the ladder is 7/13/19) or a rule reaches into the next band's card.
+   MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+.paper-layer-row.banded {
+  display: grid; grid-template-columns: repeat(var(--cols), var(--card-w));
+  row-gap: 12px; column-gap: 24px; align-items: start; justify-content: start;
+}
+/* A run fills its band rather than shrinking to its cards, so the measured
+   rectangle is band-shaped on every layer. */
+.paper-layer-row.banded .zrun { min-width: 0; justify-self: stretch; }
+
 /* ------------------------------------------------------------------- zones
    The screen's two treatments transposed, and the reason they are treatments and
    not colours: this rectangle has to survive being printed. Solid is a boundary

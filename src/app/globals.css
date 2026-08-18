@@ -377,6 +377,24 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
    is what stops a wrapped row from interleaving two zones' cards. */
 .zrun { display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
 
+/* The reserved bands. A card has a fixed width, so a band is a column count and
+   the plan is arithmetic rather than measured — which is what lets all three
+   renderers agree without a second layout pass. The band stays reserved on
+   layers where its zone has nothing: that is why a zoned sheet is wider, and it
+   is the price of a rectangle that can only contain what was placed in it. */
+.canvas { --card-w: 206px; }
+/* 24 px between bands, not 10: every horizontal zone inset has to fit inside that
+   gutter (the ladder is 7/13/19) or a rule reaches into the next band's card.
+   MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+.layer-drop.banded {
+  display: grid; grid-template-columns: repeat(var(--cols), var(--card-w));
+  row-gap: 10px; column-gap: 24px; align-items: start; justify-content: start;
+}
+/* A run fills its band rather than shrinking to its cards, so the measured
+   rectangle is band-shaped on every layer instead of jumping in and out with the
+   card count. */
+.layer-drop.banded .zrun { min-width: 0; justify-self: stretch; }
+
 /* ------------------------------------------------------------------- zones
    Measured after layout and drawn into the edge SVG, behind every card. Two
    treatments and no hue — colour is scope's (rule 1):

@@ -13,16 +13,23 @@
  * layout from the rects of what they hold, in the same pass that computes the
  * edges, and drawn into the same SVG behind the cards.
  *
- * What keeps a measured box from swallowing things it does not hold is the
- * ordering: inside each layer the components are emitted in *runs*, one per
- * zone, so a zone's members in a row are always contiguous and never interleaved
- * with a foreign card — even when the row wraps. The box then unions the runs.
+ * Measuring alone is not enough, and this is the part that took a second pass to
+ * get right. A rectangle around a zone's members on two rows is tall enough to
+ * hold both, and an unrelated card on the row between them falls inside it —
+ * which reads as a claim the document never made. Ordering the cards, padding
+ * the box or tightening the union all leave it accidentally right rather than
+ * right.
  *
- * The honest limit: a zone whose runs sit at different x on different layers
- * gets a rectangle wide enough to hold both, and an unrelated card on an
- * intermediate row can fall inside it. Runs are emitted in zone-declaration
- * order on every layer, which makes that rare, not impossible. A rectangle is
- * what the reference diagrams draw too; this is the cost of the reading.
+ * So the space is *reserved*. Each bucket — the unzoned cards, then each zone —
+ * owns a band of columns that is identical on every layer, and a card is placed
+ * in its own bucket's band and nowhere else. A zone's rectangle can then only
+ * contain what was placed in its band. See `bandPlan` below: it is arithmetic
+ * rather than measured, because a card has a fixed width and a band's width is
+ * therefore a column count.
+ *
+ * A band is reserved on layers where its zone has nothing, so a zoned sheet is
+ * wider than the same sheet unzoned. That is the visible, honest price of a
+ * boundary that means what it draws.
  *
  * ------------------------------------------------------------------- drawing
  *
@@ -37,7 +44,7 @@
  * Five dash patterns would be five things to look up; two plus a name is one.
  */
 
-import type { Component, Zone } from './types';
+import type { Component, Layer, Zone } from './types';
 
 export type ZoneKind = 'platform' | 'network' | 'gateway' | 'perimeter' | 'vendor';
 
@@ -116,13 +123,26 @@ export function subtreeHeight(zoneId: string, zones: Zone[]): number {
   return deepest;
 }
 
+/** Gutter between two bands, in sheet pixels — `column-gap` on a banded grid in
+ *  all three stylesheets. Every horizontal inset below has to fit inside it, or
+ *  a zone's rule grazes the card in the neighbouring band. */
+export const BAND_GUTTER = 24;
+
 /** The inset between a zone's rule and what it holds, in sheet pixels.
  *
- *  An outer zone is padded further out than its children, by enough that the
- *  two rules never sit on top of each other — which is the only thing making
- *  nesting readable once both boxes are the same neutral ink. */
-export const zonePad = (zoneId: string, zones: Zone[]): number =>
-  13 + 9 * subtreeHeight(zoneId, zones);
+ *  Asymmetric, and for two different reasons. An outer zone is padded further
+ *  out than its children on both axes, because two rules sitting on top of each
+ *  other is the one thing that makes nesting unreadable once both boxes are the
+ *  same neutral ink. But horizontally the whole ladder also has to fit inside
+ *  `BAND_GUTTER`, since anything wider reaches into the next band; vertically
+ *  there is no such ceiling, and the top inset additionally has to clear the
+ *  label sitting on the box's own top edge.
+ *
+ *  Three levels is what the horizontal ladder holds: 7, 13, 19, all inside 24. */
+export const zonePad = (zoneId: string, zones: Zone[]): { x: number; y: number } => {
+  const height = subtreeHeight(zoneId, zones);
+  return { x: 7 + 6 * height, y: 14 + 9 * height };
+};
 
 /* ------------------------------------------------------------- ordering */
 
@@ -167,6 +187,98 @@ export function layerRuns(components: Component[], zones: Zone[]): ZoneRun[] {
   return keys.map(k => ({ zone: k || undefined, items: runs.get(k)! }));
 }
 
+/* ------------------------------------------------------------- the bands
+ *
+ * A measured rectangle around a zone's members is not enough. A zone spanning
+ * two rows gets a box tall enough to hold both, and an unrelated card on an
+ * intermediate row falls inside it — which reads as a claim the document never
+ * made. Padding, ordering and a tighter union do not fix that: the box is
+ * accidentally right or accidentally wrong depending on where the cards land.
+ *
+ * What fixes it is reserving the space. Each bucket — the unzoned cards, then
+ * each zone — gets a *band* of columns that is the same on every layer, so a
+ * zone's rectangle can only ever contain the cards placed in its band. Nothing
+ * foreign can be inside it, by construction rather than by luck.
+ *
+ * The plan is arithmetic, not measured: a card has a fixed width, so a band's
+ * width is a column count, and a column count is something you can count. That
+ * is what keeps this out of the measure pass and lets the print renderer agree
+ * with the screen without a second layout.
+ *
+ * The cost is honest and visible: a band is reserved on layers where the zone
+ * has nothing, so a zoned sheet is wider than the same sheet unzoned. That is
+ * the price of a boundary that means what it draws.
+ */
+
+/** Six, the same number the density threshold uses: about what a 1440 px sheet
+ *  holds on one row. A bucket needing more wraps inside its band rather than
+ *  pushing every other band off the page. */
+export const BAND_MAX = 6;
+
+export interface Band {
+  zone?: string;
+  /** 1-based, for `grid-column`. */
+  start: number;
+  span: number;
+}
+
+export interface BandPlan {
+  bands: Band[];
+  /** Total columns the sheet reserves — `grid-template-columns` repeats this. */
+  total: number;
+  band: (zone?: string) => Band | undefined;
+}
+
+/** Zones in tree order, so a subtree's bands are contiguous and a parent's
+ *  rectangle is one range of columns rather than two with a hole. */
+export function zonesInTreeOrder(zones: Zone[]): Zone[] {
+  const by = zoneIndex(zones);
+  const order = new Map(zones.map((z, i) => [z.id, i]));
+  const key = (z: Zone) => ancestry(z.id, by)
+    .map(id => String(order.get(id) ?? 999).padStart(3, '0')).join('.');
+  return [...zones].sort((a, b) => key(a).localeCompare(key(b)));
+}
+
+/** The column plan for a document: one band per bucket that holds a card
+ *  somewhere, unzoned first, then the zones in tree order.
+ *
+ *  A zone with no *direct* members gets no band — its rectangle is the union of
+ *  its descendants', which the measure pass already computes. Giving it one
+ *  would reserve a column nothing can ever be placed in. */
+export function bandPlan(components: Component[], zones: Zone[], layers: Layer[]): BandPlan {
+  const by = zoneIndex(zones);
+  const bucketOf = (c: Component) => (c.zone && by.has(c.zone) ? c.zone : undefined);
+
+  /* Widest run wins: a band has to hold the layer where the bucket is busiest,
+   * or that layer wraps inside a band sized for a quieter one. */
+  const widest = new Map<string | undefined, number>();
+  const buckets = new Set<string | undefined>();
+  components.forEach(c => buckets.add(bucketOf(c)));
+  (layers.length ? layers : [{ id: '', name: '' }]).forEach(layer => {
+    const here = layers.length ? components.filter(c => c.layer === layer.id) : components;
+    buckets.forEach(b => {
+      const n = here.filter(c => bucketOf(c) === b).length;
+      widest.set(b, Math.max(widest.get(b) ?? 0, n));
+    });
+  });
+
+  const ordered: (string | undefined)[] = [
+    ...(buckets.has(undefined) ? [undefined] : []),
+    ...zonesInTreeOrder(zones).map(z => z.id).filter(id => buckets.has(id))
+  ];
+
+  const bands: Band[] = [];
+  let at = 1;
+  ordered.forEach(zone => {
+    const span = Math.min(BAND_MAX, Math.max(1, widest.get(zone) ?? 0));
+    bands.push({ zone, start: at, span });
+    at += span;
+  });
+
+  const index = new Map(bands.map(b => [b.zone, b]));
+  return { bands, total: at - 1, band: zone => index.get(zone) };
+}
+
 /* --------------------------------------------------------------- in use */
 
 /** Zones holding at least one component, directly or through a descendant.
@@ -201,14 +313,17 @@ export interface Box { x: number; y: number; w: number; h: number }
  *  in the export and on paper. Each surface measures its own runs — through
  *  `getBoundingClientRect` on the canvas, through `offsetLeft/offsetTop` on the
  *  scaled print stage — and hands the results here. */
-export function inflatedUnion(boxes: Box[], pad: number): Box | null {
+export function inflatedUnion(boxes: Box[], pad: { x: number; y: number }): Box | null {
   if (!boxes.length) return null;
   let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
   for (const b of boxes) {
     x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y);
     x2 = Math.max(x2, b.x + b.w); y2 = Math.max(y2, b.y + b.h);
   }
-  return { x: x1 - pad, y: y1 - pad, w: (x2 - x1) + pad * 2, h: (y2 - y1) + pad * 2 };
+  return {
+    x: x1 - pad.x, y: y1 - pad.y,
+    w: (x2 - x1) + pad.x * 2, h: (y2 - y1) + pad.y * 2
+  };
 }
 
 /** A zone's rectangle as SVG. Geometry only — fill, stroke and dash live in the

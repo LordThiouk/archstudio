@@ -220,6 +220,27 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
    element is what stops a wrapped row from interleaving two zones' cards. */
 .zrun{display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start}
 
+/* The reserved bands. A card has a fixed width, so a band is a column count and
+   the whole plan is arithmetic — no measuring, which is what lets the export and
+   the printed sheet agree with the screen without a second layout pass.
+   The band is reserved on layers where its zone has nothing: that is why a zoned
+   sheet is wider than the same sheet unzoned, and it is the price of a boundary
+   that can only ever contain what was placed in it. */
+.canvas{--card-w:212px}
+.canvas.compact{--card-w:156px}
+/* 24 px between bands, not 12: every horizontal zone inset has to fit inside
+   that gutter (the ladder is 7/13/19) or a rule reaches into the next band's
+   card. Cards *within* a band stay 12 px apart — that is the run's own flex gap,
+   which the grid's track gaps do not touch. MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+.nodes.banded{
+  display:grid;grid-template-columns:repeat(var(--cols),var(--card-w));
+  row-gap:12px;column-gap:24px;align-items:start;justify-content:start;
+}
+/* A run fills its band rather than shrinking to its cards, so the rectangle
+   measured from it is band-shaped on every layer instead of jumping in and out
+   with the card count. `min-width:0` keeps a long name from widening the track. */
+.nodes.banded .zrun{min-width:0;justify-self:stretch}
+
 /* --------------------------------------------------------------- zones
    Measured after layout and drawn into the edge SVG, behind every card. Two
    treatments and no hue — colour is scope's (rule 1):

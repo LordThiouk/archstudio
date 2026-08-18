@@ -28,8 +28,9 @@ import {
 } from '@/lib/lifecycle';
 import { MARK_BLURBS, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
-  describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
-  zonesInUse, ZONE_KINDS, ZONE_KIND_BLURBS, ZONE_KIND_LABELS, type Box, type ZoneKind
+  bandPlan, describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
+  zonesInUse, ZONE_KINDS, ZONE_KIND_BLURBS, ZONE_KIND_LABELS,
+  type BandPlan, type Box, type ZoneKind
 } from '@/lib/zones';
 import { protocolLabel, suggestedLinkForBrick } from '@/lib/lego/protocols';
 import type { Architecture, Component, ProjectWithData } from '@/lib/types';
@@ -550,6 +551,14 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
   const ref = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState<string>('');
 
+  /* Computed once for the sheet, not once per layer: a band is the same range of
+   * columns on every row, which is the whole reason a zone's rectangle can only
+   * hold what belongs to it. */
+  const plan = useMemo(
+    () => (doc.zones.length ? bandPlan(doc.components, doc.zones, doc.layers) : null),
+    [doc.zones, doc.components, doc.layers]
+  );
+
   const draw = useCallback(() => {
     const host = ref.current;
     if (!host) return;
@@ -626,18 +635,19 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
       {doc.layers.map(layer => (
         <LayerRow key={layer.id} layer={layer} doc={doc} patch={patch}
           selected={selected} setSelected={setSelected} hoverTarget={hoverTarget}
-          onStartLink={onStartLink} groupColor={groupColor} />
+          onStartLink={onStartLink} groupColor={groupColor} plan={plan} />
       ))}
     </div>
   );
 }
 
-function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onStartLink, groupColor }: {
+function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onStartLink, groupColor, plan }: {
   layer: { id: string; name: string; desc?: string };
   doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
   selected: string | null; setSelected: (id: string | null) => void; hoverTarget: string | null;
   onStartLink: (id: string, x: number, y: number) => void;
   groupColor: (id: string) => { light: string; dark: string };
+  plan: BandPlan | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `layer:${layer.id}` });
   const items = doc.components.filter(c => c.layer === layer.id);
@@ -680,7 +690,9 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
             }}><Icon name="trash" size={13} /></button>
         </span>
       </div>
-      <div ref={setNodeRef} className={`layer-drop${items.length ? '' : ' empty-hint'}`}>
+      <div ref={setNodeRef}
+        className={`layer-drop${items.length ? '' : ' empty-hint'}${plan ? ' banded' : ''}`}
+        style={plan ? { ['--cols' as string]: plan.total } : undefined}>
         {items.length === 0 && 'Drop a component here'}
         {/* One run per zone, so a zone's cards stay contiguous even when the row
             wraps — that contiguity is what keeps the measured rectangle from
@@ -688,12 +700,18 @@ function LayerRow({ layer, doc, patch, selected, setSelected, hoverTarget, onSta
             The wrapper appears only on a document that has zones. A row of cards
             and a row of one-run-of-cards lay out the same in theory; not adding
             the element at all is how that stops being a thing to verify. */}
-        {doc.zones.length
-          ? layerRuns(items, doc.zones).map(run => (
-              <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}>
-                {run.items.map(card)}
-              </div>
-            ))
+        {plan
+          ? layerRuns(items, doc.zones).map(run => {
+              const band = plan.band(run.zone);
+              return (
+                <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}
+                  style={band
+                    ? { gridColumn: `${band.start} / span ${band.span}` }
+                    : undefined}>
+                  {run.items.map(card)}
+                </div>
+              );
+            })
           : items.map(card)}
       </div>
     </div>

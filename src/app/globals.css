@@ -422,6 +422,17 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .chip.pole[aria-pressed="true"] {
   background: color-mix(in srgb, var(--c) 16%, transparent); border-color: var(--ink-3); color: var(--ink);
 }
+/* The second filter dimension — where things run. Monospace and swatchless, so
+   it cannot be mistaken for a scope on the same bar: colour is scope's (rule 1)
+   and a platform name is something the machine knows (rule 3). Pressed, it takes
+   the plain ink fill, because there is no hue of its own to fill with. */
+.chip.mono { font-family: var(--mono); font-size: 11px; font-weight: 400; }
+/* A hairline, not a gap: the two dimensions belong to one bar and read as one
+   row of controls, but the eye needs to know where the scopes stop. */
+.chipsplit {
+  width: 1px; align-self: stretch; margin: 0 3px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
 .zoombar {
   display: flex; align-items: center; background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
@@ -735,6 +746,18 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   font-family: var(--mono); font-size: 10px; padding: 3px 7px; border-radius: 0; font-weight: 400;
   background: color-mix(in srgb, var(--c) 14%, transparent);
   color: color-mix(in srgb, var(--c) 70%, var(--ink));
+}
+/* ------------------------------------------------------------ deployed on
+   Where a component runs, leading the same row as what it is built with. The
+   exact negative of a technology pill — outlined and neutral where those are
+   filled and tinted — because it is a different kind of fact and the row has no
+   room for a second line: the exported card is a fixed 64 px.
+
+   Neutral and not a hue on purpose: colour is scope's (rule 1). The treatment
+   is the whole distinction, which is also why it survives a monochrome print. */
+.ccard .tech .place {
+  background: transparent; border: 1px solid var(--line-3); color: var(--ink-2);
+  padding: 2px 6px;
 }
 .ccard .badge {
   position: absolute; top: -1px; right: -1px; font-family: var(--mono); font-size: 9px; font-weight: 700;

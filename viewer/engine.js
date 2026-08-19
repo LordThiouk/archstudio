@@ -55,7 +55,8 @@ const PALETTE_DARK  = ['#14BBC2', '#67AAED', '#A497EA', '#D686BC', '#69BA7C'];
 const LABELS = {
   en: {
     searchPlaceholder: 'Search a component, a technology…',
-    allScopes: 'All scopes', overview: 'Overview', architecture: 'Architecture',
+    allScopes: 'All scopes', anywhere: 'Anywhere', deployedOn: 'Deployed on',
+    overview: 'Overview', architecture: 'Architecture',
     flows: 'Flows', stack: 'Tech stack', hintDiagram: 'Hover = dependencies · Click = detail sheet',
     role: 'Role', technologies: 'Technologies', responsibilities: 'Responsibilities',
     notes: 'Notes', dependsOn: 'Depends on', usedBy: 'Used by', outgoing: 'outgoing',
@@ -75,7 +76,8 @@ const LABELS = {
   },
   fr: {
     searchPlaceholder: 'Rechercher un composant, une techno…',
-    allScopes: 'Tous les périmètres', overview: "Vue d’ensemble", architecture: 'Architecture',
+    allScopes: 'Tous les périmètres', anywhere: 'Partout', deployedOn: 'Déployé sur',
+    overview: "Vue d’ensemble", architecture: 'Architecture',
     flows: 'Flux métier', stack: 'Stack technique', hintDiagram: 'Survol = dépendances · Clic = fiche détaillée',
     role: 'Rôle', technologies: 'Technologies', responsibilities: 'Responsabilités',
     notes: 'Chantiers identifiés', dependsOn: 'Dépend de', usedBy: 'Sollicité par',
@@ -747,7 +749,7 @@ function buildTabs() {
 }
 
 const TABS = buildTabs();
-let state = { tab: TABS[0]?.id, group: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all',
+let state = { tab: TABS[0]?.id, group: 'all', place: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all',
   compact: ARCH_OPTS.compact == null ? DENSE : !!ARCH_OPTS.compact,
   /* On as soon as the document marks anything: a landscape opens on the delta
    * it was drawn for. Off, the removals leave the sheet and what is left is the
@@ -837,6 +839,18 @@ function renderArchitecture() {
       ${isAll ? '' : `<i style="background:${gvar(id)}"></i>`}${esc(isAll ? T.allScopes : G[id].name)}</button>`;
   }).join('');
 
+  /* Where things run, on the same bar and deliberately unlike it: no swatch and
+   * monospace, because colour is scope's (rule 1) and a platform name is
+   * something the machine knows (rule 3). Shown only once the document names
+   * two — one chip that filters to everything is furniture. */
+  const places = [...new Set(DATA.components.map(c => c.deployedOn).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const placeChips = places.length > 1
+    ? `<span class="chipsplit" aria-hidden="true"></span>`
+      + ['all', ...places].map(p => `<button class="chip mono" data-place="${esc(p)}"
+        aria-pressed="${state.place === p}">${esc(p === 'all' ? T.anywhere : p)}</button>`).join('')
+    : '';
+
   const layers = DATA.layers.map(layerHTML).join('');
 
   const s = ARCH_OPTS;
@@ -844,7 +858,7 @@ function renderArchitecture() {
     <div class="sec-title"><h2>${esc(s.title || T.architecture)}</h2></div>
     ${s.subtitle ? `<p class="sec-sub">${rich(s.subtitle)}</p>` : ''}
     <div class="archwrap" id="archwrap">
-      <div class="filters">${chips}
+      <div class="filters">${chips}${placeChips}
         <span class="hintline">${T.hintDiagram} · ${T.zoomHint}</span>
         <div class="tools">
           ${STATES_IN_USE.length ? `<button class="chip" id="transition"
@@ -963,7 +977,9 @@ function nodeHTML(c) {
       marksOf(c).length ? `<span class="marks">${marksOf(c).map(m =>
         `<i title="${esc((MARK_LABELS[DATA.lang] || MARK_LABELS.en)[m])}">${svgIcon(MARK_ICON[m])}</i>`
       ).join('')}</span>` : ''}</div>
-    ${c.tech.length ? `<div class="tech">${c.tech.slice(0, 3).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
+    ${c.deployedOn || c.tech.length ? `<div class="tech">${
+      c.deployedOn ? `<span class="place">${esc(c.deployedOn)}</span>` : ''
+    }${c.tech.slice(0, 3).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.url ? `<div class="url mono">${esc(c.url)}</div>` : ''}
   </button>`;
 }
@@ -972,6 +988,13 @@ function bindArchitecture() {
   $$('#v-architecture .chip[data-group]').forEach(b => b.onclick = () => {
     state.group = b.dataset.group;
     $$('#v-architecture .chip[data-group]').forEach(x => x.setAttribute('aria-pressed', x.dataset.group === state.group));
+    applyFilter();
+  });
+  /* The second dimension, bound the same way and left independent: pressing a
+   * platform does not clear the scope, because the intersection is the answer. */
+  $$('#v-architecture .chip[data-place]').forEach(b => b.onclick = () => {
+    state.place = b.dataset.place;
+    $$('#v-architecture .chip[data-place]').forEach(x => x.setAttribute('aria-pressed', x.dataset.place === state.place));
     applyFilter();
   });
   $$('#v-architecture .node').forEach(n => {
@@ -1004,6 +1027,9 @@ function matches(c) {
    * drawEdges skipping anything dimmed. */
   if (!state.transition && c.state === 'removed') return false;
   if (state.group !== 'all' && c.group !== state.group) return false;
+  /* The two dimensions compose: asking for Core *and* OpenShift leaves the
+   * intersection, which is the question worth asking on a sheet this size. */
+  if (state.place !== 'all' && (c.deployedOn || '') !== state.place) return false;
   const q = state.q.trim().toLowerCase();
   if (!q) return true;
   /* The marks are searchable in words as well as by glyph: "no authentication"
@@ -1011,8 +1037,8 @@ function matches(c) {
    * dense to scan, and the ids are in there too so "sso" works. */
   const words = MARK_LABELS[DATA.lang] || MARK_LABELS.en;
   const marks = (c.marks || []).map(m => `${m} ${words[m] || ''}`).join(' ');
-  return [c.name, c.url, c.tech.join(' '), c.role, c.features.join(' '), marks]
-    .join(' ').toLowerCase().includes(q);
+  return [c.name, c.url, c.tech.join(' '), c.deployedOn, c.role, c.features.join(' '), marks]
+    .filter(Boolean).join(' ').toLowerCase().includes(q);
 }
 
 function applyFilter() {
@@ -1643,6 +1669,7 @@ function openDrawer(id) {
   $('#db').style.setProperty('--c', col);
   $('#db').innerHTML = `
     ${c.role ? `<h4>${T.role}</h4><p>${rich(c.role)}</p>` : ''}
+    ${c.deployedOn ? `<h4>${T.deployedOn}</h4><p>${esc(c.deployedOn)}</p>` : ''}
     ${c.tech.length ? `<h4>${T.technologies}</h4><div class="taglist">${c.tech.map(t => `<span class="tag k">${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.features.length ? `<h4>${T.responsibilities}</h4><ul>${c.features.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}
     ${c.notes.length ? `<h4>${T.notes}</h4><ul>${c.notes.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}

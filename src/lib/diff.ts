@@ -82,6 +82,7 @@ const COMPONENT_FIELDS: { key: keyof Component; label: string; list?: true }[] =
   { key: 'icon', label: 'icon' },
   { key: 'badge', label: 'badge' },
   { key: 'url', label: 'URL' },
+  { key: 'deployedOn', label: 'deployment' },
   { key: 'role', label: 'role' },
   { key: 'marks', label: 'security marks', list: true },
   { key: 'tech', label: 'technologies', list: true },

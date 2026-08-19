@@ -69,7 +69,9 @@ export const ZONE_KIND_LABELS: Record<ZoneKind, { en: string; fr: string }> = {
 };
 
 export const ZONE_KIND_BLURBS: Record<ZoneKind, string> = {
-  platform: 'Where it runs — a cluster, a runtime, a managed estate. Drawn solid.',
+  platform: 'Where it runs — a cluster, a runtime, a managed estate. Drawn solid. '
+    + 'For hosting you only need to record and filter on, a component\'s "Deployed on" '
+    + 'costs the sheet no width.',
   network: 'A reachability boundary. What crosses it is what a firewall rule has to allow.',
   gateway: 'What is exposed, and the contracts it exposes. Usually holds very few components.',
   perimeter: 'The scope of a programme or a migration. Drawn on top of the others.',

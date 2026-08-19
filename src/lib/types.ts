@@ -136,6 +136,16 @@ export interface Component {
    *  no category. See `src/lib/marks.ts`. */
   marks?: import('./marks').SecurityMark[];
   tech?: string[];
+  /** Where this runs — "OpenShift", "AWS", "on-prem". Free text, because no
+   *  closed list writes "OpenShift on AWS" and the tail past the three obvious
+   *  clouds is one nobody can finish.
+   *
+   *  Not a zone, and not a lesser one. A zone of kind `platform` draws the
+   *  boundary and pays a band of sheet width for it, which is right when the
+   *  boundary is the argument. This only records the fact, so it costs the
+   *  drawing nothing and works when what runs there is scattered across the
+   *  sheet. See `src/lib/deployment.ts`. */
+  deployedOn?: string;
   url?: string;
   role?: string;
   /** Stable Lego catalog identity; `role` remains human-readable prose. */

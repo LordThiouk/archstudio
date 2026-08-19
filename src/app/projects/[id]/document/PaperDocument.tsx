@@ -49,7 +49,8 @@ const STRINGS = {
     back: 'Back to the editor', print: 'Print · Save as PDF', contents: 'Contents',
     hint: 'Print to “Save as PDF”. Keep background graphics on, or the scope colours disappear.',
     version: 'Version', updated: 'Last edited', figure: 'Figure — component diagram',
-    component: 'Component', scope: 'Scope', tech: 'Technologies', role: 'Role',
+    component: 'Component', scope: 'Scope', deployedOn: 'Deployed on',
+    tech: 'Technologies', role: 'Role',
     dependsOn: 'Depends on', detail: 'Component detail', notes: 'Notes',
     technology: 'Technology', category: 'Category', description: 'Description',
     step: 'Step', dash: '—'
@@ -58,7 +59,8 @@ const STRINGS = {
     back: "Retour à l'éditeur", print: 'Imprimer · Enregistrer en PDF', contents: 'Sommaire',
     hint: 'Imprime vers « Enregistrer au format PDF ». Garde les graphiques d’arrière-plan activés, sinon les couleurs de périmètre disparaissent.',
     version: 'Version', updated: 'Dernière modification', figure: 'Figure — schéma des composants',
-    component: 'Composant', scope: 'Périmètre', tech: 'Technologies', role: 'Rôle',
+    component: 'Composant', scope: 'Périmètre', deployedOn: 'Déployé sur',
+    tech: 'Technologies', role: 'Rôle',
     dependsOn: 'Dépend de', detail: 'Détail des composants', notes: 'Notes',
     technology: 'Technologie', category: 'Catégorie', description: 'Description',
     step: 'Étape', dash: '—'
@@ -443,7 +445,15 @@ function LayerCards({ doc, layer, colour, plan }: {
           </span>
         )}
       </div>
-      {!!c.tech?.length && <div className="tech">{c.tech.map(t => <span key={t}>{t}</span>)}</div>}
+      {/* Where it runs leads the row, outlined against the tinted technology
+          pills — the same treatment the canvas gives it, and the reason it does
+          not read as one more thing the component is built with. */}
+      {(c.deployedOn || !!c.tech?.length) && (
+        <div className="tech">
+          {c.deployedOn && <span className="place">{c.deployedOn}</span>}
+          {c.tech?.map(t => <span key={t}>{t}</span>)}
+        </div>
+      )}
     </div>
   );
 
@@ -489,9 +499,10 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
       <table className="paper-table">
         <thead>
           <tr>
-            <th style={{ width: '24%' }}>{T.component}</th>
-            <th style={{ width: '18%' }}>{T.scope}</th>
-            <th style={{ width: '26%' }}>{T.tech}</th>
+            <th style={{ width: '22%' }}>{T.component}</th>
+            <th style={{ width: '16%' }}>{T.scope}</th>
+            <th style={{ width: '16%' }}>{T.deployedOn}</th>
+            <th style={{ width: '22%' }}>{T.tech}</th>
             <th>{T.role}</th>
           </tr>
         </thead>
@@ -500,7 +511,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
           if (!items.length) return null;
           return (
             <tbody key={layer.id}>
-              <tr className="paper-tr-group"><th colSpan={4}>{displayLayerLabel(layer.name)}</th></tr>
+              <tr className="paper-tr-group"><th colSpan={5}>{displayLayerLabel(layer.name)}</th></tr>
               {items.map(c => (
                 <tr key={c.id}>
                   <td>{c.name}</td>
@@ -508,6 +519,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
                     <i className="paper-dot" style={{ background: colour(c.group) }} />
                     {groupName(c.group)}
                   </td>
+                  <td>{c.deployedOn || T.dash}</td>
                   <td>{c.tech?.length ? c.tech.join(' · ') : T.dash}</td>
                   <td>{c.role || T.dash}</td>
                 </tr>
@@ -544,6 +556,11 @@ function Sheet({ comp, named, colour, T, lang }: {
           quotes in a meeting, and "lock" is not a sentence. */}
       {!!comp.marks?.length && (
         <p className="paper-marks">{describeMarks(comp.marks, lang)}</p>
+      )}
+      {/* With its label, not as a bare word: this is the sheet someone quotes
+          in a meeting, and "OpenShift" on its own line is not a sentence. */}
+      {comp.deployedOn && (
+        <p className="paper-deployed">{T.deployedOn} — {comp.deployedOn}</p>
       )}
       {comp.role && <p {...rich(comp.role)} />}
       {!!comp.features?.length && (

@@ -363,6 +363,14 @@ a.paper-btn { border-bottom-width: 1px; }
   background: color-mix(in srgb, var(--c) 14%, transparent);
   color: color-mix(in srgb, var(--c) 70%, var(--ink));
 }
+/* Where it runs, leading the row: the exact negative of a technology pill —
+   outlined and neutral where those are filled and tinted. It has to be a
+   treatment rather than a hue (colour is scope's, rule 1), which is also what
+   makes it survive the black-and-white print this sheet is built for. */
+.paper-node .tech .place {
+  background: transparent; border: 1px solid var(--line-3); color: var(--ink-2);
+  padding: 2px 6px;
+}
 
 /* ---------------------------------------------------------- security marks
    The screen's placement transposed: header row, right edge, neutral ink. On

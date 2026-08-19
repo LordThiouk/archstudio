@@ -1,3 +1,4 @@
+import { canonicalise, cleanDeployedOn } from './deployment';
 import { isLifecycle } from './lifecycle';
 import { normalizeMarks } from './marks';
 import { isZoneKind } from './zones';
@@ -235,6 +236,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
        * to be somewhere. A zone does not: unzoned is a real answer, and the
        * only honest one for a pointer to a zone that is gone. */
       zone: c.zone && zoneIds.has(c.zone) ? c.zone : undefined,
+      deployedOn: cleanDeployedOn(c.deployedOn),
       tech: c.tech || [],
       features: c.features || [],
       notes: c.notes || [],
@@ -247,6 +249,12 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
       links: normalizeLinks(c.links, deps)
     };
   });
+
+  /* One spelling per platform, document-wide. Done here rather than per
+   * component because it is the only pass that sees them all — and a free-text
+   * field that splits under case is a filter that hides half of what it says it
+   * is showing. */
+  canonicalise(doc.components);
 
   /* A step pointing at a deleted component would crash the viewer, so those go.
    * A flow with no steps left is kept: it is almost always one being authored,

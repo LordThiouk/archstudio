@@ -423,7 +423,23 @@ and not two with a hole in the middle. The horizontal insets form a ladder — 7
 fits inside the 24 px gutter between two bands, because anything wider would draw over the
 neighbour's card and reintroduce exactly the false claim the bands exist to prevent.
 
-**Two things to know before you reach for them.**
+**A zone is not the only way to say where something runs.** A component also carries
+`deployedOn` — free text, "OpenShift", "AWS", "on-prem" — and the two answer different questions.
+A zone *draws* the boundary: it reserves a band of columns on every layer and forces its members
+to be adjacent, which is right when the point of the drawing is that these six are inside the
+cluster and those three are not. `deployedOn` only *records* the fact: it costs the layout
+nothing, works when what runs on a platform is scattered across the sheet, and gives you a second
+row of filter chips that composes with the scopes — Core **and** OpenShift leaves the
+intersection lit. Use the zone when the boundary is part of the argument; use the field when the
+hosting is just something you need to look up, filter and hand on.
+
+Free text rather than a list, because every closed list breaks on the first real answer:
+"OpenShift" is a runtime and "AWS" is a provider, and OpenShift on AWS is one deployment. What
+makes free text usable as a filter dimension anyway is one pass in the normaliser — the first
+spelling a document uses wins, and every later case-variant folds onto it, so a stray "openshift"
+cannot become a chip of its own. `src/lib/deployment.ts`.
+
+**Two things to know before you reach for zones.**
 
 *Zones turn clustering off.* Two groupings cannot own one row: clustering splits a layer into
 one column per scope, zones group the same cards by where they run, and asking for both cuts the
@@ -496,6 +512,7 @@ which is legible and is not the same thing.
 src/lib/links.ts       the protocol convention, and the plate's geometry
 src/lib/lifecycle.ts   the three transition marks and what each commits you to
 src/lib/marks.ts       the closed security set, its icons and its key
+src/lib/deployment.ts  where a component runs, and why it is not a zone
 src/lib/zones.ts       the zone tree, the run ordering, and the measured union
 ```
 

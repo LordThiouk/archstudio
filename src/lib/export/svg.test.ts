@@ -115,6 +115,31 @@ test('a component with no icon still gets one, and an unknown name does not brea
   assert.equal(svg.split(ICONS.box).length - 1, 2, 'both should fall back to the box glyph');
 });
 
+test('where a component runs leads the lower line, a step darker than what it is built with', () => {
+  /* A file has no outline to give it — that is the treatment the three measured
+   * surfaces use — so on the exported card the weight of the ink carries the
+   * same distinction between "where it runs" and "what it is made of". */
+  const svg = buildDiagramSvg(doc({
+    components: [{
+      id: 'api', name: 'API', group: 'core', layer: 'services',
+      deployedOn: 'OpenShift', tech: ['Java']
+    }]
+  }));
+  assert.match(svg, /fill="#3D566B">OpenShift ·/, 'the platform leads, in the darker ink');
+  assert.match(svg, /fill="#8CA1B2">Java</, 'the technologies stay a step lighter');
+  /* The gap between the two runs is the x offset, not rendered whitespace — SVG
+   * collapses a trailing space and the second run would sit flush without it. */
+  assert.match(svg, /x="104.8"[^>]*fill="#8CA1B2"/);
+});
+
+test('a card with no platform draws exactly the lower line it always did', () => {
+  const svg = buildDiagramSvg(doc({
+    components: [{ id: 'api', name: 'API', group: 'core', layer: 'services', tech: ['Java'], badge: 'B2B' }]
+  }));
+  assert.match(svg, />B2B · Java</);
+  assert.ok(!svg.includes('OpenShift'));
+});
+
 test('authored text cannot become markup', () => {
   const svg = buildDiagramSvg(doc({
     components: [{

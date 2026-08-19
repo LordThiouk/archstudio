@@ -214,9 +214,24 @@ function nodeSvg(n: NodePlacement): string {
       { cls: 's', size: 10, fill: INK.ink2 });
   }
 
+  /* The lower line, and the one place where it is not all one ink. Where a
+   * component runs leads it and is set a step darker than what it is built with
+   * — a file has no outline to give it, which is the treatment the three
+   * measured surfaces use, so weight of ink carries the same distinction. */
+  const place = c.deployedOn ? `${c.deployedOn}` : '';
   const lower = [c.badge, ...(c.tech || [])].filter(Boolean).join(' · ');
-  if (lower) {
-    out += text(b.x + 12, b.y + CARD_H - 11, esc(clip(lower, b.w - 24, 9, MONO_RATIO)),
+  const room = b.w - 24;
+  if (place) {
+    const head = lower ? `${place} · ` : place;
+    out += text(b.x + 12, b.y + CARD_H - 11, esc(clip(head, room, 9, MONO_RATIO)),
+      { cls: 'm', size: 9, fill: INK.ink2 });
+    const used = textWidth(head, 9, MONO_RATIO);
+    if (lower && used < room) {
+      out += text(b.x + 12 + used, b.y + CARD_H - 11,
+        esc(clip(lower, room - used, 9, MONO_RATIO)), { cls: 'm', size: 9, fill: INK.ink3 });
+    }
+  } else if (lower) {
+    out += text(b.x + 12, b.y + CARD_H - 11, esc(clip(lower, room, 9, MONO_RATIO)),
       { cls: 'm', size: 9, fill: INK.ink3 });
   }
 

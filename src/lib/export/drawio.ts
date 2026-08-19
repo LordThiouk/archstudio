@@ -172,7 +172,7 @@ function nodeCell(n: NodePlacement, sheet: Sheet): string {
     + (n.tick ? ` <font color="${INK.ink2}" style="font-size:8px">${esc(n.tick)}</font>` : '')
   ];
   if (c.role) lines.push(`<font color="${INK.ink2}" style="font-size:9px">${esc(c.role)}</font>`);
-  const lower = [c.badge, ...(c.tech || [])].filter(Boolean).join(' · ');
+  const lower = [c.deployedOn, c.badge, ...(c.tech || [])].filter(Boolean).join(' · ');
   if (lower) lines.push(`<font color="${INK.ink3}" style="font-size:8px">${esc(lower)}</font>`);
 
   const style = `rounded=0;whiteSpace=wrap;html=1;fillColor=${INK.paper};`
@@ -191,6 +191,7 @@ function nodeCell(n: NodePlacement, sheet: Sheet): string {
   if (layer?.label) data.layer = layer.label;
   const zone = sheet.zones.find(z => z.zone.id === c.zone);
   if (zone) data.zone = zone.zone.name;
+  if (c.deployedOn) data.deployedOn = c.deployedOn;
   if (c.tech?.length) data.tech = c.tech.join(', ');
   if (c.marks?.length) data.security = c.marks.map(m => MARK_LABELS[m][sheet.lang]).join(', ');
   if (c.state) data.state = STATE_LABELS[c.state][sheet.lang];

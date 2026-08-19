@@ -42,8 +42,13 @@ export const ICONS: Record<string, string> = {
   terminal: '<rect x="2.5" y="4" width="19" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/>',
   ai: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><rect x="7" y="7" width="10" height="10" rx="3"/><path d="M11 11h2v2h-2z"/>',
 
-  /* studio-only glyphs */
+  /* studio-only glyphs — not in the viewer's map, because nothing exported ever
+     draws them: they belong to the editor's chrome rather than to a card. */
   plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-2.5"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h2.5"/>',
+  expand: '<path d="M4 9V4h5M20 15v5h-5M15 4h5v5M9 20H4v-5"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/>',
   chevron: '<path d="m9 5 7 7-7 7"/>',
   dots: '<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>',

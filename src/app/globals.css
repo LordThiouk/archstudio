@@ -344,6 +344,32 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .saveflag.error { color: var(--danger); }
 .saveflag.error i { background: var(--danger); }
 
+/* Undo and redo sit against the save flag, boxed as one control: they are two
+   directions of the same thing, and the box is what says the pair is a unit
+   rather than two more buttons in a bar that already has several. */
+.undogroup {
+  display: inline-flex; border: 1px solid var(--line-2); background: var(--panel);
+}
+.undogroup .iconbtn { width: 28px; height: 28px; border: 0; }
+.undogroup .iconbtn + .iconbtn { border-left: 1px solid var(--line); }
+.undogroup .iconbtn:disabled { opacity: .3; cursor: default; background: transparent; }
+
+/* What just happened, bottom left, over the canvas and clear of the inspector.
+   Ink on paper like everything else; the way back is the one word set in teal,
+   because rule 2 says teal is what you can act on. */
+.noticebar {
+  position: fixed; left: 18px; bottom: 18px; z-index: 140;
+  display: flex; align-items: center; gap: 14px; max-width: min(520px, calc(100vw - 36px));
+  padding: 10px 10px 10px 14px; border: 1px solid var(--ink); background: var(--panel);
+  box-shadow: var(--shadow-lg); font-size: 12.5px; color: var(--ink);
+}
+.noticebar > span { flex: 1; min-width: 0; }
+.noticebar .iconbtn { width: 24px; height: 24px; flex: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .noticebar { animation: notice-in .14s ease-out; }
+}
+@keyframes notice-in { from { opacity: 0; transform: translateY(6px); } }
+
 .segmented {
   display: flex; border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
   border-radius: 0; padding: 0;
@@ -360,7 +386,83 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   width: 246px; flex: none; border-right: 1px solid var(--line); background: var(--panel-2);
   overflow-y: auto; overflow-x: hidden; padding: 12px 10px 30px;
 }
-.canvas-wrap { flex: 1; overflow: auto; padding: 20px 22px 80px; position: relative; background: var(--bg); }
+/* The sheet's own frame: a toolbar that stays put and a pane that scrolls under
+   it. The padding moved off the wrapper and onto the pane, so the controls do
+   not scroll away from the drawing they act on. */
+.canvas-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.canvas-frame { flex: 1; overflow: auto; padding: 20px 22px 60px; position: relative; }
+.canvas-frame.panning { cursor: grabbing; user-select: none; }
+
+/* Mirrors the viewer's filter row — same chips, same zoom bar, same class names,
+   because it is the same control over the same sheet. See viewer/style.css. */
+.canvas-tools {
+  flex: none; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 9px 22px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.canvas-tools .filters { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.canvas-tools .toolside {
+  margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.canvas-tools .tools { display: flex; align-items: center; gap: 8px; }
+.canvas-tools .hintline { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+/* Below the width where the hint would push the controls onto a line of their
+   own, the hint is the half that goes: the shortcut it describes still works. */
+@media (max-width: 1420px) { .canvas-tools .hintline { display: none; } }
+.chip {
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); background: var(--panel);
+  color: var(--ink-2); padding: 5px 11px; border-radius: 0; font: inherit; font-size: 12px;
+  font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  transition: .12s;
+}
+.chip:hover { border-color: var(--ink); }
+.chip i { width: 9px; height: 9px; border-radius: 0; display: inline-block; flex: none; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+/* Rule 1: a filtered scope fills, it does not outline. */
+.chip.pole[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--c) 16%, transparent); border-color: var(--ink-3); color: var(--ink);
+}
+.zoombar {
+  display: flex; align-items: center; background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+}
+.zb {
+  border: 0; background: none; color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 600;
+  padding: 0 8px; height: 26px; display: grid; place-items: center; cursor: pointer; transition: .12s;
+}
+.zb:hover { background: var(--panel-3); color: var(--ink); }
+.zb.zfit { border-left: 1px solid var(--line-2); padding: 0 10px; }
+.zval {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); min-width: 38px;
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+
+/* Compact: the cards drop to their icon and name, so twice as many fit on a row.
+   The same treatment the viewer's Compact gives, and for the same reason. */
+.canvas.compact .ccard { width: 168px; padding: 9px 11px; }
+.canvas.compact .ccard.selected, .canvas.compact .ccard.linktarget { padding: 8px 10px; }
+.canvas.compact .ccard .tech { display: none; }
+.canvas.compact .ccard .depcount { display: none; }
+
+/* A filtered scope fades rather than leaves, because in the editor you are still
+   working on what you narrowed away — a card that vanished is one you cannot
+   drop anything onto. */
+.ccard.faded { opacity: .22; }
+.ccard.faded:hover { opacity: .6; }
+
+/* Hovering a card quietens everything it does not touch, so one dependency reads
+   at a glance. The same move the exported file already made; it had no business
+   being absent from the surface the drawing is made on.
+
+   Lighter than the scope filter on purpose — this is a glance, not a decision,
+   and it has to be reversible by moving the pointer. The transition is on the
+   quietening rather than on the card, so the sheet settles instead of flashing
+   while the pointer crosses it. */
+.ccard.away { opacity: .3; }
+.ccard.away .tech span { opacity: .7; }
+@media (prefers-reduced-motion: no-preference) {
+  .ccard { transition: border-color .12s, opacity .12s; }
+}
 .inspector {
   width: var(--inspector); flex: none; border-left: 1px solid var(--line); background: var(--panel-2);
   overflow-y: auto; padding: 16px 16px 60px;
@@ -381,6 +483,18 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   background-size: 24px 24px; opacity: .05;
 }
 .canvas-edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible; }
+/* The lines are the only thing on the sheet you could not click. The drawn
+   stroke stays 1.2 px and an invisible one 14 px wide underneath takes the
+   pointer — `stroke`, not `all`, so the empty inside of a curve is still the
+   paper and still deselects. The cards sit above this layer, so a line running
+   under one is the card's to click, which is the right answer. */
+.canvas-edges .hit { pointer-events: stroke; cursor: pointer; }
+.canvas.linking .canvas-edges .hit { pointer-events: none; }
+/* Rule 2: what you have selected is teal. The open circle keeps its paper fill
+   from the inline style, which is the whole point of an open circle. */
+.canvas-edges g[data-sel="1"] path { stroke: var(--brand); }
+.canvas-edges g[data-sel="1"] circle { stroke: var(--brand); }
+.canvas-edges g[data-sel="1"] circle:first-of-type { fill: var(--brand); }
 
 /* A zone's cards in one layer. Present only on a document that has zones, and it
    mirrors `.layer-drop` exactly so a single run lays out like a bare row. Its job
@@ -404,7 +518,41 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 /* A run fills its band rather than shrinking to its cards, so the measured
    rectangle is band-shaped on every layer instead of jumping in and out with the
    card count. */
-.layer-drop.banded .zrun { min-width: 0; justify-self: stretch; }
+.layer-drop.banded .zrun { min-width: 0; justify-self: stretch; position: relative; z-index: 1; }
+
+/* ------------------------------------------------------- dropping into a zone
+   A second grid laid over the row, on the same tracks, holding one target per
+   reserved band. Behind the cards and inert until something is being dragged —
+   a band that swallowed clicks would take them from the paper underneath, which
+   is what deselects.
+
+   It cannot be the run itself: a run is measured to draw its zone rectangle and
+   has to stay a tight box around its own cards, while a target has to cover the
+   whole band including the empty part — which on a given row is exactly where
+   the first card to join that zone has to land. */
+.layer-drop.banded { position: relative; }
+.banddrops {
+  position: absolute; inset: 0; display: grid; pointer-events: none;
+  grid-template-columns: repeat(var(--cols), var(--card-w));
+  column-gap: 24px; justify-content: start;
+}
+.banddrop { border-radius: 0; transition: background .12s, box-shadow .12s; }
+.banddrop.live { pointer-events: auto; }
+/* Only the band under the pointer answers, and it answers in teal — rule 2: the
+   thing you are about to act on. */
+.banddrop.over {
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+
+/* Where the release would put the card: in front of this one. A rule on the
+   leading edge rather than a gap opening up — the sheet is a grid of reserved
+   columns and reflowing it under the pointer would move the very target being
+   aimed at. */
+.ccard.insert::before {
+  content: ""; position: absolute; left: -7px; top: -2px; bottom: -2px;
+  width: 3px; background: var(--brand);
+}
 
 /* ------------------------------------------------------------------- zones
    Measured after layout and drawn into the edge SVG, behind every card. Two
@@ -422,8 +570,17 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   fill: var(--ink-3);
 }
 
-/* The zone rows in the palette rail: name and count, then kind and nesting. */
-.zonerow { margin-bottom: 8px; }
+/* The zone rows in the palette rail: name and count, then kind and nesting.
+   They are also drop targets — the only way into a zone that holds nothing yet,
+   since an empty zone reserves no band and so has no target on the sheet. The
+   dashed outline appears only while a component is in the air, so the rail is
+   as quiet as it was the rest of the time. */
+.zonerow { margin-bottom: 8px; padding: 2px; border: 1px dashed transparent; }
+.zonerow.droppable { border-color: var(--line-2); }
+.zonerow.over {
+  border-color: var(--brand); border-style: solid;
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+}
 .zonerow .frow { display: flex; gap: 6px; margin-top: 4px; }
 .zonerow .select.sm { font-size: 10.5px; padding: 3px 6px; min-width: 0; flex: 1; }
 .zonerow .count {
@@ -455,8 +612,48 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   color: var(--lc, var(--ink-3)); font-weight: 400;
 }
 .layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }
-.layer-head .layer-tools { margin-left: auto; display: none; gap: 2px; }
-.layer:hover .layer-head .layer-tools { display: flex; }
+.layer-head b { cursor: text; }
+/* The label, editable in place — same type, same size, so the row does not jump
+   when it turns into a field. */
+.layer-rename {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--brand); border-radius: 0;
+  padding: 2px 6px; width: 190px; outline: none;
+}
+/* Add is always there; rename and delete are not. The three used to appear
+   together on hover, which made the one you need constantly as hard to reach as
+   the two you need twice a year — and made all three unreachable by keyboard.
+   `:focus-within` is what fixes the second half. */
+.layer-head .layer-add {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--line-2); background: var(--panel); color: var(--ink-2);
+  font: inherit; font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 0; cursor: pointer; transition: .12s;
+}
+.layer-head .layer-add:hover { border-color: var(--ink); color: var(--ink); }
+.layer-head .layer-add svg { fill: none; stroke: currentColor; stroke-width: 2; }
+.layer-head .layer-tools { display: none; gap: 2px; }
+.layer:hover .layer-head .layer-tools,
+.layer:focus-within .layer-head .layer-tools { display: flex; }
+
+/* The empty row is the invitation, so it takes the click as well as the drop. */
+.emptyadd {
+  border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--ink-3);
+  cursor: pointer; padding: 6px 10px; width: 100%; text-align: center;
+}
+.emptyadd:hover { color: var(--ink); }
+
+/* The rail's folds. The twist takes the whole label so the target is a line and
+   not an 11 px glyph; the section's own Add stays outside it, or opening a
+   section and adding to it would be the same click. */
+.sect-label.railhead { display: flex; align-items: center; gap: 0; }
+.railtwist {
+  display: inline-flex; align-items: center; gap: 6px; border: 0; background: none;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+  padding: 0; cursor: pointer;
+}
+.railtwist:hover { color: var(--ink); }
+.railtwist svg { fill: none; stroke: currentColor; stroke-width: 2.2; transition: transform .12s; }
 .layer-drop {
   display: flex; flex-wrap: wrap; gap: 12px; min-height: 62px; align-content: flex-start;
   border-radius: 0; padding: 2px;
@@ -476,9 +673,27 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   user-select: none;
 }
 .ccard:hover { border-color: var(--ink-3); }
+/* The cards were already tab stops — dnd-kit puts a role and a tabindex on every
+   draggable — but nothing drew the focus, so tabbing through the sheet moved an
+   invisible cursor. Offset outward: a 2 px ring inside the border would be read
+   as the teal selection frame. */
+.ccard:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .ccard.selected { border: 2px solid var(--brand); padding: 11px 12px; }
 .ccard.dragging { opacity: .35; cursor: grabbing; }
 .ccard.linktarget { border: 2px solid var(--brand); padding: 11px 12px; }
+/* A card the line being drawn already reaches. Said during the drag, in ink and
+   not in teal: teal is what you can act on, and dropping here does nothing new.
+   The check is what carries the meaning — the border alone would read as another
+   flavour of target. */
+.canvas.linking .ccard.linkdone { border: 1px dashed var(--ink-3); opacity: .55; }
+.canvas.linking .ccard.linkdone.linktarget {
+  border: 2px solid var(--ink); padding: 11px 12px; opacity: 1;
+}
+.canvas.linking .ccard.linkdone.linktarget::after {
+  content: "already linked"; position: absolute; bottom: -9px; right: 6px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .04em;
+  padding: 1px 5px; background: var(--ink); color: var(--panel);
+}
 .ccard .nh { display: flex; align-items: center; gap: 9px; }
 .ccard .ic { width: 20px; height: 20px; border-radius: 0; flex: none; display: grid; place-items: center; background: var(--c); }
 .ccard .ic svg { width: 12px; height: 12px; stroke: var(--on-fill); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -663,6 +878,10 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 
 .elist { border: 1px solid var(--line-2); border-radius: 0; background: var(--panel-2); }
 .elist.open { border-color: var(--ink-3); background: var(--panel); box-shadow: var(--shadow); }
+/* The row that answers the line you clicked on the canvas. Teal on the leading
+   edge only — the same selection colour as the edge itself, so the two read as
+   one thing seen from two places. */
+.elist.revealed { border-left: 2px solid var(--brand); }
 .elist-head { display: flex; align-items: center; gap: 4px; padding: 5px 6px 5px 4px; }
 .elist-name {
   flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; font: inherit;
@@ -772,6 +991,52 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 .err { color: var(--danger); font-size: 12.5px; margin-top: 8px; }
 .dependency-sheet { width: min(620px, 100%); }
+
+/* A question, not a panel: narrower than the working dialogs so it reads as an
+   interruption to be answered and dismissed. Above them in the stack too — it is
+   always asked *from* one, and a history panel painting over its own confirm
+   would be a dead end. */
+.askmodal { width: min(440px, 100%); padding: 22px 24px; }
+.askmodal h2 { font-size: 18px; }
+.askmodal p.lede { margin: 0 0 4px; }
+.askmodal .field { margin-top: 14px; }
+.modal-scrim:has(> .askmodal) { z-index: 210; }
+/* Elsewhere `.btn.danger` only reddens on hover, which is right for a delete
+   sitting among other controls. Here it is one of two answers and the whole
+   point is to say which one is which, so it carries the colour at rest and
+   fills on the way to being pressed. */
+.askmodal .btn.danger { border-color: var(--danger); color: var(--danger); }
+.askmodal .btn.danger:hover, .askmodal .btn.danger:focus-visible {
+  background: var(--danger); border-color: var(--danger); color: var(--panel);
+}
+
+/* ---------- The finder (⌘K) ----------
+   Near the top rather than centred: the list grows downwards and a dialog that
+   re-centres itself on every keystroke is unreadable. */
+.finder-scrim { align-items: start; padding-top: 12vh; }
+.finder { width: min(560px, 100%); padding: 0; overflow: hidden; }
+.finder-input {
+  width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent;
+  padding: 16px 18px; font: inherit; font-size: 15px; color: var(--ink); outline: none;
+}
+.finder-input::placeholder { color: var(--ink-3); }
+.finder-list { max-height: 46vh; overflow-y: auto; padding: 5px; }
+.finder-list button {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0;
+  background: transparent; padding: 8px 11px; border-radius: 0; font: inherit; font-size: 13px;
+  color: var(--ink); cursor: pointer;
+}
+.finder-list button svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; }
+/* Teal marks the row you are about to act on — the same rule the canvas
+   selection follows. */
+.finder-list button[aria-selected="true"] { background: var(--brand); color: var(--on-fill); }
+.finder-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.finder-where { font-family: var(--mono); font-size: 10px; color: var(--ink-3); flex: none; }
+.finder-list button[aria-selected="true"] .finder-where { color: var(--on-fill); opacity: .8; }
+.finder-foot {
+  border-top: 1px solid var(--line); padding: 8px 14px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3); background: var(--panel-2);
+}
 .dependency-suggestion {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 14px 0; border-top: 1px solid var(--line-2);
@@ -961,11 +1226,28 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   position: absolute; top: 30px; right: 6px; background: var(--panel); border: 1px solid var(--ink);
   border-radius: 0; box-shadow: var(--shadow-lg); padding: 4px; z-index: 40; min-width: 168px;
 }
-.menu-pop button {
+.menu-pop button, .menu-pop a {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0;
   background: transparent; padding: 7px 10px; border-radius: 0; font-size: 12.5px; cursor: pointer; color: var(--ink);
 }
-.menu-pop button:hover { background: var(--panel-3); }
+.menu-pop a { text-decoration: none; }
+.menu-pop button:hover, .menu-pop a:hover { background: var(--panel-3); }
+/* Hung under the control that opened it rather than under a card's corner. */
+.menu-pop.under { top: calc(100% + 4px); right: 0; }
+/* Room for a line of explanation per entry: "HTML" and "JSON" side by side ask
+   the reader to already know which file they want. */
+.menu-pop.wide { min-width: 268px; }
+.menu-pop.wide svg { flex: none; align-self: flex-start; margin-top: 2px; }
+/* The PNG row is a button and every other row is an anchor, because a PNG is the
+   one export this app cannot hand over as a URL — it is assembled in the browser.
+   The two have to be indistinguishable in the list, so they share the rule. */
+.menu-pop.wide a, .menu-pop.wide button { align-items: flex-start; padding: 9px 11px; }
+.menu-pop button:disabled { cursor: default; color: var(--ink-3); }
+.menu-pop button:disabled:hover { background: transparent; }
+.menu-pop.wide em {
+  display: block; font-style: normal; font-size: 11px; color: var(--ink-3); margin-top: 2px;
+  line-height: 1.35;
+}
 .menu-pop button.danger { color: var(--danger); }
 .menu-pop svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
 .menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }

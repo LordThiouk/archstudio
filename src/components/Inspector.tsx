@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, deleteComponent, slugify } from '@/lib/defaults';
 import { displayLayerLabel } from '@/lib/layers';
@@ -10,18 +10,24 @@ import {
 import { LIFECYCLES, STATE_BLURBS, STATE_LABELS } from '@/lib/lifecycle';
 import { MARK_BLURBS, MARK_ICON, MARK_LABELS, SECURITY_MARKS } from '@/lib/marks';
 import { describeZone } from '@/lib/zones';
+import type { Notify } from '@/lib/undo';
 import type { Architecture, Component, Link, LinkKind } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 
-export default function Inspector({ doc, patch, component, onClose, onSelect }: {
+export default function Inspector({ doc, patch, component, notify, openLink, onClose, onSelect }: {
   doc: Architecture; patch: Patch; component: Component | null;
+  notify: Notify;
+  /** A dependency selected on the canvas — its row opens on its own, so clicking
+   *  a line lands on the three fields that describe it. */
+  openLink?: string | null;
   onClose: () => void; onSelect: (id: string) => void;
 }) {
   return (
     <aside className="inspector">
       {component
-        ? <ComponentForm doc={doc} patch={patch} comp={component} onClose={onClose} onSelect={onSelect} />
+        ? <ComponentForm doc={doc} patch={patch} comp={component} notify={notify}
+            openLink={openLink ?? null} onClose={onClose} onSelect={onSelect} />
         : <DocumentForm doc={doc} patch={patch} />}
     </aside>
   );
@@ -29,8 +35,9 @@ export default function Inspector({ doc, patch, component, onClose, onSelect }: 
 
 /* ------------------------------------------------------------------ component */
 
-function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
-  doc: Architecture; patch: Patch; comp: Component; onClose: () => void; onSelect: (id: string) => void;
+function ComponentForm({ doc, patch, comp, notify, openLink, onClose, onSelect }: {
+  doc: Architecture; patch: Patch; comp: Component; notify: Notify; openLink: string | null;
+  onClose: () => void; onSelect: (id: string) => void;
 }) {
   const [techDraft, setTechDraft] = useState('');
   const [showIcons, setShowIcons] = useState(false);
@@ -204,7 +211,7 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         <div className="cardlist">
           {outbound.map(t => (
             <LinkRow key={t.id} comp={comp} target={t} colour={colourOf(t.group)}
-              set={set} onSelect={onSelect} />
+              set={set} notify={notify} reveal={openLink === t.id} onSelect={onSelect} />
           ))}
         </div>
         <select className="select" style={{ marginTop: 6 }} value=""
@@ -237,13 +244,16 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
       )}
 
       <div className="insp-sep" />
+      {/* No confirm: the deletion is one step on the undo stack and the notice
+          that follows offers it back. A dialog here would tax every deliberate
+          delete to insure against the rare accidental one. */}
       <button className="btn danger" style={{ width: '100%', justifyContent: 'center' }}
         onClick={() => {
-          if (!confirm(`Delete "${comp.name}"? Dependencies pointing at it are removed too.`)) return;
           patch(d => {
             deleteComponent(d, comp.id);
             return d;
           });
+          notify(`"${comp.name}" deleted — dependencies pointing at it went with it`);
           onClose();
         }}>
         <Icon name="trash" size={15} />Delete component
@@ -258,13 +268,26 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
  * twist and the head carries what they add up to — "SQL · async". A dependency
  * nobody has annotated shows nothing extra, which is also what it draws on the
  * canvas: a plain solid edge. */
-function LinkRow({ comp, target, colour, set, onSelect }: {
+function LinkRow({ comp, target, colour, set, notify, reveal, onSelect }: {
   comp: Component; target: Component; colour: string;
-  set: (fn: (c: Component) => void) => void; onSelect: (id: string) => void;
+  set: (fn: (c: Component) => void) => void; notify: Notify;
+  /** This is the line that was just clicked on the canvas. */
+  reveal: boolean;
+  onSelect: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(reveal);
   const link = linkOf(comp, target.id);
   const summary = shortLink(link);
+
+  /* Opens on reveal but never closes on it: the canvas says which row to show,
+   * and the twist stays the reader's after that. `scrollIntoView` because a
+   * caller with a dozen dependencies has this one below the fold. */
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!reveal) return;
+    setOpen(true);
+    row.current?.scrollIntoView({ block: 'nearest' });
+  }, [reveal]);
 
   /* Links are keyed by target, so an edit is an upsert and clearing every
    * field removes the row — normalisation would drop an empty one anyway, and
@@ -280,7 +303,7 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
   });
 
   return (
-    <div className={`elist${open ? ' open' : ''}`}>
+    <div className={`elist${open ? ' open' : ''}${reveal ? ' revealed' : ''}`} ref={row}>
       <div className="elist-head">
         <button className="iconbtn twist" onClick={() => setOpen(o => !o)}
           aria-expanded={open} aria-label={open ? 'Collapse' : 'Describe this dependency'}>
@@ -293,10 +316,13 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
           {summary && <em className="mono"> {summary}</em>}
         </span>
         <button className="iconbtn" title="Remove this dependency"
-          onClick={() => set(c => {
-            c.deps = (c.deps || []).filter(x => x !== target.id);
-            c.links = (c.links || []).filter(l => l.to !== target.id);
-          })}><Icon name="trash" size={13} /></button>
+          onClick={() => {
+            set(c => {
+              c.deps = (c.deps || []).filter(x => x !== target.id);
+              c.links = (c.links || []).filter(l => l.to !== target.id);
+            });
+            notify(`${comp.name} → ${target.name} removed`);
+          }}><Icon name="trash" size={13} /></button>
       </div>
 
       {open && (

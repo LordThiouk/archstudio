@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  useDraggable, useDroppable, type DragEndEvent, type DragStartEvent
+  DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection,
+  useDndContext, useDraggable, useDroppable, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragStartEvent
 } from '@dnd-kit/core';
 import { Icon } from './Icon';
 import Inspector from './Inspector';
@@ -12,7 +13,8 @@ import ContentEditor from './ContentEditor';
 import History from './History';
 import PlacementWizard from './editors/PlacementWizard';
 import { EnrichDialog, useAiStatus } from './Analyse';
-import { PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
+import { deleteComponent, PALETTE, PALETTE_DARK, slugify } from '@/lib/defaults';
+import { withDrawioXml } from '@/lib/export/png';
 import { displayLayerLabel, layerTintEnabled, layerTintVar } from '@/lib/layers';
 import { ensurePlacementScaffold, componentBrick } from '@/lib/lego/place';
 import { syncTechnologies } from '@/lib/lego/stack';
@@ -33,20 +35,74 @@ import {
   type BandPlan, type Box, type ZoneKind
 } from '@/lib/zones';
 import { protocolLabel, suggestedLinkForBrick } from '@/lib/lego/protocols';
-import type { Architecture, Component, ProjectWithData } from '@/lib/types';
+import {
+  canRedo, canUndo, initUndo, record, redo as redoStep, typingInField, undo as undoStep,
+  type Notify
+} from '@/lib/undo';
+import {
+  anchoredScroll, clampZoom, fitLadder, zoomStyle, ZOOM_MIN, ZOOM_STEP, type ZoomStyle
+} from '@/lib/viewport';
+import { isArrowKey, searchComponents, stepSelection } from '@/lib/navigate';
+import {
+  bandDropId, DEPTH, dropChangesAnything, layerDropId, PALETTE_NEW, railZoneDropId, resolveDrop
+} from '@/lib/dnd';
+import type { Architecture, Component, ProjectWithData, Zone } from '@/lib/types';
+
+/* Which of the boxes under the pointer is meant.
+ *
+ * A card is inside a band and a band is inside a row, so a release always has
+ * two or three true answers. dnd-kit's default ranks them by how much of the
+ * dragged rectangle each one overlaps, and the row — being the largest — wins
+ * nearly every time; that is why dropping a card *onto another card* to place
+ * it worked at all only by accident, and why the row never lit up while you
+ * dragged over it.
+ *
+ * `pointerWithin` narrows to what is actually under the pointer, and `DEPTH`
+ * settles the nesting explicitly rather than by geometry. The rect fallback is
+ * for the pointer being outside every target — dragging above the first layer,
+ * say — where some answer is better than none. */
+const preferInnermost: CollisionDetection = args => {
+  const hits = pointerWithin(args);
+  const pool = hits.length ? hits : rectIntersection(args);
+  if (!pool.length) return pool;
+  const depthOf = (c: (typeof pool)[number]) =>
+    Number(c.data?.droppableContainer?.data?.current?.depth ?? DEPTH.component);
+  const best = Math.max(...pool.map(depthOf));
+  return pool.filter(c => depthOf(c) === best);
+};
 
 type SaveState = 'saved' | 'dirty' | 'saving' | 'error';
 type Mode = 'edit' | 'content' | 'preview';
+/** One dependency, named by its two ends — `deps` is the single source of truth
+ *  for whether it exists, so there is no id to point at. */
+type EdgeRef = { from: string; to: string };
 
 export default function Editor({ project }: { project: ProjectWithData }) {
   const router = useRouter();
-  const [doc, setDoc] = useState<Architecture>(project.data);
+  /* The document lives inside its undo stack rather than beside it: there is no
+   * Save button here, so `doc` and "the state you can come back to" have to be
+   * the same object or they drift the first time an edit lands from a dialog. */
+  const [stack, setStack] = useState(() => initUndo(project.data));
+  const doc = stack.present;
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [name, setName] = useState(project.name);
   const [save, setSave] = useState<SaveState>('saved');
   const [selected, setSelected] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('edit');
   const [dragId, setDragId] = useState<string | null>(null);
   const [link, setLink] = useState<{ from: string; x: number; y: number } | null>(null);
+  /* A dependency is selected apart from its endpoints: clicking the line has to
+   * mean the line, not "the caller, again". The caller is selected alongside it,
+   * because that is where the fields live. */
+  const [selectedEdge, setSelectedEdge] = useState<EdgeRef | null>(null);
+  const [finder, setFinder] = useState(false);
+  /* When the last dependency drag ended. See `clearSelection`. */
+  const linkEndedAt = useRef(0);
+  /* The sheet's scale, mirrored up out of the stage for one reason: the drag
+   * overlay is rendered at the context level, outside the element the zoom is
+   * applied to, so at 40 % you would be dragging a card two and a half times the
+   * size of the ones you are aiming between. */
+  const [sheetZoom, setSheetZoom] = useState(1);
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
   const [enrich, setEnrich] = useState(false);
@@ -98,15 +154,178 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   }, [save]);
 
   const patch = useCallback((fn: (d: Architecture) => Architecture) => {
-    setDoc(d => fn(structuredClone(d)));
+    setStack(s => record(s, fn(structuredClone(s.present)), Date.now()));
+  }, []);
+
+  /* A restore or an enrichment arrives whole, and it is always its own step —
+   * the cleared stamp is what says so, rather than trusting that the dialog took
+   * longer than the coalescing window to fill in. */
+  const adopt = useCallback((next: Architecture) => {
+    setStack(s => record({ ...s, stamp: -Infinity }, next, Date.now()));
+  }, []);
+
+  /* ------------------------------------------------------------ undo, redo */
+  const undo = useCallback(() => { setStack(undoStep); setNotice(null); }, []);
+  const redo = useCallback(() => { setStack(redoStep); setNotice(null); }, []);
+
+  /* One place says what just happened and offers the way back, so a delete does
+   * not need its own confirm to be safe — the step is already on the stack. */
+  const notify = useCallback<Notify>(
+    (text, undoable = true) => setNotice({ text, id: Date.now(), undoable }), []);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      /* A text field has its own history and the browser's restores the caret,
+       * which ours cannot. Inside one, stand back. */
+      if (typingInField(e.target)) return;
+      e.preventDefault();
+      if (key === 'y' || e.shiftKey) redo(); else undo();
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [undo, redo]);
+
+  /* Stepping back over the creation of a component — or over anything that
+   * removed one — leaves the inspector pointed at an id that is gone. */
+  useEffect(() => {
+    setSelected(s => (s && !doc.components.some(c => c.id === s) ? null : s));
+    setSelectedEdge(e =>
+      (e && doc.components.find(c => c.id === e.from)?.deps?.includes(e.to) ? e : null));
+  }, [doc.components]);
+
+  /* Selecting another card drops the line: the two are one selection with two
+   * shapes, and leaving a highlighted edge behind an unrelated card reads as a
+   * bug rather than as memory. */
+  useEffect(() => {
+    setSelectedEdge(e => (e && e.from === selected ? e : null));
+  }, [selected]);
+
+  const selectEdge = useCallback((from: string, to: string) => {
+    setSelected(from);
+    setSelectedEdge({ from, to });
+  }, []);
+
+  /* Clicking the paper clears the selection — except in the instant after a
+   * dependency drag.
+   *
+   * A press on one card and a release on another dispatches its click on the two
+   * cards' nearest common ancestor, and for cards in different layers that is the
+   * sheet itself. The gesture therefore ended by selecting the edge it had just
+   * drawn and then immediately deselecting it, with nothing on screen to say why.
+   * Suppressing by time rather than by swallowing the next click: a drag that
+   * ends over nothing produces no click at all, and a one-shot listener left
+   * armed would eat an unrelated one later. */
+  const clearSelection = useCallback(() => {
+    if (Date.now() - linkEndedAt.current < 300) return;
+    setSelected(null);
+    setSelectedEdge(null);
+  }, []);
+
+  const dropEdge = useCallback((edge: EdgeRef) => {
+    const names = (id: string) => doc.components.find(c => c.id === id)?.name ?? id;
+    patch(d => {
+      const caller = d.components.find(c => c.id === edge.from);
+      if (caller) {
+        caller.deps = (caller.deps || []).filter(x => x !== edge.to);
+        caller.links = (caller.links || []).filter(l => l.to !== edge.to);
+      }
+      return d;
+    });
+    notify(`${names(edge.from)} → ${names(edge.to)} removed`);
+    setSelectedEdge(null);
+  }, [doc.components, patch, notify]);
+
+  const dropComponent = useCallback((id: string) => {
+    const gone = doc.components.find(c => c.id === id);
+    if (!gone) return;
+    patch(d => { deleteComponent(d, id); return d; });
+    notify(`"${gone.name}" deleted — dependencies pointing at it went with it`);
+  }, [doc.components, patch, notify]);
+
+  /* The canvas keyboard, in one handler.
+   *
+   * Delete and Escape are global — they need a selection, not a focused element,
+   * because the thing you just clicked is the thing you mean, wherever the focus
+   * drifted to. The arrows are not: they only move when a card actually holds
+   * focus, or they would take the arrow keys away from scrolling the sheet.
+   *
+   * `linkFrom`/dialogs are deliberately not consulted here. A modal traps its own
+   * Escape and a drag ends on pointerup; adding either as a condition would be a
+   * second source of truth for what is going on.
+   *
+   * The mode is consulted, though. A selection survives a switch to the Content
+   * tab, and Delete there — with the canvas nowhere on screen — would remove a
+   * component the author cannot see. Undo would have it back, but only once they
+   * noticed. */
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    const h = (e: KeyboardEvent) => {
+      if (typingInField(e.target)) return;
+
+      if (e.key === 'Escape') {
+        if (selectedEdge) { setSelectedEdge(null); return; }
+        if (selected) { setSelected(null); return; }
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedEdge) { e.preventDefault(); dropEdge(selectedEdge); return; }
+        if (selected) { e.preventDefault(); dropComponent(selected); }
+        return;
+      }
+
+      if (isArrowKey(e.key)) {
+        const card = (e.target as HTMLElement | null)?.closest?.('[data-comp]') as HTMLElement | null;
+        if (!card?.dataset.comp) return;
+        const next = stepSelection(doc, card.dataset.comp, e.key);
+        if (!next) return;
+        e.preventDefault();
+        setSelected(next);
+        /* Focus follows the selection, or the next arrow would start over from
+         * the card that has been left behind. */
+        const node = document.querySelector<HTMLElement>(`[data-comp="${CSS.escape(next)}"]`);
+        node?.focus();
+        node?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [mode, doc, selected, selectedEdge, dropEdge, dropComponent]);
+
+  /* ⌘K opens the finder. Bound apart from the handler above because this one has
+   * to fire while a text field has focus — that is most of when you want it. It
+   * picks a card on the sheet, so it belongs to the tab that has one. */
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    const h = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'k') return;
+      e.preventDefault();
+      setFinder(true);
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [mode]);
+
+  const revealComponent = useCallback((id: string) => {
+    setSelected(id);
+    setFinder(false);
+    /* After the render that may have had to un-fade or re-lay-out the card. */
+    requestAnimationFrame(() => {
+      const node = document.querySelector<HTMLElement>(`[data-comp="${CSS.escape(id)}"]`);
+      node?.scrollIntoView({ block: 'center', inline: 'center' });
+      node?.focus();
+    });
   }, []);
 
   /* ------------------------------------------------------------ mutations */
-  const addComponent = useCallback((layerId: string, index?: number) => {
+  const addComponent = useCallback((layerId: string, index?: number, zone?: string) => {
     const id = slugify('component', doc.components.map(c => c.id));
     const groupId = doc.groups[0]?.id || 'product';
     const comp: Component = {
-      id, name: 'New component', group: groupId, layer: layerId,
+      id, name: 'New component', group: groupId, layer: layerId, zone,
       icon: 'box', tech: [], features: [], notes: [], deps: []
     };
     patch(d => {
@@ -165,37 +384,53 @@ export default function Editor({ project }: { project: ProjectWithData }) {
     setPlacementRequest(null);
   }, [acceptSuggestedLink, catalog, doc.meta.lang, placeBrick, placementRequest]);
 
-  const moveComponent = useCallback((id: string, layerId: string, beforeId?: string) => {
-    patch(d => {
-      const i = d.components.findIndex(c => c.id === id);
-      if (i < 0) return d;
-      const [comp] = d.components.splice(i, 1);
-      comp.layer = layerId;
-      const at = beforeId ? d.components.findIndex(c => c.id === beforeId) : -1;
-      if (at >= 0) d.components.splice(at, 0, comp);
-      else d.components.push(comp);
-      return d;
-    });
-  }, [patch]);
+  /* The zone travels with the layer. It has to: a card is drawn inside whatever
+   * rectangle its band belongs to, so a move that changed the row and left the
+   * zone behind would put the drawing and the document at odds. `undefined` is
+   * a real value here — it is how a card leaves a zone. */
+  const moveComponent = useCallback(
+    (id: string, layerId: string, zone: string | undefined, beforeId?: string) => {
+      patch(d => {
+        const i = d.components.findIndex(c => c.id === id);
+        if (i < 0) return d;
+        const [comp] = d.components.splice(i, 1);
+        comp.layer = layerId;
+        comp.zone = zone;
+        const at = beforeId ? d.components.findIndex(c => c.id === beforeId) : -1;
+        if (at >= 0) d.components.splice(at, 0, comp);
+        else d.components.push(comp);
+        return d;
+      });
+    }, [patch]);
 
+  /* Dropping the handle on a card that is already the target used to *remove* the
+   * dependency. It reads as a toggle in the code and as a data loss at the desk:
+   * the gesture people make when they think the first drag missed is the same
+   * gesture, and it silently undid the link they were trying to draw. A line that
+   * exists is now selected rather than destroyed — the delete is the trash on its
+   * row, or Delete once it is selected, both of which say what they do. */
   const addDep = useCallback((from: string, to: string) => {
     if (from === to) return;
+    const caller = doc.components.find(x => x.id === from);
+    if (!caller) return;
+    const nameOf = (id: string) => doc.components.find(c => c.id === id)?.name ?? id;
+
+    if ((caller.deps || []).includes(to)) {
+      selectEdge(from, to);
+      notify(`${caller.name} already depends on ${nameOf(to)} — its line is selected on the right`, false);
+      return;
+    }
     patch(d => {
       const c = d.components.find(x => x.id === from);
       const callee = d.components.find(x => x.id === to);
       if (!c) return d;
-      c.deps = c.deps || [];
-      if (c.deps.includes(to)) {
-        c.deps = c.deps.filter(x => x !== to);
-        c.links = (c.links || []).filter(link => link.to !== to);
-      } else {
-        c.deps.push(to);
-        const suggestion = suggestedLinkForBrick(componentBrick(callee || {}));
-        c.links = [...(c.links || []).filter(link => link.to !== to), { to, ...suggestion }];
-      }
+      c.deps = [...(c.deps || []), to];
+      const suggestion = suggestedLinkForBrick(componentBrick(callee || {}));
+      c.links = [...(c.links || []).filter(link => link.to !== to), { to, ...suggestion }];
       return d;
     });
-  }, [patch]);
+    selectEdge(from, to);
+  }, [doc.components, patch, notify, selectEdge]);
 
   /* -------------------------------------------------------------- linking */
   useEffect(() => {
@@ -211,6 +446,7 @@ export default function Editor({ project }: { project: ProjectWithData }) {
       const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
       const card = el?.closest('[data-comp]') as HTMLElement | null;
       if (card?.dataset.comp) addDep(link.from, card.dataset.comp);
+      linkEndedAt.current = Date.now();
       setLink(null); setHoverTarget(null);
     };
     window.addEventListener('pointermove', move);
@@ -221,22 +457,29 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   /* ----------------------------------------------------------------- dnd */
   function onDragEnd(e: DragEndEvent) {
     setDragId(null);
-    const active = String(e.active.id);
-    const over = e.over ? String(e.over.id) : null;
-    if (!over) return;
+    const drop = resolveDrop(doc, String(e.active.id), e.over ? String(e.over.id) : null);
+    /* A release that would leave the document exactly as it is stops here rather
+     * than writing a step you would have to undo to get back to where you
+     * already were. */
+    if (!drop || !dropChangesAnything(doc, drop)) return;
 
-    const targetLayer = over.startsWith('layer:')
-      ? over.slice(6)
-      : doc.components.find(c => c.id === over)?.layer;
-    if (!targetLayer) return;
-    const beforeId = over.startsWith('layer:') ? undefined : over;
-
-    if (active === 'palette:new') {
-      const idx = beforeId ? doc.components.findIndex(c => c.id === beforeId) : undefined;
-      addComponent(targetLayer, idx);
+    if (!drop.componentId) {
+      const at = drop.before ? doc.components.findIndex(c => c.id === drop.before) : undefined;
+      addComponent(drop.layer, at, drop.zone);
       return;
     }
-    if (active !== beforeId) moveComponent(active, targetLayer, beforeId);
+    moveComponent(drop.componentId, drop.layer, drop.zone, drop.before);
+
+    /* Only a change of zone is announced. Moving between rows is visible the
+     * instant it happens; a zone is a rectangle in the background, and a card
+     * that quietly joined or left one is exactly the edit worth a sentence. */
+    const was = doc.components.find(c => c.id === drop.componentId);
+    if (was && (was.zone ?? undefined) !== drop.zone) {
+      const nameOf = (id: string) => doc.zones.find(z => z.id === id)?.name ?? id;
+      notify(drop.zone
+        ? `"${was.name}" moved into ${nameOf(drop.zone)}`
+        : `"${was.name}" left ${was.zone ? nameOf(was.zone) : 'its zone'}`);
+    }
   }
 
   const selectedComp = doc.components.find(c => c.id === selected) || null;
@@ -247,7 +490,7 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   }, [doc.groups]);
 
   return (
-    <DndContext sensors={sensors}
+    <DndContext sensors={sensors} collisionDetection={preferInnermost}
       onDragStart={(e: DragStartEvent) => setDragId(String(e.active.id))}
       onDragEnd={onDragEnd} onDragCancel={() => setDragId(null)}>
       <div className="shell">
@@ -259,6 +502,15 @@ export default function Editor({ project }: { project: ProjectWithData }) {
             <input className="name" value={name} onChange={e => setName(e.target.value)}
               aria-label="Project name" />
             <SaveFlag state={save} />
+
+            {/* Next to the save flag rather than out with the exports: these two
+                are the other half of "nothing here has a Save button". */}
+            <span className="undogroup">
+              <button className="iconbtn" onClick={undo} disabled={!canUndo(stack)}
+                title="Undo (⌘Z)" aria-label="Undo"><Icon name="undo" size={15} /></button>
+              <button className="iconbtn" onClick={redo} disabled={!canRedo(stack)}
+                title="Redo (⌘⇧Z)" aria-label="Redo"><Icon name="redo" size={15} /></button>
+            </span>
 
             <div style={{ flex: 1 }} />
 
@@ -280,37 +532,31 @@ export default function Editor({ project }: { project: ProjectWithData }) {
               <Icon name="clock" size={15} />History
             </button>
 
-            <a className="btn" href={`/projects/${project.id}/document`} target="_blank" rel="noreferrer"
-              title="The same document, linear and numbered — print it to PDF from there">
-              <Icon name="file" size={15} />Document
-            </a>
-            <a className="btn" href={`/api/projects/${project.id}/export?format=html`}>
-              <Icon name="download" size={15} />HTML
-            </a>
-            <a className="btn" href={`/api/projects/${project.id}/export?format=json`}>
-              <Icon name="download" size={15} />JSON
-            </a>
+            <ExportMenu projectId={project.id} name={project.name} notify={notify} />
           </div>
 
           {mode === 'preview' ? (
             <PreviewPane projectId={project.id} version={doc} saveState={save} />
           ) : mode === 'content' ? (
-            <ContentEditor doc={doc} patch={patch} catalog={catalog} />
+            <ContentEditor doc={doc} patch={patch} catalog={catalog} notify={notify} />
           ) : (
             <div className="editor-body">
-              <Palette doc={doc} patch={patch} catalog={catalog} onOpenPlacement={() => setPlacementRequest({})} />
+              <Palette doc={doc} patch={patch} catalog={catalog} notify={notify}
+                onOpenPlacement={() => setPlacementRequest({})} />
 
-              <div className="canvas-wrap">
-                <Canvas
-                  doc={doc} selected={selected} setSelected={setSelected}
-                  hoverTarget={hoverTarget} linking={!!link}
-                  onStartLink={(id, x, y) => setLink({ from: id, x, y })}
-                  groupColor={groupColor} patch={patch}
-                />
-              </div>
+              <CanvasStage
+                doc={doc} selected={selected} setSelected={setSelected}
+                hoverTarget={hoverTarget} linkFrom={link?.from ?? null}
+                onStartLink={(id, x, y) => setLink({ from: id, x, y })}
+                groupColor={groupColor} patch={patch} notify={notify}
+                onClearSelection={clearSelection} onZoomChange={setSheetZoom}
+                selectedEdge={selectedEdge} onSelectEdge={selectEdge}
+                onAddComponent={layerId => addComponent(layerId)}
+              />
 
               <Inspector
-                doc={doc} patch={patch} component={selectedComp}
+                doc={doc} patch={patch} component={selectedComp} notify={notify}
+                openLink={selectedEdge?.from === selected ? selectedEdge.to : null}
                 onClose={() => setSelected(null)} onSelect={setSelected}
               />
             </div>
@@ -318,18 +564,31 @@ export default function Editor({ project }: { project: ProjectWithData }) {
         </div>
       </div>
 
+      {finder && mode === 'edit' && (
+        <Finder doc={doc} onClose={() => setFinder(false)} onPick={revealComponent} />
+      )}
+
+      <NoticeBar notice={notice} canUndo={canUndo(stack)}
+        onUndo={undo} onDismiss={() => setNotice(null)} />
+
       <DragOverlay dropAnimation={null}>
-        {dragId && dragId !== 'palette:new' && (() => {
+        {dragId && dragId !== PALETTE_NEW && (() => {
           const c = doc.components.find(x => x.id === dragId);
           if (!c) return null;
           return (
-            <div className="ccard" style={{ ['--c' as string]: groupColor(c.group).light, cursor: 'grabbing', boxShadow: 'var(--shadow-lg)' }}>
+            <div className="ccard" style={{
+              ['--c' as string]: groupColor(c.group).light, cursor: 'grabbing',
+              boxShadow: 'var(--shadow-lg)',
+              /* Anchored at the corner the pointer picked the card up by. */
+              transform: sheetZoom === 1 ? undefined : `scale(${sheetZoom})`,
+              transformOrigin: 'top left'
+            }}>
               <div className="nh"><span className="ic"><Icon name={c.icon || 'box'} size={13} /></span>
                 <span className="nm">{c.name}</span></div>
             </div>
           );
         })()}
-        {dragId === 'palette:new' && (
+        {dragId === PALETTE_NEW && (
           <div className="palette-item" style={{ background: 'var(--panel)', cursor: 'grabbing' }}>
             <Icon name="plus" size={14} />New component
           </div>
@@ -379,9 +638,10 @@ export default function Editor({ project }: { project: ProjectWithData }) {
           onRestore={data => {
             /* The restore already wrote the document server-side. Adopting it
              * here keeps the canvas, the inspector and the preview in step —
-             * the autosave that follows is a no-op against what is on disk. */
-            setDoc(data);
-            setSelected(s => (data.components.some(c => c.id === s) ? s : null));
+             * the autosave that follows is a no-op against what is on disk — and
+             * puts the pre-restore document on the undo stack as well. */
+            adopt(data);
+            notify('Version restored');
           }} />
       )}
 
@@ -392,8 +652,9 @@ export default function Editor({ project }: { project: ProjectWithData }) {
             /* Adopted like a restore: the dialog has already checkpointed the
              * document, and the autosave that follows this state change is the
              * one and only write. */
-            setDoc(merged);
+            adopt(merged);
             setEnrich(false);
+            notify('Enrichment applied');
           }} />
       )}
     </DndContext>
@@ -401,6 +662,447 @@ export default function Editor({ project }: { project: ProjectWithData }) {
 }
 
 /* ------------------------------------------------------------------ pieces */
+
+/* `id` is a timestamp and not a counter: two deletions of the same thing must
+ * produce two different notices, or the second one never restarts the timer. */
+type Notice = { text: string; id: number; undoable: boolean };
+
+/* What just happened, and the way back from it.
+ *
+ * This is what lets a delete stop asking. A confirm interrupts every deletion to
+ * insure against the rare one that was a mistake; a notice with an Undo costs
+ * the mistake one click and the other ninety-nine nothing at all. */
+function NoticeBar({ notice, canUndo, onUndo, onDismiss }: {
+  notice: Notice | null; canUndo: boolean; onUndo: () => void; onDismiss: () => void;
+}) {
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(onDismiss, 8000);
+    return () => clearTimeout(t);
+  }, [notice, onDismiss]);
+
+  if (!notice) return null;
+  return (
+    <div className="noticebar" role="status">
+      <span>{notice.text}</span>
+      {notice.undoable && canUndo && (
+        <button type="button" className="linkbtn" onClick={onUndo}>Undo</button>
+      )}
+      <button type="button" className="iconbtn" onClick={onDismiss} aria-label="Dismiss">
+        <Icon name="plus" size={13} style={{ transform: 'rotate(45deg)' }} />
+      </button>
+    </div>
+  );
+}
+
+/* The rail's sections, foldable.
+ *
+ * Five stacked lists that all grow with the document — scopes, layers, zones and
+ * two or three legends — inside 246 px that does not. On a document with four
+ * layers and three zones the Add block was off the top of the rail before you
+ * had scrolled to it.
+ *
+ * The state is remembered, because a fold you have to redo every time you open a
+ * project is worse than no fold. Read after mount rather than during the first
+ * render: the server has no localStorage, and a section that renders open and
+ * then closes is a hydration mismatch. */
+const RAIL_FOLD_KEY = 'archstudio.rail.folded';
+
+interface RailFolds { isOpen: (id: string) => boolean; toggle: (id: string) => void }
+
+function useRailFolds(): RailFolds {
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RAIL_FOLD_KEY);
+      if (raw) setFolded(JSON.parse(raw) as Record<string, boolean>);
+    } catch { /* a rail that will not fold is not worth an error */ }
+    loaded.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!loaded.current) return;
+    try { window.localStorage.setItem(RAIL_FOLD_KEY, JSON.stringify(folded)); } catch { /* ignore */ }
+  }, [folded]);
+
+  return {
+    isOpen: (id: string) => !folded[id],
+    toggle: (id: string) => setFolded(f => ({ ...f, [id]: !f[id] }))
+  };
+}
+
+/** The label the rail already drew, with a twist in front of it and whatever the
+ *  section's own control was — Add — still on the right. */
+function RailSection({ id, label, open, onToggle, action, children }: {
+  id: string; label: string; open: boolean; onToggle: () => void;
+  action?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="sect-label railhead">
+        <button type="button" className="railtwist" onClick={onToggle}
+          aria-expanded={open} aria-controls={`rail-${id}`}>
+          <Icon name="chevron" size={11} style={{ transform: open ? 'rotate(90deg)' : 'none' }} />
+          {label}
+        </button>
+        <span className="spacer" />
+        {action}
+      </div>
+      {open && <div id={`rail-${id}`}>{children}</div>}
+    </>
+  );
+}
+
+/* ⌘K — the one control that scales with the document.
+ *
+ * Every other way to reach a component gets harder as the sheet grows: the eye
+ * scans further, the scroll gets longer, the scope filter narrows a category
+ * rather than finding a thing. Typing four letters does not. It searches the
+ * name, the id, the technologies and the role, because "which box is the one
+ * running Postgres" is the question people actually arrive with.
+ *
+ * Arrows move the highlight and Enter takes it — never a click-only list. This
+ * is the keyboard's own control; making it need the mouse would be a joke. */
+function Finder({ doc, onClose, onPick }: {
+  doc: Architecture; onClose: () => void; onPick: (id: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [at, setAt] = useState(0);
+  const hits = useMemo(() => searchComponents(doc, query), [doc, query]);
+  const list = useRef<HTMLDivElement>(null);
+
+  /* A new query starts at the top; keeping the old index would land Enter on
+   * whatever happened to be third in a list the reader has not looked at. */
+  useEffect(() => { setAt(0); }, [query]);
+  useEffect(() => {
+    list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [at]);
+
+  const move = (d: number) => setAt(i => {
+    if (!hits.length) return 0;
+    return (i + d + hits.length) % hits.length;
+  });
+
+  return (
+    <div className="modal-scrim finder-scrim" onClick={onClose}>
+      <div className="modal finder" role="dialog" aria-label="Find a component"
+        onClick={e => e.stopPropagation()}>
+        <input className="finder-input" autoFocus value={query} placeholder="Find a component…"
+          aria-label="Find a component"
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+            if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+            if (e.key === 'Enter' && hits[at]) { e.preventDefault(); onPick(hits[at].component.id); }
+          }} />
+
+        <div className="finder-list" ref={list} role="listbox">
+          {hits.map((hit, i) => (
+            <button key={hit.component.id} type="button" role="option" aria-selected={i === at}
+              onMouseEnter={() => setAt(i)} onClick={() => onPick(hit.component.id)}>
+              <Icon name={hit.component.icon || 'box'} size={14} />
+              <span className="finder-name">{hit.component.name}</span>
+              <span className="finder-where">{hit.layerName} · {hit.groupName}</span>
+            </button>
+          ))}
+          {!hits.length && <p className="hint" style={{ padding: '12px 14px' }}>Nothing matches.</p>}
+        </div>
+
+        <div className="finder-foot">↑↓ to move · ↵ to select · esc to close</div>
+      </div>
+    </div>
+  );
+}
+
+/* Creating a layer, a scope or a zone.
+ *
+ * All three were `prompt()`. Beyond looking like 1997, the cost was structural:
+ * a prompt returns one string, so a zone was created bare and its kind and its
+ * parent had to be found again on the row afterwards — two selects at 246 px,
+ * for two answers you already had in mind when you clicked Add. A dialog can
+ * take all of it in one gesture, and it can refuse an empty name instead of
+ * quietly creating nothing.
+ *
+ * One component for the three because the frame is the same and only the middle
+ * differs; splitting it would mean three copies of the focus, the Escape and the
+ * Enter handling, which is the part that has to be identical. */
+type RailKind = 'layer' | 'scope' | 'zone';
+
+const RAIL_COPY: Record<RailKind, { title: string; blurb: string; placeholder: string }> = {
+  layer: {
+    title: 'New layer',
+    blurb: 'A row of the sheet. Layers are the vertical order of the architecture — edge, services, data.',
+    placeholder: 'Services'
+  },
+  scope: {
+    title: 'New scope',
+    blurb: 'A colour across the layers. Scopes say which part of the organisation or the product a component belongs to.',
+    placeholder: 'Platform'
+  },
+  zone: {
+    title: 'New zone',
+    blurb: 'A boundary that crosses the layers — a platform, a network zone, the perimeter of a migration.',
+    placeholder: 'OpenShift'
+  }
+};
+
+function RailDialog({ kind, doc, onClose, onCreate }: {
+  kind: RailKind;
+  doc: Architecture;
+  onClose: () => void;
+  onCreate: (v: { name: string; colour: string; zoneKind?: ZoneKind; parent?: string }) => void;
+}) {
+  const copy = RAIL_COPY[kind];
+  const [name, setName] = useState('');
+  const [zoneKind, setZoneKind] = useState<ZoneKind | ''>('');
+  const [parent, setParent] = useState('');
+  const nextColour = PALETTE[doc.groups.length % PALETTE.length];
+  const [colour, setColour] = useState(nextColour);
+  const field = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { field.current?.focus(); }, []);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [onClose]);
+
+  const submit = () => {
+    if (!name.trim()) { field.current?.focus(); return; }
+    onCreate({
+      name: name.trim(), colour,
+      zoneKind: zoneKind || undefined,
+      parent: parent || undefined
+    });
+  };
+
+  return (
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal railmodal" role="dialog" aria-label={copy.title}
+        onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <div><h2>{copy.title}</h2><p className="lede">{copy.blurb}</p></div>
+        </div>
+
+        <label className="field"><span>Name</span>
+          <input className="input" ref={field} value={name} placeholder={copy.placeholder}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
+        </label>
+
+        {kind === 'scope' && (
+          <label className="field"><span>Colour</span>
+            <input type="color" className="input" value={colour}
+              onChange={e => setColour(e.target.value)} />
+            <div className="hint">
+              Five hues, one per scope. This is the next one in the palette; change it if
+              the document already means something else by it.
+            </div>
+          </label>
+        )}
+
+        {kind === 'zone' && (
+          <>
+            <label className="field"><span>Kind</span>
+              <select className="select" value={zoneKind}
+                onChange={e => setZoneKind(e.target.value as ZoneKind | '')}>
+                <option value="">Untyped — drawn dashed</option>
+                {ZONE_KINDS.map(k => (
+                  <option key={k} value={k}>{ZONE_KIND_LABELS[k].en}</option>
+                ))}
+              </select>
+              <div className="hint">
+                {zoneKind ? ZONE_KIND_BLURBS[zoneKind]
+                  : 'A boundary that exists in a document rather than in a room.'}
+              </div>
+            </label>
+            {!!doc.zones.length && (
+              <label className="field"><span>Inside</span>
+                <select className="select" value={parent} onChange={e => setParent(e.target.value)}>
+                  <option value="">Nothing — a zone of its own</option>
+                  {doc.zones.map(z => <option key={z.id} value={z.id}>in {z.name}</option>)}
+                </select>
+              </label>
+            )}
+          </>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn primary" onClick={submit} disabled={!name.trim()}>
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* The ways out of the document, behind one word.
+ *
+ * They were four buttons in the bar, two of them carrying the same download
+ * glyph and distinguished only by "HTML" and "JSON" — which asks the reader to
+ * know what those files are before knowing which one they want. A menu can say
+ * it in a line each, and the bar goes back to being about the three tabs.
+ *
+ * Real anchors, not click handlers: an export is a download, and a download you
+ * cannot open in a new tab or copy the address of is a worse download. The PNG
+ * is the one exception and it is not a preference — see `downloadPng`, which has
+ * to assemble the file in this browser because there is no rasteriser on the
+ * other end of the wire. It is the only row that is a button. */
+function ExportMenu({ projectId, name, notify }: {
+  projectId: string; name: string; notify: Notify;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
+  const png = async () => {
+    setBusy(true);
+    try {
+      await downloadPng(projectId, `${slugify(name || 'architecture')}.png`);
+      setOpen(false);
+    } catch (e) {
+      notify(e instanceof Error ? `PNG export failed — ${e.message}` : 'PNG export failed', false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const api = `/api/projects/${projectId}/export`;
+  return (
+    <div className="menu" ref={box} style={{ position: 'relative' }}>
+      <button className="btn" aria-haspopup="menu" aria-expanded={open}
+        onClick={() => setOpen(o => !o)}>
+        <Icon name="download" size={15} />Export
+        <Icon name="chevron" size={12} style={{ transform: 'rotate(90deg)', opacity: .6 }} />
+      </button>
+      {open && (
+        /* The PNG row keeps the menu open while it works: it is the one item
+         * that takes a moment, and a menu that vanished with nothing downloaded
+         * yet reads as a click that missed. */
+        <div className="menu-pop under wide" role="menu"
+          onClick={e => { if (!(e.target as HTMLElement).closest('[data-busy]')) setOpen(false); }}>
+          <a href={`/projects/${projectId}/document`} target="_blank" rel="noreferrer">
+            <Icon name="file" size={14} />
+            <span>Design document<em>Numbered and linear — print it to PDF from there</em></span>
+          </a>
+          <hr />
+          <a href={`${api}?format=html`}>
+            <Icon name="download" size={14} />
+            <span>Self-contained HTML<em>One file, no external requests — email it</em></span>
+          </a>
+          <a href={`${api}?format=datafile`}>
+            <Icon name="download" size={14} />
+            <span>Viewer data file<em>architecture.js, for the standalone viewer</em></span>
+          </a>
+          <a href={`${api}?format=json`}>
+            <Icon name="download" size={14} />
+            <span>JSON<em>The document itself — re-importable</em></span>
+          </a>
+          <hr />
+          <a href={`${api}?format=drawio`}>
+            <Icon name="download" size={14} />
+            <span>draw.io<em>The diagram, editable — boxes, zones and lines you can move</em></span>
+          </a>
+          <button type="button" data-busy={busy ? '1' : '0'} disabled={busy} onClick={png}>
+            <Icon name={busy ? 'clock' : 'download'} size={14} />
+            <span>PNG{busy ? ' — building…' : ''}
+              <em>An image anywhere, and still a diagram in draw.io</em></span>
+          </button>
+          <a href={`${api}?format=svg`}>
+            <Icon name="download" size={14} />
+            <span>SVG<em>Vector — scales without going soft, for slides and print</em></span>
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* The PNG, assembled here rather than on the server.
+ *
+ * Nothing in this codebase can rasterise: the server has no headless browser and
+ * this repo has no image library, which is a deliberate line — the dependency
+ * list is `next`, `react` and `@dnd-kit`, and a PNG is not worth Puppeteer. But
+ * every reader already has a rasteriser, and it is the one displaying this menu.
+ *
+ * So the server sends the drawing as SVG with its typefaces inlined, an `<img>`
+ * decodes it, a canvas paints it at 2× and hands back PNG bytes — and then the
+ * draw.io XML for the same document goes into the file as a text chunk. The
+ * result is an ordinary image that draw.io can reopen as an editable diagram,
+ * which is the whole reason to prefer it to a screenshot.
+ *
+ * 2× rather than the device's own ratio: an export is not looked at on the
+ * machine that made it, and a diagram that is crisp on a retina laptop and soft
+ * on the projector in the room has optimised for the wrong screen. */
+const PNG_SCALE = 2;
+
+async function downloadPng(projectId: string, filename: string) {
+  const api = `/api/projects/${projectId}/export`;
+  const fetchText = async (format: string) => {
+    const r = await fetch(`${api}?format=${format}&inline=1`);
+    if (!r.ok) throw new Error(`could not read the ${format} export`);
+    return r.text();
+  };
+  const [svg, xml] = await Promise.all([fetchText('svg'), fetchText('drawio')]);
+  const blob = new Blob([withDrawioXml(await rasterise(svg), xml)], { type: 'image/png' });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  /* Revoked on the next frame rather than immediately: the click is synchronous
+   * but the fetch the browser makes for it is not. */
+  requestAnimationFrame(() => URL.revokeObjectURL(url));
+}
+
+function rasterise(svg: string): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    const img = new Image();
+    const done = (fn: () => void) => { URL.revokeObjectURL(url); fn(); };
+
+    img.onerror = () => done(() => reject(new Error('the diagram could not be decoded')));
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * PNG_SCALE);
+      canvas.height = Math.round(img.naturalHeight * PNG_SCALE);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return done(() => reject(new Error('this browser has no 2D canvas')));
+      /* The SVG already paints its own ground, but a transparent PNG pasted into
+       * a dark slide deck is a diagram in invisible ink. Paint it here too. */
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        if (!blob) return done(() => reject(new Error('the image could not be encoded')));
+        blob.arrayBuffer()
+          .then(buf => done(() => resolve(new Uint8Array(buf))))
+          .catch(err => done(() => reject(err)));
+      }, 'image/png');
+    };
+    img.src = url;
+  });
+}
 
 function SaveFlag({ state }: { state: SaveState }) {
   const label = { saved: 'Saved', dirty: 'Editing…', saving: 'Saving…', error: 'Not saved' }[state];
@@ -499,16 +1201,27 @@ function LinkLine({ link }: { link: { from: string; x: number; y: number } }) {
  * document renderer — three surfaces, one grammar, one table in lib/links.ts. */
 function edgeGlyph(
   x1: number, y1: number, k1: number, x2: number, y2: number, k2: number,
-  colour: string, opacity: number, width: number, dash = ''
+  colour: string, opacity: number, width: number, dash = '',
+  from = '', to = '', chosen = false
 ) {
-  return `<g opacity="${opacity}">`
-    + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
+  const d = `M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}`;
+  return `<g opacity="${opacity}" data-o="${opacity}"`
+    + ` data-from="${attr(from)}" data-to="${attr(to)}"${chosen ? ' data-sel="1"' : ''}>`
+    /* The line is 1.2 px and a pointer is not. This is the same curve at a
+     * thickness you can actually hit, painted in nothing — without it the only
+     * way to reach a dependency is to select its caller and hunt for the row. */
+    + `<path class="hit" d="${d}" fill="none" stroke="transparent" stroke-width="14"/>`
+    + `<path d="${d}" fill="none" `
     + `stroke="${colour}" stroke-width="${width}" stroke-linecap="round"`
     + `${dash ? ` stroke-dasharray="${dash}"` : ''}/>`
     + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${colour}"/>`
     + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${colour}" stroke-width="1.5"/>`
     + `</g>`;
 }
+
+/** Component ids are slugs, but nothing downstream should have to know that:
+ *  this is a raw string going into an attribute in an SVG built by hand. */
+const attr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /* The zone rectangles, measured after layout and drawn behind everything else.
  *
@@ -519,7 +1232,7 @@ function edgeGlyph(
  *
  * Kept in step with `zoneLayer` in viewer/engine.js and `PaperDiagram` in the
  * document renderer — three surfaces, one geometry, one table in lib/zones.ts. */
-function zoneLayer(host: HTMLElement, box: DOMRect, doc: Architecture): string {
+function zoneLayer(host: HTMLElement, box: DOMRect, doc: Architecture, scale = 1): string {
   const live = zonesInUse(doc.zones, doc.components);
   if (!live.length) return '';
 
@@ -530,7 +1243,10 @@ function zoneLayer(host: HTMLElement, box: DOMRect, doc: Architecture): string {
       host.querySelectorAll<HTMLElement>(`.zrun[data-zone="${CSS.escape(id)}"]`).forEach(run => {
         const r = run.getBoundingClientRect();
         if (!r.width && !r.height) return;
-        boxes.push({ x: r.left - box.left, y: r.top - box.top, w: r.width, h: r.height });
+        boxes.push({
+          x: (r.left - box.left) / scale, y: (r.top - box.top) / scale,
+          w: r.width / scale, h: r.height / scale
+        });
       });
     });
     const rect = inflatedUnion(boxes, zonePad(zone.id, doc.zones));
@@ -539,17 +1255,250 @@ function zoneLayer(host: HTMLElement, box: DOMRect, doc: Architecture): string {
   }).join('');
 }
 
-/* -------------------------------------------------------------------- canvas */
+/* --------------------------------------------------------------------- stage */
 
-function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink, groupColor, patch }: {
+interface StageProps {
   doc: Architecture; selected: string | null; setSelected: (id: string | null) => void;
-  hoverTarget: string | null; linking: boolean;
+  hoverTarget: string | null;
+  /** The card the dependency handle was pulled from, or null when nothing is
+   *  being drawn. The cards need the id and not just the fact — a target that is
+   *  already linked has to say so before the drop, not after. */
+  linkFrom: string | null;
   onStartLink: (id: string, x: number, y: number) => void;
   groupColor: (id: string) => { light: string; dark: string };
   patch: (fn: (d: Architecture) => Architecture) => void;
+  notify: Notify;
+  selectedEdge: EdgeRef | null;
+  onSelectEdge: (from: string, to: string) => void;
+  /** A click on the paper. Not `setSelected(null)` — see `clearSelection`. */
+  onClearSelection: () => void;
+  /** Reported upwards so the drag overlay can match the sheet's scale. */
+  onZoomChange: (zoom: number) => void;
+  /** Add a component to this layer. On the row itself, because the rail that
+   *  used to be the only way in is hidden below 1180 px — on a 13-inch laptop
+   *  the editor had no way at all to add a component. */
+  onAddComponent: (layerId: string) => void;
+}
+
+/* The frame around the sheet, and the controls that make a large one workable.
+ *
+ * All of this existed in the viewer and none of it here, which is the wrong way
+ * round: the reader of an exported file got Fit and a scope filter, and the
+ * person drawing the thing got a scrollbar. Same chips, same range, same two
+ * zoom mechanisms — see lib/viewport.ts, which the tests hold against
+ * viewer/engine.js so the two surfaces cannot drift.
+ *
+ * One deliberate difference. The viewer's filter takes the emptied columns out
+ * of the sheet; here it only fades them. You are still editing the components
+ * you filtered out — a card that vanished is one you cannot drop anything onto,
+ * and a layer that lost its cards is a row you would delete by mistake. */
+function CanvasStage(props: StageProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(1);
+  const [zoom, setZoomState] = useState(1);
+  const [compact, setCompact] = useState(false);
+  const [filter, setFilter] = useState<string | null>(null);
+
+  /* Firefox only learned `zoom` in 126. Assumed present on the server, where
+   * there is no CSS object to ask — the factor is 1 there and neither mechanism
+   * emits a style, so the two renders agree. */
+  const [hasZoomProp] = useState(() =>
+    typeof CSS === 'undefined' || typeof CSS.supports !== 'function'
+      ? true : CSS.supports('zoom', '0.5'));
+
+  const { doc, groupColor, onZoomChange } = props;
+  useEffect(() => { onZoomChange(zoom); }, [zoom, onZoomChange]);
+  const scopes = useMemo(
+    () => doc.groups.filter(g => doc.components.some(c => c.group === g.id)),
+    [doc.groups, doc.components]
+  );
+  /* A scope that no longer holds anything cannot stay the active filter, or the
+   * sheet fades to nothing with no chip pressed to explain why. */
+  useEffect(() => {
+    setFilter(f => (f && scopes.some(g => g.id === f) ? f : null));
+  }, [scopes]);
+
+  const setZoom = useCallback((next: number, anchor?: { x: number; y: number }) => {
+    const from = zoomRef.current;
+    const to = clampZoom(next);
+    if (to === from) return;
+    zoomRef.current = to;
+    setZoomState(to);
+
+    const frame = frameRef.current;
+    if (!frame) return;
+    const box = frame.getBoundingClientRect();
+    const at = anchor ?? { x: box.width / 2, y: box.height / 2 };
+    const scroll = anchoredScroll(
+      from, to, { left: frame.scrollLeft, top: frame.scrollTop }, at);
+    /* After the paint that resizes the sheet: setting scrollLeft against the old
+     * layout would be clamped to the old maximum and land somewhere else. */
+    requestAnimationFrame(() => {
+      frame.scrollLeft = scroll.left;
+      frame.scrollTop = scroll.top;
+    });
+  }, []);
+
+  /* The largest factor at or below 100 % whose whole sheet fits the frame.
+   *
+   * Scaling reflows, so the height at a given factor cannot be calculated — it
+   * has to be tried, and the probe writes straight to the node rather than
+   * through state so the whole ladder costs one paint. Both properties are
+   * cleared afterwards: React only removes the style properties it set itself,
+   * and it never saw these. */
+  const fit = useCallback(() => {
+    const frame = frameRef.current, host = hostRef.current;
+    if (!frame || !host) return;
+    if (!(frame.clientHeight > 0)) return;
+
+    /* Asked of the frame, not of the sheet, and in both directions.
+     *
+     * The sheet cannot answer either question honestly. Its border box is a
+     * block clamped to the frame's width, so a banded grid running two screens
+     * to the right still measures as "fits"; and its own `scrollWidth` is
+     * reported in its local pixels, which do not shrink under `zoom`. The frame
+     * is never scaled, so its scroll extents are the painted size of whatever
+     * the sheet is currently doing — one measurement that is true for both
+     * mechanisms and both axes.
+     *
+     * Width matters only because of zones. An unzoned sheet is flex-wrap and
+     * reflows into whatever frame it is given; a zoned one is a grid of fixed
+     * columns reserving a band per zone whether or not a row uses it, and that
+     * does not reflow — it is only painted smaller. Measuring height alone left
+     * Fit answering 100 % on a sheet half of which was off the right edge. */
+    let found = ZOOM_MIN;
+    for (const z of fitLadder()) {
+      const style = zoomStyle(z, hasZoomProp);
+      host.style.zoom = style.zoom ?? '';
+      host.style.transform = style.transform ?? '';
+      host.style.transformOrigin = style.transform ? 'top left' : '';
+      if (frame.scrollWidth <= frame.clientWidth + 1
+        && frame.scrollHeight <= frame.clientHeight + 1) { found = z; break; }
+    }
+    host.style.zoom = '';
+    host.style.transform = '';
+    host.style.transformOrigin = '';
+
+    zoomRef.current = found;
+    setZoomState(found);
+    requestAnimationFrame(() => { frame.scrollLeft = 0; frame.scrollTop = 0; });
+  }, [hasZoomProp]);
+
+  /* Plain wheel stays a scroll; ctrl or ⌘ — which is also what a trackpad pinch
+   * sends — scales the sheet. Bound by hand because React's onWheel is passive
+   * and cannot preventDefault the browser's own page zoom. */
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const r = frame.getBoundingClientRect();
+      setZoom(zoomRef.current - Math.sign(e.deltaY) * ZOOM_STEP,
+        { x: e.clientX - r.left, y: e.clientY - r.top });
+    };
+    frame.addEventListener('wheel', onWheel, { passive: false });
+    return () => frame.removeEventListener('wheel', onWheel);
+  }, [setZoom]);
+
+  /* Drag the paper to pan it. Only from the ground — a card belongs to dnd-kit,
+   * and the layer heads own their own buttons — and only once the pointer has
+   * actually travelled, so a click on the sheet is still the click that
+   * deselects. */
+  const pan = useRef<{ id: number; x: number; y: number; left: number; top: number; live: boolean } | null>(null);
+  const onPanDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const frame = frameRef.current;
+    if (!frame || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.ccard, button, input, select, textarea, a')) return;
+    pan.current = {
+      id: e.pointerId, x: e.clientX, y: e.clientY,
+      left: frame.scrollLeft, top: frame.scrollTop, live: false
+    };
+  };
+  const onPanMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const frame = frameRef.current, p = pan.current;
+    if (!frame || !p || p.id !== e.pointerId) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!p.live) {
+      if (Math.abs(dx) + Math.abs(dy) < 5) return;
+      p.live = true;
+      frame.setPointerCapture(e.pointerId);
+      frame.classList.add('panning');
+    }
+    frame.scrollLeft = p.left - dx;
+    frame.scrollTop = p.top - dy;
+  };
+  const endPan = (e: React.PointerEvent<HTMLDivElement>) => {
+    const frame = frameRef.current, p = pan.current;
+    pan.current = null;
+    if (!frame || !p) return;
+    if (p.live) {
+      frame.classList.remove('panning');
+      if (frame.hasPointerCapture(e.pointerId)) frame.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  return (
+    <div className="canvas-wrap">
+      <div className="canvas-tools">
+        <div className="filters">
+          <button className="chip" aria-pressed={!filter} onClick={() => setFilter(null)}>
+            All scopes
+          </button>
+          {scopes.map(g => (
+            <button key={g.id} className="chip pole" aria-pressed={filter === g.id}
+              style={{ ['--c' as string]: groupColor(g.id).light }}
+              onClick={() => setFilter(f => (f === g.id ? null : g.id))}>
+              <i style={{ background: groupColor(g.id).light }} />{g.name}
+            </button>
+          ))}
+        </div>
+        {/* Hint and controls are one right-hand group, so a bar narrow enough to
+            wrap keeps them together instead of dropping the zoom bar to the far
+            left of the second line. */}
+        <div className="toolside">
+        <span className="hintline">⌘ + wheel = zoom · drag = pan</span>
+        <div className="tools">
+          <button className="chip" aria-pressed={compact} onClick={() => setCompact(c => !c)}
+            title="Strip the cards to their icon and name">Compact</button>
+          <div className="zoombar">
+            <button className="zb" onClick={() => setZoom(zoomRef.current - ZOOM_STEP)}
+              aria-label="Zoom out" title="Zoom out"><Icon name="minus" size={14} /></button>
+            <span className="zval">{Math.round(zoom * 100)}%</span>
+            <button className="zb" onClick={() => setZoom(zoomRef.current + ZOOM_STEP)}
+              aria-label="Zoom in" title="Zoom in"><Icon name="plus" size={14} /></button>
+            <button className="zb zfit" onClick={fit}
+              title="The largest scale that puts the whole sheet on screen">Fit</button>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div className="canvas-frame" ref={frameRef}
+        onPointerDown={onPanDown} onPointerMove={onPanMove}
+        onPointerUp={endPan} onPointerCancel={endPan}>
+        <Canvas {...props} hostRef={hostRef} zoom={zoom} compact={compact} filter={filter}
+          zoomStyleValue={zoomStyle(zoom, hasZoomProp)} />
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------- canvas */
+
+function Canvas({
+  doc, selected, setSelected, hoverTarget, linkFrom, onStartLink, groupColor, patch, notify,
+  onAddComponent, selectedEdge, onSelectEdge, onClearSelection,
+  hostRef, zoom, compact, filter, zoomStyleValue
+}: Omit<StageProps, 'onZoomChange'> & {
+  hostRef: React.RefObject<HTMLDivElement | null>;
+  zoom: number; compact: boolean; filter: string | null; zoomStyleValue: ZoomStyle;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = hostRef;
   const [edges, setEdges] = useState<string>('');
+  const [hover, setHover] = useState<string | null>(null);
+  const linking = !!linkFrom;
 
   /* Computed once for the sheet, not once per layer: a band is the same range of
    * columns on every row, which is the whole reason a zone's rectangle can only
@@ -563,6 +1512,10 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
     const host = ref.current;
     if (!host) return;
     const box = host.getBoundingClientRect();
+    /* Both zoom mechanisms scale what a rect reports, and the SVG is a child of
+     * the scaled element — so one division puts every measurement back into the
+     * sheet's own coordinates, which is what the edge geometry is written in. */
+    const sc = zoom || 1;
     const index = Object.fromEntries(doc.layers.map((l, i) => [l.id, i]));
     const byId = Object.fromEntries(doc.components.map(c => [c.id, c]));
     const conv = protocolConvention(doc.ui.architecture);
@@ -575,42 +1528,54 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
       const b = host.querySelector(`[data-comp="${CSS.escape(dep)}"]`);
       if (!a || !b || !byId[dep]) return;
       const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-      const x1 = ra.left - box.left + ra.width / 2;
-      const x2 = rb.left - box.left + rb.width / 2;
+      const x1 = (ra.left - box.left + ra.width / 2) / sc;
+      const x2 = (rb.left - box.left + rb.width / 2) / sc;
       const la = index[c.layer], lb = index[byId[dep].layer];
       let y1: number, y2: number, k1: number, k2: number;
       if (la === lb) {
-        y1 = ra.bottom - box.top; y2 = rb.bottom - box.top; k1 = 30; k2 = 30;
+        y1 = (ra.bottom - box.top) / sc; y2 = (rb.bottom - box.top) / sc; k1 = 30; k2 = 30;
       } else {
         const up = la > lb;
-        y1 = (up ? ra.top : ra.bottom) - box.top;
-        y2 = (up ? rb.bottom : rb.top) - box.top;
+        y1 = ((up ? ra.top : ra.bottom) - box.top) / sc;
+        y2 = ((up ? rb.bottom : rb.top) - box.top) / sc;
         const k = (up ? -1 : 1) * Math.max(24, Math.abs(y2 - y1) * .5);
         k1 = k; k2 = -k;
       }
-      const active = selected === c.id || selected === dep;
+      const chosen = !!selectedEdge && selectedEdge.from === c.id && selectedEdge.to === dep;
+      const active = chosen || selected === c.id || selected === dep;
       const colour = groupColor(c.group).light;
       const link = linkOf(c, dep);
+      /* An edge belongs to its caller's scope, so it fades with it. Both ends
+       * are checked: a line arriving from a faded card would otherwise be the
+       * loudest thing left on a narrowed sheet. */
+      const faded = !!filter && c.group !== filter && byId[dep].group !== filter;
       /* The transition takes the two channels colour never claimed: a departure
        * from the existing state is drawn heavier, and a removal is a ghost of an
        * ordinary edge. Selection still wins over both — the canvas is where you
        * work, and what you have clicked has to stay the loudest thing on it. */
-      const opacity = active ? 1 : edgeOpacity(link?.state, .34);
-      const width = active ? 2 : edgeStroke(link?.state, 1.2);
-      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, opacity, width, dashFor(link?.kind));
+      const opacity = (active ? 1 : edgeOpacity(link?.state, .34)) * (faded ? .18 : 1);
+      const width = chosen ? 2.6 : active ? 2 : edgeStroke(link?.state, 1.2);
+      out += edgeGlyph(x1, y1, k1, x2, y2, k2, colour, opacity, width, dashFor(link?.kind),
+        c.id, dep, chosen);
       /* Full strength even on an unselected edge: this is the surface where the
        * protocol and the mark are authored, so they have to be legible before
        * you have clicked the thing they belong to. */
       const label = edgePlateText(link, conv);
-      if (label) labels += edgeLabelSvg(x1, y1, k1, x2, y2, k2, label);
+      if (label && !faded) {
+        /* Wrapped rather than given its own attributes inside `edgeLabelSvg`:
+         * that helper draws the same plate on three surfaces, and only this one
+         * has anything to focus. */
+        labels += `<g data-from="${attr(c.id)}" data-to="${attr(dep)}">`
+          + edgeLabelSvg(x1, y1, k1, x2, y2, k2, label) + '</g>';
+      }
     }));
     /* Zones are measured from the runs, not from the cards: a run is already a
      * tight box around a zone's members in one row, so the union is a handful of
      * rects instead of one per component. Emitted first, so every line and every
      * card paints over the region rather than under it. */
-    setEdges(zoneLayer(host, box, doc) + out
+    setEdges(zoneLayer(host, box, doc, sc) + out
       + (labels ? `<g class="edgelbl">${labels}</g>` : ''));
-  }, [doc, selected, groupColor]);
+  }, [doc, selected, selectedEdge, groupColor, zoom, filter]);
 
   useLayoutEffect(() => { draw(); }, [draw]);
   useEffect(() => {
@@ -622,9 +1587,57 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
     return () => { ro.disconnect(); window.removeEventListener('resize', draw); };
   }, [draw]);
 
+  /* Everything a hovered card does not touch gets out of the way — the one thing
+   * the exported file did that the surface you draw on did not.
+   *
+   * Written straight onto the nodes instead of through `draw`: focus changes on
+   * every pointer move across the sheet, and re-measuring every card to answer
+   * "which edges touch this one" would make a large diagram stutter. Nothing
+   * here reads layout, so the sweep costs one style recalculation.
+   *
+   * Lit edges are raised from their resting opacity rather than set to 1, so a
+   * removed edge stays the ghost the transition grammar drew it as. */
+  const focus = linking ? null : hover;
+  useEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    host.querySelectorAll<SVGGElement>('.canvas-edges g[data-from]').forEach(g => {
+      const base = Number(g.dataset.o ?? '1');
+      if (!focus) { g.setAttribute('opacity', String(base)); return; }
+      const lit = g.dataset.from === focus || g.dataset.to === focus;
+      g.setAttribute('opacity', String(lit ? Math.min(1, base * 2.9) : base * .12));
+    });
+  }, [focus, edges]);
+
+  /* The hovered card, what it calls, and what calls it. */
+  const near = useMemo(() => {
+    if (!focus) return null;
+    const set = new Set<string>([focus]);
+    doc.components.forEach(c => {
+      if (c.id === focus) (c.deps || []).forEach(d => set.add(d));
+      else if ((c.deps || []).includes(focus)) set.add(c.id);
+    });
+    return set;
+  }, [focus, doc.components]);
+
   return (
-    <div className={`canvas${linking ? ' linking' : ''}`} ref={ref}
-      onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
+    <div
+      className={`canvas${linking ? ' linking' : ''}${compact ? ' compact' : ''}${filter ? ' filtered' : ''}`}
+      ref={ref} style={zoomStyleValue as React.CSSProperties}
+      onClick={e => {
+        const edge = (e.target as Element).closest('g[data-from]') as SVGGElement | null;
+        if (edge?.dataset.from && edge.dataset.to) {
+          e.stopPropagation();
+          onSelectEdge(edge.dataset.from, edge.dataset.to);
+          return;
+        }
+        if (e.target === e.currentTarget) onClearSelection();
+      }}
+      onPointerOver={e => {
+        const card = (e.target as HTMLElement).closest('[data-comp]') as HTMLElement | null;
+        setHover(card?.dataset.comp ?? null);
+      }}
+      onPointerLeave={() => setHover(null)}>
       <svg className="canvas-edges" dangerouslySetInnerHTML={{ __html: edges }} />
       {doc.layers.length === 0 && (
         <div className="warnbox" style={{ margin: 16 }}>
@@ -633,31 +1646,63 @@ function Canvas({ doc, selected, setSelected, hoverTarget, linking, onStartLink,
         </div>
       )}
       {doc.layers.map((layer, i) => (
-        <LayerRow key={layer.id} layer={layer} doc={doc} patch={patch}
+        <LayerRow key={layer.id} layer={layer} doc={doc} patch={patch} notify={notify}
           selected={selected} setSelected={setSelected} hoverTarget={hoverTarget}
-          onStartLink={onStartLink} groupColor={groupColor} plan={plan} index={i} />
+          onStartLink={onStartLink} groupColor={groupColor} plan={plan} index={i}
+          filter={filter} near={near} linkFrom={linkFrom} onAdd={onAddComponent} />
       ))}
     </div>
   );
 }
 
 function LayerRow({
-  layer, doc, patch, selected, setSelected, hoverTarget, onStartLink, groupColor, plan, index
+  layer, doc, patch, notify, selected, setSelected, hoverTarget, onStartLink, groupColor, plan,
+  index, filter, near, linkFrom, onAdd
 }: {
   layer: { id: string; name: string; desc?: string };
   doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
+  notify: Notify;
   selected: string | null; setSelected: (id: string | null) => void; hoverTarget: string | null;
   onStartLink: (id: string, x: number, y: number) => void;
   groupColor: (id: string) => { light: string; dark: string };
   plan: BandPlan | null;
   index: number;
+  filter: string | null;
+  /** The hovered card and its two neighbourhoods, or null when nothing is. */
+  near: ReadonlySet<string> | null;
+  linkFrom: string | null;
+  onAdd: (layerId: string) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `layer:${layer.id}` });
+  const { setNodeRef, isOver } = useDroppable({
+    id: layerDropId(layer.id), data: { depth: DEPTH.layer }
+  });
   const items = doc.components.filter(c => c.layer === layer.id);
+  const [renaming, setRenaming] = useState(false);
+  /* Computed once for the row rather than per card: the answer is the same list
+   * every time, and a drag re-renders every layer on the sheet. */
+  const alreadyLinked = linkFrom
+    ? new Set(doc.components.find(c => c.id === linkFrom)?.deps || [])
+    : null;
+
+  /* An empty name is a cancel, not a layer called "". Escape sets `renaming`
+   * false before the blur can fire, so it never reaches here. */
+  const commitRename = (value: string) => {
+    setRenaming(false);
+    const name = value.trim();
+    if (!name || name === layer.name) return;
+    patch(d => {
+      const l = d.layers.find(x => x.id === layer.id);
+      if (l) l.name = name;
+      return d;
+    });
+  };
 
   const card = (c: Component) => (
     <ComponentCard key={c.id} comp={c} colour={groupColor(c.group).light}
       selected={selected === c.id} isLinkTarget={hoverTarget === c.id}
+      faded={!!filter && c.group !== filter}
+      away={!!near && !near.has(c.id)}
+      linked={!!alreadyLinked?.has(c.id)}
       onSelect={() => setSelected(c.id)} onStartLink={onStartLink} />
   );
 
@@ -671,24 +1716,43 @@ function LayerRow({
   return (
     <div className={`layer${isOver ? ' over' : ''}`} style={tint}>
       <div className="layer-head">
-        <b>{displayLayerLabel(layer.name)}</b>
-        {layer.desc && <em>{layer.desc}</em>}
+        {/* Renamed where it is written rather than in a prompt that shows the
+            name out of context. Double-click works too, which is what anyone
+            tries first on a label sitting above its own row. */}
+        {renaming ? (
+          <input className="layer-rename" defaultValue={layer.name} autoFocus
+            aria-label="Layer name"
+            onBlur={e => commitRename(e.currentTarget.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+              if (e.key === 'Escape') { e.preventDefault(); setRenaming(false); }
+            }} />
+        ) : (
+          <b onDoubleClick={() => setRenaming(true)}>{displayLayerLabel(layer.name)}</b>
+        )}
+        {layer.desc && !renaming && <em>{layer.desc}</em>}
+        {/* Always drawn, unlike the two beside it: adding a component is the
+            thing this row is for, and it was reachable only from a rail that
+            disappears on a narrow window. */}
+        <button className="layer-add" onClick={() => onAdd(layer.id)}
+          title={`Add a component to ${displayLayerLabel(layer.name)}`}>
+          <Icon name="plus" size={12} />Add
+        </button>
         <span className="layer-tools">
           <button className="iconbtn" style={{ width: 24, height: 24 }} title="Rename layer"
-            onClick={() => {
-              const name = prompt('Layer name', layer.name);
-              if (name?.trim()) patch(d => {
-                const l = d.layers.find(x => x.id === layer.id); if (l) l.name = name.trim(); return d;
-              });
-            }}><Icon name="cog" size={13} /></button>
+            onClick={() => setRenaming(true)}><Icon name="cog" size={13} /></button>
           <button className="iconbtn" style={{ width: 24, height: 24 }} title="Delete layer"
             onClick={() => {
               if (items.length && doc.layers.length <= 1) {
-                alert('Keep at least one layer while components still use it.');
+                notify('Keep at least one layer while components still use it.', false);
                 return;
               }
-              if (items.length && !confirm(`Delete "${layer.name}"? Its ${items.length} component(s) move to "${doc.layers.find(l => l.id !== layer.id)!.name}".`)) return;
-              if (!items.length && !confirm(`Delete empty layer "${layer.name}"?`)) return;
+              /* No confirm — the notice below says where the cards went and the
+                 undo stack has the row that held them. */
+              const fallbackName = doc.layers.find(l => l.id !== layer.id)?.name;
+              notify(items.length
+                ? `Layer "${layer.name}" deleted — its ${items.length} component(s) moved to "${fallbackName}"`
+                : `Empty layer "${layer.name}" deleted`);
               patch(d => {
                 if (items.length) {
                   const fallback = d.layers.find(l => l.id !== layer.id)!.id;
@@ -703,44 +1767,116 @@ function LayerRow({
       <div ref={setNodeRef}
         className={`layer-drop${items.length ? '' : ' empty-hint'}${plan ? ' banded' : ''}`}
         style={plan ? { ['--cols' as string]: plan.total } : undefined}>
-        {items.length === 0 && 'Drop a component here'}
+        {items.length === 0 && (
+          <button type="button" className="emptyadd" onClick={() => onAdd(layer.id)}>
+            Drop a component here, or click to add one
+          </button>
+        )}
         {/* One run per zone, so a zone's cards stay contiguous even when the row
             wraps — that contiguity is what keeps the measured rectangle from
             enclosing a card it does not hold.
             The wrapper appears only on a document that has zones. A row of cards
             and a row of one-run-of-cards lay out the same in theory; not adding
             the element at all is how that stops being a thing to verify. */}
-        {plan
-          ? layerRuns(items, doc.zones).map(run => {
-              const band = plan.band(run.zone);
-              return (
-                <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}
-                  style={band
-                    ? { gridColumn: `${band.start} / span ${band.span}` }
-                    : undefined}>
-                  {run.items.map(card)}
-                </div>
-              );
-            })
-          : items.map(card)}
+        {plan ? (() => {
+          const held = new Map(layerRuns(items, doc.zones).map(run => [run.zone ?? '', run.items]));
+          return (
+            <>
+              {/* The drop targets, one per reserved band, full height and behind
+                  everything. A separate layer rather than making the runs
+                  droppable: a run is measured to draw its zone rectangle and has
+                  to stay a tight box around its own cards, while a target has to
+                  cover the whole band — including the part of it that is empty,
+                  which on this row is the only place a first card can land. */}
+              <div className="banddrops" style={{ ['--cols' as string]: plan.total }}>
+                {plan.bands.map(band => (
+                  <BandDrop key={band.zone ?? ''} layerId={layer.id} zone={band.zone} band={band} />
+                ))}
+              </div>
+              {plan.bands.map(band => {
+                const items = held.get(band.zone ?? '') ?? [];
+                if (!items.length) return null;
+                return (
+                  <div className="zrun" key={band.zone ?? ''} data-zone={band.zone || undefined}
+                    style={{ gridColumn: `${band.start} / span ${band.span}` }}>
+                    {items.map(card)}
+                  </div>
+                );
+              })}
+            </>
+          );
+        })() : items.map(card)}
       </div>
     </div>
   );
 }
 
-function ComponentCard({ comp, colour, selected, isLinkTarget, onSelect, onStartLink }: {
-  comp: Component; colour: string; selected: boolean; isLinkTarget: boolean;
+/* One reserved band on one row, as a place to drop into.
+ *
+ * This is what makes a zone something you can put a component *in* rather than
+ * something you assign it to from a form. It is drawn for every band the plan
+ * reserves, not only the ones holding a card here — otherwise the first card to
+ * join a zone on a given row would have nowhere to land. */
+function BandDrop({ layerId, zone, band }: {
+  layerId: string; zone: string | undefined; band: { start: number; span: number };
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: bandDropId(layerId, zone), data: { depth: DEPTH.band }
+  });
+  const { active } = useDndContext();
+
+  return (
+    /* `data-band-zone`, not `data-zone`: the latter is the renderer's mark on a
+       measured run, and two attributes with one name on two elements that mean
+       different things is the kind of thing a future selector gets wrong. */
+    <div ref={setNodeRef} aria-hidden data-band-zone={zone ?? ''}
+      className={`banddrop${active ? ' live' : ''}${isOver && active ? ' over' : ''}`}
+      style={{ gridColumn: `${band.start} / span ${band.span}` }} />
+  );
+}
+
+function ComponentCard({
+  comp, colour, selected, isLinkTarget, faded, away, linked, onSelect, onStartLink
+}: {
+  comp: Component; colour: string; selected: boolean; isLinkTarget: boolean; faded: boolean;
+  away: boolean;
+  /** A dependency being drawn already ends here. Said before the drop, so the
+   *  gesture can be abandoned rather than explained afterwards. */
+  linked: boolean;
   onSelect: () => void; onStartLink: (id: string, x: number, y: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: comp.id });
-  const { setNodeRef: dropRef } = useDroppable({ id: comp.id });
+  const { setNodeRef: dropRef, isOver } = useDroppable({
+    id: comp.id, data: { depth: DEPTH.component }
+  });
+  /* Read from the context rather than threaded down: every card needs to know
+   * whether *something* is being dragged, and passing that through two layers of
+   * props would re-render the whole sheet on a value it already has. */
+  const { active } = useDndContext();
+  /* Where the card would land. Dropping onto a card inserts in front of it, so
+   * the mark belongs on the leading edge — and never when the thing being
+   * dragged is this card, which would say a move to where it already is. */
+  const insertBefore = isOver && !!active && String(active.id) !== comp.id;
 
   return (
     <div
       ref={node => { setNodeRef(node); dropRef(node); }}
       {...listeners} {...attributes}
+      /* dnd-kit already puts role="button" and a tab stop on the card. What it
+         cannot know is what the button does here: Enter and Space select, which
+         is what a role="button" promises and what nothing was honouring.
+         `aria-current` rather than `aria-selected` — the latter is not allowed
+         on a button, and a wrong ARIA attribute is worse than none. */
+      aria-label={comp.name}
+      aria-current={selected || undefined}
+      onKeyDown={e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect();
+      }}
       data-comp={comp.id}
-      className={`ccard${selected ? ' selected' : ''}${isDragging ? ' dragging' : ''}${isLinkTarget ? ' linktarget' : ''}${comp.state ? ` st-${comp.state}` : ''}`}
+      className={`ccard${selected ? ' selected' : ''}${isDragging ? ' dragging' : ''}${isLinkTarget ? ' linktarget' : ''}${linked ? ' linkdone' : ''}${insertBefore ? ' insert' : ''}${faded ? ' faded' : ''}${away ? ' away' : ''}${comp.state ? ` st-${comp.state}` : ''}`}
       style={{ ['--c' as string]: colour }}
       onClick={e => { e.stopPropagation(); onSelect(); }}
     >
@@ -782,12 +1918,43 @@ function ComponentCard({ comp, colour, selected, isLinkTarget, onSelect, onStart
 
 /* ------------------------------------------------------------------ palette */
 
-function Palette({ doc, patch, catalog, onOpenPlacement }: {
+function Palette({ doc, patch, catalog, notify, onOpenPlacement }: {
   doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
   catalog: LegoCatalogSnapshot | null;
+  notify: Notify;
   onOpenPlacement: () => void;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id: 'palette:new' });
+  /* One dialog for the three rails — see RailDialog. Null is closed. */
+  const [creating, setCreating] = useState<RailKind | null>(null);
+  const fold = useRailFolds();
+
+  const create = (v: { name: string; colour: string; zoneKind?: ZoneKind; parent?: string }) => {
+    if (creating === 'layer') {
+      patch(d => {
+        d.layers.push({ id: slugify(v.name, d.layers.map(l => l.id)), name: v.name });
+        return d;
+      });
+    } else if (creating === 'scope') {
+      patch(d => {
+        const i = d.groups.length;
+        d.groups.push({
+          id: slugify(v.name, d.groups.map(g => g.id)), name: v.name, short: v.name,
+          color: v.colour, colorDark: PALETTE_DARK[i % PALETTE_DARK.length]
+        });
+        return d;
+      });
+    } else if (creating === 'zone') {
+      patch(d => {
+        d.zones.push({
+          id: slugify(v.name, d.zones.map(z => z.id)), name: v.name,
+          kind: v.zoneKind, parent: v.parent
+        });
+        return d;
+      });
+    }
+    setCreating(null);
+  };
 
   return (
     <aside className="palette">
@@ -800,30 +1967,22 @@ function Palette({ doc, patch, catalog, onOpenPlacement }: {
         Add brick
       </button>
 
-      <div className="sect-label">
-        Scopes<span className="spacer" />
-        <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add scope"
-          onClick={() => {
-            /* Derived from the palette, not typed as a literal: there are five
-             * hues, and a sixth scope would be handed `PALETTE[0]` again —
-             * two scopes with one colour, which is the thing the palette is
-             * built to prevent. */
-            if (doc.groups.length >= PALETTE.length) {
-              alert(`${PALETTE.length} scopes is the maximum — a sixth would reuse the first colour.`);
-              return;
-            }
-            const name = prompt('Scope name');
-            if (!name?.trim()) return;
-            patch(d => {
-              const i = d.groups.length;
-              d.groups.push({
-                id: slugify(name, d.groups.map(g => g.id)), name: name.trim(), short: name.trim(),
-                color: PALETTE[i % PALETTE.length], colorDark: PALETTE_DARK[i % PALETTE_DARK.length]
-              });
-              return d;
-            });
-          }}><Icon name="plus" size={13} /></button>
-      </div>
+      <RailSection id="scopes" label={`Scopes (${doc.groups.length})`}
+        open={fold.isOpen('scopes')} onToggle={() => fold.toggle('scopes')}
+        action={
+          <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add scope"
+            onClick={() => {
+              /* Derived from the palette, not typed as a literal: there are five
+               * hues, and a sixth scope would be handed `PALETTE[0]` again —
+               * two scopes with one colour, which is the thing the palette is
+               * built to prevent. */
+              if (doc.groups.length >= PALETTE.length) {
+                notify(`${PALETTE.length} scopes is the maximum — a sixth would reuse the first colour.`, false);
+                return;
+              }
+              setCreating('scope');
+            }}><Icon name="plus" size={13} /></button>
+        }>
       {doc.groups.map((g, i) => (
         <div className="grouprow" key={g.id}>
           <input type="color" className="swatch" value={g.color || PALETTE[i % PALETTE.length]}
@@ -836,10 +1995,13 @@ function Palette({ doc, patch, catalog, onOpenPlacement }: {
               onClick={() => {
                 const used = doc.components.filter(c => c.group === g.id).length;
                 if (used && doc.groups.length <= 1) {
-                  alert('Keep at least one scope while components still use it.');
+                  notify('Keep at least one scope while components still use it.', false);
                   return;
                 }
-                if (used && !confirm(`${used} component(s) use this scope. They will move to "${doc.groups.find(x => x.id !== g.id)!.name}".`)) return;
+                const fallbackName = doc.groups.find(x => x.id !== g.id)?.name;
+                notify(used
+                  ? `Scope "${g.name}" deleted — its ${used} component(s) moved to "${fallbackName}"`
+                  : `Scope "${g.name}" deleted`);
                 patch(d => {
                   if (used) {
                     const fallback = d.groups.find(x => x.id !== g.id)!.id;
@@ -852,19 +2014,14 @@ function Palette({ doc, patch, catalog, onOpenPlacement }: {
           ) : null}
         </div>
       ))}
+      </RailSection>
 
-      <div className="sect-label">
-        Layers<span className="spacer" />
-        <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add layer"
-          onClick={() => {
-            const name = prompt('Layer name');
-            if (!name?.trim()) return;
-            patch(d => {
-              d.layers.push({ id: slugify(name, d.layers.map(l => l.id)), name: name.trim() });
-              return d;
-            });
-          }}><Icon name="plus" size={13} /></button>
-      </div>
+      <RailSection id="layers" label={`Layers (${doc.layers.length})`}
+        open={fold.isOpen('layers')} onToggle={() => fold.toggle('layers')}
+        action={
+          <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add layer"
+            onClick={() => setCreating('layer')}><Icon name="plus" size={13} /></button>
+        }>
       {doc.layers.map((l, i) => (
         <div className="grouprow" key={l.id}>
           <input value={l.name}
@@ -879,10 +2036,16 @@ function Palette({ doc, patch, catalog, onOpenPlacement }: {
             })}><Icon name="chevron" size={12} style={{ transform: 'rotate(90deg)' }} /></button>
         </div>
       ))}
+      </RailSection>
 
-      <ZonesPanel doc={doc} patch={patch} />
+      <ZonesPanel doc={doc} patch={patch} notify={notify} fold={fold}
+        onAdd={() => setCreating('zone')} />
 
-      <EdgeLegend doc={doc} />
+      <EdgeLegend doc={doc} fold={fold} />
+
+      {creating && (
+        <RailDialog kind={creating} doc={doc} onClose={() => setCreating(null)} onCreate={create} />
+      )}
     </aside>
   );
 }
@@ -895,8 +2058,11 @@ function Palette({ doc, patch, catalog, onOpenPlacement }: {
  * `parent` is a select over the other zones. It cannot offer a descendant —
  * `normalizeZones` would cut the cycle back out on the next save, and an edit
  * that silently undoes itself is worse than an option that was never there. */
-function ZonesPanel({ doc, patch }: {
+function ZonesPanel({ doc, patch, notify, fold, onAdd }: {
   doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
+  notify: Notify;
+  fold: RailFolds;
+  onAdd: () => void;
 }) {
   const counts = new Map(doc.zones.map(z => [
     z.id,
@@ -905,18 +2071,12 @@ function ZonesPanel({ doc, patch }: {
 
   return (
     <>
-      <div className="sect-label">
-        Zones<span className="spacer" />
-        <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add zone"
-          onClick={() => {
-            const name = prompt('Zone name — OpenShift, API gateway, DMZ…');
-            if (!name?.trim()) return;
-            patch(d => {
-              d.zones.push({ id: slugify(name, d.zones.map(z => z.id)), name: name.trim() });
-              return d;
-            });
-          }}><Icon name="plus" size={13} /></button>
-      </div>
+      <RailSection id="zones" label={`Zones (${doc.zones.length})`}
+        open={fold.isOpen('zones')} onToggle={() => fold.toggle('zones')}
+        action={
+          <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add zone"
+            onClick={onAdd}><Icon name="plus" size={13} /></button>
+        }>
       {!doc.zones.length && (
         <div className="hint" style={{ padding: '2px 6px' }}>
           A boundary that crosses the layers — a platform, a network zone, the
@@ -924,7 +2084,7 @@ function ZonesPanel({ doc, patch }: {
         </div>
       )}
       {doc.zones.map(z => (
-        <div className="zonerow" key={z.id}>
+        <ZoneRailRow key={z.id} zone={z}>
           <div className="grouprow">
             <input value={z.name}
               onChange={e => patch(d => {
@@ -950,7 +2110,9 @@ function ZonesPanel({ doc, patch }: {
             <button className="iconbtn" style={{ width: 22, height: 22 }} title="Delete zone"
               onClick={() => {
                 const held = counts.get(z.id) ?? 0;
-                if (held && !confirm(`Delete "${z.name}"? Its ${held} component(s) become unzoned.`)) return;
+                notify(held
+                  ? `Zone "${z.name}" deleted — its ${held} component(s) are now unzoned`
+                  : `Zone "${z.name}" deleted`);
                 patch(d => {
                   d.zones = d.zones.filter(y => y.id !== z.id)
                     .map(y => (y.parent === z.id ? { ...y, parent: z.parent } : y));
@@ -984,16 +2146,40 @@ function ZonesPanel({ doc, patch }: {
                 .map(y => <option key={y.id} value={y.id}>in {y.name}</option>)}
             </select>
           </div>
-        </div>
+        </ZoneRailRow>
       ))}
+      </RailSection>
     </>
+  );
+}
+
+/* A zone in the rail, doubling as somewhere to drop a card.
+ *
+ * The bands on the sheet cover every zone that holds something *somewhere*, but
+ * a zone nobody has filled reserves no band — deliberately, since an empty
+ * perimeter should not widen the drawing. That leaves it with no target on the
+ * canvas at all, and its own row in the rail is the obvious place to put one:
+ * it is already labelled with the zone's name and it is already on screen. */
+function ZoneRailRow({ zone, children }: { zone: Zone; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: railZoneDropId(zone.id), data: { depth: DEPTH.railzone }
+  });
+  const { active } = useDndContext();
+  /* The palette's new-component draggable says nothing about which layer it
+     would land in, so the rail cannot accept it — see `resolveDrop`. */
+  const live = !!active && String(active.id) !== PALETTE_NEW;
+
+  return (
+    <div ref={setNodeRef} className={`zonerow${live ? ' droppable' : ''}${isOver && live ? ' over' : ''}`}>
+      {children}
+    </div>
   );
 }
 
 /* Only drawn once the document actually annotates an edge. A legend explaining
  * three line styles on a diagram that uses one is furniture — and the same
  * goes for the protocol convention, which appears only once one is declared. */
-function EdgeLegend({ doc }: { doc: Architecture }) {
+function EdgeLegend({ doc, fold }: { doc: Architecture; fold: RailFolds }) {
   const kinds = kindsInUse(doc.components);
   const states = statesInUse(doc.components);
   const marks = marksInUse(doc.components);
@@ -1003,8 +2189,8 @@ function EdgeLegend({ doc }: { doc: Architecture }) {
   return (
     <>
       {!!marks.length && (
-        <>
-          <div className="sect-label">Security</div>
+        <RailSection id="key-marks" label="Security"
+          open={fold.isOpen('key-marks')} onToggle={() => fold.toggle('key-marks')}>
           <div className="markkey">
             {marks.map(m => (
               <span key={m} title={MARK_BLURBS[m]}>
@@ -1012,11 +2198,11 @@ function EdgeLegend({ doc }: { doc: Architecture }) {
               </span>
             ))}
           </div>
-        </>
+        </RailSection>
       )}
       {!!states.length && (
-        <>
-          <div className="sect-label">Transition</div>
+        <RailSection id="key-states" label="Transition"
+          open={fold.isOpen('key-states')} onToggle={() => fold.toggle('key-states')}>
           <div className="statekey">
             {states.map(s => (
               <span key={s}>
@@ -1024,23 +2210,41 @@ function EdgeLegend({ doc }: { doc: Architecture }) {
               </span>
             ))}
           </div>
-        </>
+        </RailSection>
       )}
-      <div className="sect-label">Dependencies</div>
-      {!!kinds.length && (
+      <RailSection id="key-edges" label="Dependencies"
+        open={fold.isOpen('key-edges')} onToggle={() => fold.toggle('key-edges')}>
+        {/* The one thing the sheet never explained. A filled disc is the caller
+            and an open circle is the one that answers — it is the whole grammar
+            of an edge, it is the product's own mark, and until now you had to be
+            told. The line styles below only ever described the second question. */}
         <div className="edgekey">
-          {kinds.map(k => (
-            <span key={k}>
-              <svg viewBox="0 0 34 8" aria-hidden="true">
-                <path d="M1 4h32" fill="none" stroke="currentColor" strokeWidth="1.6"
-                  strokeLinecap="round" strokeDasharray={LINK_DASH[k] || undefined} />
-              </svg>
-              {LINK_KIND_LABELS[k].en}
-            </span>
-          ))}
+          <span>
+            <svg viewBox="0 0 34 8" aria-hidden="true">
+              <path d="M4 4h26" fill="none" stroke="currentColor" strokeWidth="1.6"
+                strokeLinecap="round" />
+              <circle cx="3.5" cy="4" r="3" fill="currentColor" />
+              <circle cx="30" cy="4" r="2.6" fill="var(--panel-2)"
+                stroke="currentColor" strokeWidth="1.4" />
+            </svg>
+            calls → answers
+          </span>
         </div>
-      )}
-      {note && <div className="protonote">{note}</div>}
+        {!!kinds.length && (
+          <div className="edgekey">
+            {kinds.map(k => (
+              <span key={k}>
+                <svg viewBox="0 0 34 8" aria-hidden="true">
+                  <path d="M1 4h32" fill="none" stroke="currentColor" strokeWidth="1.6"
+                    strokeLinecap="round" strokeDasharray={LINK_DASH[k] || undefined} />
+                </svg>
+                {LINK_KIND_LABELS[k].en}
+              </span>
+            ))}
+          </div>
+        )}
+        {note && <div className="protonote">{note}</div>}
+      </RailSection>
     </>
   );
 }

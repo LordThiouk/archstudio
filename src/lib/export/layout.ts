@@ -31,7 +31,7 @@
  * calque, and the two agree everywhere it matters — the ink itself is the same.
  */
 
-import type { Architecture, Component, Layer, Zone } from '../types';
+import type { Architecture, Component, Environment, Layer, Zone } from '../types';
 import {
   BAND_GUTTER, SHELF_GAP, bandPlan, describeZone, inflatedUnion, layerRuns, layerSlots, withDescendants,
   zoneDepth, zoneIsPhysical, zonePad, zonesInUse, type Band, type Box, type ZoneRun
@@ -174,6 +174,10 @@ export interface Sheet {
   /** The scopes in use, in declaration order. Colour carries scope on every
    *  surface, so an export that drops the key drops half the drawing. */
   legend: { id: string; label: string; color: string }[];
+  /** The declared environments, in pipeline order. Nothing is drawn from them —
+   *  they ride along so the draw.io export can name a component's addresses in
+   *  the reader's words rather than by id. */
+  environments: Environment[];
   /** Where the legend row's baseline sits. */
   legendY: number;
   noteY: number;
@@ -338,6 +342,7 @@ export function layoutSheet(doc: Architecture): Sheet {
     layers: placedLayers,
     zones: placedZones,
     nodes, edges, legend, legendY, noteY,
+    environments: doc.environments || [],
     lang
   };
 }

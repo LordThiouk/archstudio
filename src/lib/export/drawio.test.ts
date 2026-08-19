@@ -116,6 +116,23 @@ test('what the picture cannot carry travels as cell data', () => {
 /* The bug this file exists to prevent. A cell's value is HTML inside an XML
  * attribute, so authored text is escaped twice; getting either half wrong is
  * either a card reading "R&amp;D" or a file draw.io will not open at all. */
+test('a component\u2019s addresses ride as one data field per environment', () => {
+  /* Named by the environment rather than by its id: draw.io shows these to
+   * someone who never opened this document, and "sa" is not a word. */
+  const xml = buildDrawioXml(doc({
+    environments: [{ id: 'dev', name: 'Dev' }, { id: 'prod', name: 'Production' }],
+    components: [{
+      id: 'api', name: 'API', group: 'core', layer: 'services',
+      envs: [
+        { env: 'prod', url: 'api.acme.test', version: '2.4.1' },
+        { env: 'dev', url: 'api-dev.acme.test' }
+      ]
+    }]
+  }));
+  assert.ok(xml.includes('Dev="api-dev.acme.test"'));
+  assert.ok(xml.includes('Production="api.acme.test \u00b7 2.4.1"'));
+});
+
 test('an ampersand in a name survives both parsers', () => {
   const xml = buildDrawioXml(doc({
     groups: [{ id: 'core', name: 'R&D <ops>', color: '#0099A0' }],

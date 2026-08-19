@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, deleteComponent, slugify } from '@/lib/defaults';
 import { deploymentsInUse } from '@/lib/deployment';
+import { envEntry, setEnvField } from '@/lib/environments';
 import { displayLayerLabel } from '@/lib/layers';
 import {
   LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkIsEmpty, linkOf, shortLink
@@ -143,6 +144,40 @@ function ComponentForm({ doc, patch, comp, notify, openLink, onClose, onSelect }
           {places.map(p => <option key={p} value={p} />)}
         </datalist>
       </label>
+
+      {/* One row per environment the document declares, in pipeline order.
+          Rows for every environment rather than an "add" button: the list is
+          already closed and already short, and a form you have to open before
+          you can type into it is a form people stop filling in.
+
+          `setEnvField` creates the entry on the first keystroke and drops it
+          when the last field empties, so nothing here has to know whether an
+          entry exists — and the document never carries a row that says only
+          "this component has an environment". */}
+      {!!doc.environments.length && (
+        <>
+          <div className="sect-label" style={{ marginTop: 14 }}>Environments</div>
+          <div className="envrows">
+            {doc.environments.map(env => {
+              const entry = envEntry(comp, env.id);
+              const field = (key: 'url' | 'version' | 'note', placeholder: string) => (
+                <input className="input" placeholder={placeholder} value={entry?.[key] || ''}
+                  onChange={e => set(c => setEnvField(c, env.id, key, e.target.value))} />
+              );
+              return (
+                <div className="envrow" key={env.id}>
+                  <span className="envname" title={env.note || undefined}>{env.name}</span>
+                  {/* Address and version on one line, the note under it: the
+                      first two are what a reader scans down a column, and the
+                      third is the one that is usually empty. */}
+                  <div className="envline">{field('url', 'api-dev.example.com')}{field('version', 'v2.4.1')}</div>
+                  {field('note', 'anonymised data, VPN only…')}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* A closed set, so the diagram can carry a key and a reader can search
           for "no authentication". Multi-select: SSO in front of a service that

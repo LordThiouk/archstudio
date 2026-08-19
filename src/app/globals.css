@@ -897,6 +897,21 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .cgroup { margin-bottom: 28px; }
 .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 
+/* ------------------------------------------------ a component's environments
+   One block per declared environment, in the document's pipeline order. The
+   name is a monospace rail down the left rather than a label above each field:
+   three environments times three fields is nine labels nobody reads, and the
+   placeholders already say what each box is for. */
+.envrows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.envrow { border-left: 2px solid var(--line-2); padding-left: 9px; }
+.envname {
+  display: block; font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--ink-3); margin-bottom: 5px;
+}
+/* The address takes the room; the version is a short string and asking it to
+   share equally would leave "v2.4.1" in a box built for a domain name. */
+.envline { display: grid; grid-template-columns: 2.2fr 1fr; gap: 6px; margin-bottom: 6px; }
+
 /* One-click skeletons — today the design-document chapters, and whatever else
    turns out to be worth generating rather than typing sixteen times. */
 .preset-row {

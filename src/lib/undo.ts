@@ -46,6 +46,11 @@ export function docShape(doc: Architecture): string {
   return [
     doc.layers.map(l => l.id).join(','),
     doc.groups.map(g => g.id).join(','),
+    /* Order is the pipeline here, so reordering the environments is a move and
+     * a move is undoable on its own — the same reason the layers are in this
+     * list. What a component's address *is* stays out: that arrives one
+     * keystroke at a time and should merge. */
+    (doc.environments ?? []).map(e => e.id).join(','),
     (doc.zones ?? []).map(z => `${z.id}>${z.parent ?? ''}${z.stack ? '^' : ''}`).join(','),
     doc.components
       .map(c => `${c.id}@${c.layer}/${c.group}/${c.zone ?? ''}:${(c.deps ?? []).join('+')}`)

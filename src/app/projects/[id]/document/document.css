@@ -386,6 +386,32 @@ a.paper-btn { border-bottom-width: 1px; }
 /* On a detail sheet the marks are words, not glyphs: this is the page someone
    quotes in a meeting, and "lock" is not a sentence. */
 .paper-marks { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin: 0 0 6px; }
+/* Where it runs, on the detail sheet. Monospace like the marks above it: both
+   are things the machine knows rather than prose about the component (rule 3). */
+.paper-deployed { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin: 0 0 6px; }
+
+/* --------------------------------------------------------- environments
+   A component's addresses, repeated on its own detail sheet — someone who
+   turned to this page for one component should not have to find the table in
+   part 4 again. The environment name is a monospace rail, the address is the
+   line that matters, and the version and note ride under it a step lighter. */
+.paper-envlist { margin: 0 0 8px; }
+.paper-envlist > div { display: grid; grid-template-columns: 62px 1fr; gap: 8px; margin-bottom: 3px; }
+.paper-envlist dt {
+  font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-3); padding-top: 1px;
+}
+.paper-envlist dd { margin: 0; }
+.paper-envurl { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); }
+/* The version is the one field here that goes stale on its own, so it is set
+   quieter than the address rather than louder — see `src/lib/environments.ts`. */
+.paper-envmeta { display: block; font-family: var(--mono); font-size: 8.5px; color: var(--ink-3); }
+/* The table in part 4: addresses first, and the per-environment note collected
+   once underneath rather than repeated down a column. */
+.paper-envs td { font-size: 10px; }
+.paper-envnotes {
+  margin: 8px 0 0; padding-left: 16px; font-size: 10px; color: var(--ink-3); line-height: 1.5;
+}
 .paper-tick {
   margin-left: 6px; font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em;
   padding: 2px 4px; background: var(--ink); color: var(--panel); vertical-align: middle;

@@ -10,6 +10,7 @@
  * recovery one becomes 2.4 — no holes, no renumbering by hand.
  */
 
+import { componentsWithEnvs, environmentsInUse } from '../environments';
 import type { Architecture, Flow, Section } from '../types';
 import { t, type L10n, type Lang } from '../templates/types';
 
@@ -21,6 +22,8 @@ export type DocBody =
   | { kind: 'diagram' }
   /** Every component, by layer — the reference table for the diagram. */
   | { kind: 'inventory' }
+  /** Where to reach each component in each environment. */
+  | { kind: 'environments' }
   | { kind: 'section'; section: Section }
   | { kind: 'flow'; flow: Flow }
   | { kind: 'stack' };
@@ -68,6 +71,11 @@ const GENERATED: Record<string, L10n> = {
   inventorySub: {
     en: 'Every component on the diagram above, with the scope that owns it and the technologies it runs on.',
     fr: 'Chaque composant du schéma ci-dessus, avec le périmètre qui le porte et les technologies employées.'
+  },
+  environments: { en: 'Environments', fr: 'Environnements' },
+  environmentsSub: {
+    en: 'Where to reach each component in each environment, and what is running there.',
+    fr: 'Où joindre chaque composant dans chaque environnement, et ce qui y tourne.'
   },
   flow: { en: 'Flow — {name}', fr: 'Parcours — {name}' },
   stack: { en: 'Technology stack', fr: 'Pile technologique' },
@@ -143,6 +151,18 @@ export function buildOutline(doc: Architecture): Outline {
       entries.push({
         number: '', title: s(GENERATED.inventory), subtitle: s(GENERATED.inventorySub),
         body: { kind: 'inventory' }
+      });
+    }
+
+    /* Part 4 is DevOps & delivery, and a table of addresses per environment is
+     * the page someone prints before a release. Drawn only when a component
+     * actually fills one in: a document that declared three environments and
+     * filled none would otherwise print a grid of dashes. */
+    if (part === '4' && componentsWithEnvs(doc.components).length
+      && environmentsInUse(doc.components, doc.environments).length) {
+      entries.push({
+        number: '', title: s(GENERATED.environments), subtitle: s(GENERATED.environmentsSub),
+        body: { kind: 'environments' }
       });
     }
 

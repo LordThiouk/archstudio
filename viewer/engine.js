@@ -61,7 +61,8 @@ const LABELS = {
     role: 'Role', technologies: 'Technologies', responsibilities: 'Responsibilities',
     notes: 'Notes', dependsOn: 'Depends on', usedBy: 'Used by', outgoing: 'outgoing',
     incoming: 'incoming', components: 'Components', distribution: 'Component distribution',
-    endpoints: 'Endpoints', prev: 'Previous', next: 'Next', play: 'Play', pause: 'Pause',
+    endpoints: 'Endpoints', environments: 'Environments',
+    prev: 'Previous', next: 'Next', play: 'Play', pause: 'Pause',
     involved: 'Components involved', allCategories: 'All categories', results: 'result',
     resultsPlural: 'results', empty: 'Nothing matches this filter.',
     infraNote: 'The bottom layer is not wired with arrows: it supports every component above it.',
@@ -83,6 +84,7 @@ const LABELS = {
     notes: 'Chantiers identifiés', dependsOn: 'Dépend de', usedBy: 'Sollicité par',
     outgoing: 'sortant', incoming: 'entrant', components: 'Composants',
     distribution: 'Répartition des composants', endpoints: 'Domaines & endpoints',
+    environments: 'Environnements',
     prev: 'Précédent', next: 'Suivant', play: 'Lecture', pause: 'Pause',
     involved: 'Composants mobilisés', allCategories: 'Toutes les catégories',
     results: 'résultat', resultsPlural: 'résultats', empty: 'Aucun résultat pour ce filtre.',
@@ -180,6 +182,9 @@ function normalize(raw) {
    * its rectangle holds, so a cycle is a hang rather than a wrong drawing —
    * `zoneAncestry` guards it a second time, but a document that arrives here
    * broken should not stay broken in the tree the rest of the file reads. */
+  d.environments = d.environments || [];
+  const eById = Object.fromEntries(d.environments.map(e => [e.id, e]));
+
   const zById = Object.fromEntries(d.zones.map(z => [z.id, z]));
   d.zones.forEach(z => {
     if (!z.parent) return;
@@ -208,6 +213,16 @@ function normalize(raw) {
     c.features = c.features || [];
     c.notes = c.notes || [];
     c.deps = c.deps || [];
+    /* An address for an environment the document no longer declares is a claim
+     * about a place that does not exist here — dropped, and said out loud. */
+    if (c.envs) {
+      c.envs = c.envs.filter(e => {
+        if (eById[e.env]) return true;
+        warn(`component "${c.id}": unknown environment "${e.env}" — its address is dropped`);
+        return false;
+      });
+      if (!c.envs.length) c.envs = undefined;
+    }
     /* Unzoned is a real answer, so a pointer at a zone that is not in the list
      * falls back to it rather than to the first zone — unlike a group or a
      * layer, where the component has to be *somewhere*. */
@@ -467,6 +482,17 @@ const SHELF_MAX = 3;
 
 /** Zones in tree order, so a subtree's bands are contiguous and a parent's box
  *  is one range of columns rather than two with a hole in the middle. */
+/* The environments a component actually fills in, and the components that fill
+ * one — both asked before a table draws a column or a row. MIRROR of
+ * `environmentsInUse` / `componentsWithEnvs` in src/lib/environments.ts. */
+const envEntryIsEmpty = e => !(e.url || '').trim() && !(e.version || '').trim() && !(e.note || '').trim();
+const ENV_ROWS = DATA.components.filter(c => (c.envs || []).some(e => !envEntryIsEmpty(e)));
+const ENVS_IN_USE = (() => {
+  const held = new Set();
+  DATA.components.forEach(c => (c.envs || []).forEach(e => { if (!envEntryIsEmpty(e)) held.add(e.env); }));
+  return DATA.environments.filter(e => held.has(e.id));
+})();
+
 const ZONES_TREE_ORDER = (() => {
   const key = id => zoneAncestry(id)
     .map(x => String(ZONE_ORDER[x] ?? 999).padStart(3, '0')).join('.');
@@ -795,13 +821,34 @@ function renderOverview() {
       ${m.principle ? `<div class="divider"></div><div class="note">${rich(m.principle)}</div>` : ''}
     </div>`;
 
-  const endpointsCard = endpoints.length ? `
+  /* The environments in use become columns, so "give me every SA address" is one
+   * glance rather than a hunt. Only the ones a component actually fills in: a
+   * document that declared five and filled two would otherwise print three
+   * columns of dashes. */
+  const envCols = ENVS_IN_USE;
+  const endpointsCard = (endpoints.length || ENV_ROWS.length) ? `
     <div class="card pad">
-      <div class="sec-title"><h2>${T.endpoints}</h2></div>
+      <div class="sec-title"><h2>${envCols.length ? T.environments : T.endpoints}</h2></div>
       <div style="height:12px"></div>
+      ${envCols.length ? `
+      <div class="tablewrap">
+      <table class="cmp envtable">
+        <thead><tr><th></th>${envCols.map(e =>
+          `<th${e.note ? ` title="${esc(e.note)}"` : ''}>${esc(e.name)}</th>`).join('')}</tr></thead>
+        <tbody>${ENV_ROWS.map(c =>
+          `<tr><td style="color:var(--ink-2)"><span class="dot" style="background:${gvar(c.group)}"></span>${esc(c.name)}</td>${
+            envCols.map(env => {
+              const e = (c.envs || []).find(x => x.env === env.id);
+              if (!e) return `<td class="mono envcell">—</td>`;
+              const meta = [e.version, e.note].filter(Boolean).join(' · ');
+              return `<td class="mono envcell">${e.url ? `<span>${esc(e.url)}</span>` : ''}${
+                meta ? `<em>${esc(meta)}</em>` : ''}${!e.url && !meta ? '—' : ''}</td>`;
+            }).join('')}</tr>`).join('')}</tbody>
+      </table>
+      </div>` : `
       <table class="cmp"><tbody>${endpoints.map(c =>
         `<tr><td class="mono" style="font-size:12px"><span class="dot" style="background:${gvar(c.group)}"></span>${esc(c.url)}</td>
-             <td style="color:var(--ink-2)">${esc(c.name)}</td></tr>`).join('')}</tbody></table>
+             <td style="color:var(--ink-2)">${esc(c.name)}</td></tr>`).join('')}</tbody></table>`}
     </div>` : '';
 
   const groupCards = DATA.groups.map(g => {
@@ -1670,6 +1717,14 @@ function openDrawer(id) {
   $('#db').innerHTML = `
     ${c.role ? `<h4>${T.role}</h4><p>${rich(c.role)}</p>` : ''}
     ${c.deployedOn ? `<h4>${T.deployedOn}</h4><p>${esc(c.deployedOn)}</p>` : ''}
+    ${(c.envs || []).length ? `<h4>${T.environments}</h4><dl class="envlist">${
+      DATA.environments.filter(env => (c.envs || []).some(x => x.env === env.id)).map(env => {
+        const e = c.envs.find(x => x.env === env.id);
+        const meta = [e.version, e.note].filter(Boolean).join(' · ');
+        return `<div><dt>${esc(env.name)}</dt><dd>${
+          e.url ? `<a href="${esc(/^https?:/.test(e.url) ? e.url : 'https://' + e.url)}" target="_blank" rel="noopener">${esc(e.url)}</a>` : ''
+        }${meta ? `<em>${esc(meta)}</em>` : ''}</dd></div>`;
+      }).join('')}</dl>` : ''}
     ${c.tech.length ? `<h4>${T.technologies}</h4><div class="taglist">${c.tech.map(t => `<span class="tag k">${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.features.length ? `<h4>${T.responsibilities}</h4><ul>${c.features.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}
     ${c.notes.length ? `<h4>${T.notes}</h4><ul>${c.notes.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}

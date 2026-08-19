@@ -283,6 +283,7 @@ const zoneChanges = (from: Architecture, to: Architecture) =>
       bits.push(`inside: ${inside(from, a.parent)} → ${inside(to, b.parent)}`);
     }
     if (!textSame(a.note, b.note)) bits.push('note');
+    if (!a.stack !== !b.stack) bits.push(b.stack ? 'stacked under its neighbour' : 'given its own band');
     return bits;
   });
 

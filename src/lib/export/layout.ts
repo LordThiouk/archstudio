@@ -33,8 +33,8 @@
 
 import type { Architecture, Component, Layer, Zone } from '../types';
 import {
-  BAND_GUTTER, bandPlan, describeZone, inflatedUnion, layerRuns, withDescendants,
-  zoneDepth, zoneIsPhysical, zonePad, zonesInUse, type Box
+  BAND_GUTTER, SHELF_GAP, bandPlan, describeZone, inflatedUnion, layerRuns, layerSlots, withDescendants,
+  zoneDepth, zoneIsPhysical, zonePad, zonesInUse, type Band, type Box, type ZoneRun
 } from '../zones';
 import { dashFor, edgePlateText, linkOf, protocolConvention, protocolNote } from '../links';
 import { edgeOpacity, edgeStroke, stateTick } from '../lifecycle';
@@ -237,21 +237,41 @@ export function layoutSheet(doc: Architecture): Sheet {
   layers.forEach((layer, index) => {
     const here = components.filter(c => c.layer === layer.id);
     const bodyY = y + LAYER_PAD_TOP + LAYER_HEAD_H;
-    let bodyH = 0;
 
-    layerRuns(here, zones).forEach(run => {
-      const band = plan.band(run.zone);
-      if (!band) return;
+    /* Measured in two passes because a shelf's top depends on how tall the
+     * shelves above it turned out. `layerSlots` ranks the shelves this layer
+     * actually draws, so an empty one leaves no gap — the same compaction CSS
+     * grid does on the three measured surfaces, which is why they agree. */
+    const runs = layerRuns(here, zones)
+      .map(run => ({ run, band: plan.band(run.zone)! }))
+      .filter(x => x.band);
+    const slots = layerSlots(runs.map(x => x.run), plan);
+
+    const shelfH: number[] = Array.from({ length: slots.rows }, () => 0);
+    const height = (run: ZoneRun, band: Band) => {
+      const rows = Math.ceil(run.items.length / perRow(band.span));
+      return rows * (CARD_H + CARD_GAP) - CARD_GAP;
+    };
+    runs.forEach(({ run, band }) => {
+      const shelf = slots.row(run.zone) - 1;
+      shelfH[shelf] = Math.max(shelfH[shelf], height(run, band));
+    });
+
+    const shelfY = shelfH.map((_, i) =>
+      shelfH.slice(0, i).reduce((at, h) => at + h + SHELF_GAP, 0));
+    const bodyH = shelfH.length ? shelfY[shelfH.length - 1] + shelfH[shelfH.length - 1] : 0;
+
+    runs.forEach(({ run, band }) => {
       const x = originX + columnX(band.start - 1);
+      const top = bodyY + shelfY[slots.row(run.zone) - 1];
       const cols = perRow(band.span);
-      const rows = Math.ceil(run.items.length / cols);
 
       run.items.forEach((component, i) => {
         nodes.push({
           component,
           box: {
             x: x + (i % cols) * (CARD_W + CARD_GAP),
-            y: bodyY + Math.floor(i / cols) * (CARD_H + CARD_GAP),
+            y: top + Math.floor(i / cols) * (CARD_H + CARD_GAP),
             w: CARD_W,
             h: CARD_H
           },
@@ -265,14 +285,9 @@ export function layoutSheet(doc: Architecture): Sheet {
         /* The run's own box, not the union of its cards: on the canvas a run
          * stretches to fill its band, so the rectangle is band-shaped on every
          * layer instead of jumping in and out with the card count. */
-        boxes.push({
-          x, y: bodyY,
-          w: bandWidth(band.span),
-          h: rows * (CARD_H + CARD_GAP) - CARD_GAP
-        });
+        boxes.push({ x, y: top, w: bandWidth(band.span), h: height(run, band) });
         runBoxes.set(run.zone, boxes);
       }
-      bodyH = Math.max(bodyH, rows * (CARD_H + CARD_GAP) - CARD_GAP);
     });
 
     const h = LAYER_PAD_TOP + LAYER_HEAD_H + bodyH + LAYER_PAD_BOTTOM;

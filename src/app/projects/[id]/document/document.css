@@ -306,9 +306,15 @@ a.paper-btn { border-bottom-width: 1px; }
 /* 24 px between bands: every horizontal zone inset has to fit inside that gutter
    (the ladder is 7/13/19) or a rule reaches into the next band's card.
    MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+/* Rows are the shelves — two zones can share a range of columns, one under the
+   other. Implicit tracks are enough here: nothing is laid over this grid, and
+   `layerSlots` never skips a shelf number, so no empty row can leave a stray
+   `row-gap` behind. 32 px, like the gutter is 24: the vertical zone inset ladder
+   is 14/23/32 and the whole of it has to fit, or a shelved zone's rule reaches
+   the card above. MIRRORS `SHELF_GAP` in lib/zones.ts. */
 .paper-layer-row.banded {
   display: grid; grid-template-columns: repeat(var(--cols), var(--card-w));
-  row-gap: 12px; column-gap: 24px; align-items: start; justify-content: start;
+  row-gap: 32px; column-gap: 24px; align-items: start; justify-content: start;
 }
 /* A run fills its band rather than shrinking to its cards, so the measured
    rectangle is band-shaped on every layer. */

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { normalizeArchitecture } from '../defaults';
-import { BAND_GUTTER } from '../zones';
+import { BAND_GUTTER, SHELF_GAP, withDescendants, zonePad, type Box } from '../zones';
 import type { Architecture } from '../types';
 import { CARD_GAP, CARD_H, CARD_W, bandWidth, columnX, clip, layoutSheet } from './layout';
 
@@ -35,10 +35,21 @@ test('the grid arithmetic matches the stylesheet it mirrors', () => {
    * stop being the drawing the editor shows — so they are checked here. */
   assert.match(css, new RegExp(`--card-w:\\s*${CARD_W}px`),
     '--card-w on .canvas no longer matches CARD_W');
-  assert.match(css, new RegExp(`row-gap:\\s*${CARD_GAP}px;\\s*column-gap:\\s*${BAND_GUTTER}px`),
-    '.layer-drop.banded gaps no longer match CARD_GAP / BAND_GUTTER');
+  assert.match(css, new RegExp(`row-gap:\\s*${SHELF_GAP}px;\\s*column-gap:\\s*${BAND_GUTTER}px`),
+    '.layer-drop.banded gaps no longer match SHELF_GAP / BAND_GUTTER');
   assert.match(css, new RegExp(`\\.zrun\\s*\\{[^}]*gap:\\s*${CARD_GAP}px`),
     '.zrun gap no longer matches CARD_GAP');
+});
+
+test('a shelf gap is wide enough for the rules that sit in it', () => {
+  /* The horizontal rule: a zone's inset ladder has to fit inside the gap, or its
+   * rectangle reaches the card in the next band. The same has to hold vertically
+   * once two zones can share a range of columns. */
+  const deepest = zonePad('a', [
+    { id: 'a', name: 'A' }, { id: 'b', name: 'B', parent: 'a' }, { id: 'c', name: 'C', parent: 'b' }
+  ]);
+  assert.ok(deepest.y <= SHELF_GAP, 'a zone rule would reach the card on the shelf above');
+  assert.ok(deepest.x <= BAND_GUTTER, 'a zone rule would reach the card in the next band');
 });
 
 test('a band of n columns holds exactly n cards on a row', () => {
@@ -73,16 +84,63 @@ test('every component is placed exactly once, at the card size', () => {
   });
 });
 
-test('no two cards overlap', () => {
-  const boxes = layoutSheet(doc()).nodes.map(n => n.box);
-  for (let i = 0; i < boxes.length; i++) {
-    for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i], b = boxes[j];
-      const apart = a.x + a.w <= b.x || b.x + b.w <= a.x
-        || a.y + a.h <= b.y || b.y + b.h <= a.y;
-      assert.ok(apart, `cards ${i} and ${j} overlap`);
+/* The same landscape with a zone shelved under its neighbour. `edge` and
+ * `legacy` are siblings that both draw on `services` only, so `legacy` can share
+ * `edge`'s columns one shelf down instead of costing the sheet a band — and once
+ * two zones share columns, the containment guarantee has to hold on the vertical
+ * axis, which is what the invariants below are really testing. */
+const shelved = (): Architecture => normalizeArchitecture({
+  meta: { name: 'Shelved', lang: 'en' },
+  layers: [{ id: 'clients', name: 'Clients' }, { id: 'services', name: 'Services' }],
+  groups: [{ id: 'core', name: 'Core' }],
+  zones: [
+    { id: 'edge', name: 'Edge', kind: 'network' },
+    { id: 'legacy', name: 'Legacy', kind: 'platform', stack: true }
+  ],
+  components: [
+    { id: 'web', name: 'Web', group: 'core', layer: 'clients', deps: ['gw'] },
+    { id: 'gw', name: 'Gateway', group: 'core', layer: 'services', zone: 'edge' },
+    { id: 'gw2', name: 'Gateway 2', group: 'core', layer: 'services', zone: 'edge' },
+    { id: 'as400', name: 'AS/400', group: 'core', layer: 'services', zone: 'legacy' }
+  ]
+});
+
+const holds = (box: Box, inner: Box) =>
+  inner.x >= box.x && inner.x + inner.w <= box.x + box.w
+  && inner.y >= box.y && inner.y + inner.h <= box.y + box.h;
+
+[['the landscape', doc], ['a sheet with a shelved zone', shelved]].forEach(([what, make]) => {
+  const build = make as () => Architecture;
+
+  test(`no two cards overlap — ${what}`, () => {
+    const boxes = layoutSheet(build()).nodes.map(n => n.box);
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        const apart = a.x + a.w <= b.x || b.x + b.w <= a.x
+          || a.y + a.h <= b.y || b.y + b.h <= a.y;
+        assert.ok(apart, `cards ${i} and ${j} overlap`);
+      }
     }
-  }
+  });
+
+  test(`every zone rectangle holds its own members and nothing else — ${what}`, () => {
+    /* The guarantee the whole mechanism exists for. Reserved columns give it on
+     * the horizontal axis; shelves have to give it on the vertical one, which is
+     * why every rectangle is checked against every card rather than one pair. */
+    const source = build();
+    const sheet = layoutSheet(source);
+    assert.ok(sheet.zones.length, 'the fixture should draw at least one zone');
+
+    sheet.zones.forEach(placed => {
+      const family = withDescendants(placed.zone.id, source.zones);
+      sheet.nodes.forEach(node => {
+        if (!holds(placed.box, node.box)) return;
+        assert.ok(node.component.zone && family.has(node.component.zone),
+          `"${node.component.id}" fell inside the "${placed.zone.name}" rectangle`);
+      });
+    });
+  });
 });
 
 test('a zone rectangle holds its own members and nothing else', () => {
@@ -90,18 +148,42 @@ test('a zone rectangle holds its own members and nothing else', () => {
   const openshift = sheet.zones.find(z => z.zone.id === 'openshift');
   assert.ok(openshift, 'the platform zone should be drawn');
 
-  const inside = (id: string) => {
-    const n = sheet.nodes.find(c => c.component.id === id)!;
-    const b = openshift!.box;
-    return n.box.x >= b.x && n.box.x + n.box.w <= b.x + b.w
-      && n.box.y >= b.y && n.box.y + n.box.h <= b.y + b.h;
-  };
+  const inside = (id: string) =>
+    holds(openshift!.box, sheet.nodes.find(c => c.component.id === id)!.box);
+
   assert.ok(inside('api'), 'api is in the zone and should be inside its rectangle');
   assert.ok(inside('jobs'), 'jobs is in the zone and should be inside its rectangle');
   /* This is the whole reason bands are reserved: an unzoned card on the same row
    * must not fall inside a rectangle the document never drew around it. */
   assert.ok(!inside('psp'), 'an unzoned card fell inside the zone rectangle');
   assert.ok(!inside('web'), 'a card on another layer fell inside the zone rectangle');
+});
+
+test('a shelf costs the layer a row of height and gives the sheet back a band', () => {
+  const stacked = layoutSheet(shelved());
+  const flat = layoutSheet(normalizeArchitecture({
+    ...shelved(),
+    zones: shelved().zones.map(z => ({ ...z, stack: undefined }))
+  }));
+
+  assert.ok(stacked.w < flat.w, 'the shelved sheet should be narrower');
+  assert.ok(stacked.h > flat.h, 'and taller, which is the trade');
+
+  /* The shelf sits below, not beside: same columns, lower down. */
+  const at = (sheet: typeof stacked, id: string) => sheet.zones.find(z => z.zone.id === id)!.box;
+  const edge = at(stacked, 'edge');
+  const legacy = at(stacked, 'legacy');
+  assert.ok(legacy.y >= edge.y + edge.h, 'the shelved zone should clear the one above it');
+  assert.ok(legacy.x >= edge.x, 'and start inside the same range of columns');
+});
+
+test('a layer that draws only its second shelf leaves no gap above it', () => {
+  /* `clients` holds one unzoned card and neither zone, so its cards start at the
+   * top of the layer body exactly as they would on an unshelved sheet. */
+  const stacked = layoutSheet(shelved());
+  const clients = stacked.layers.find(l => l.layer.id === 'clients')!;
+  const web = stacked.nodes.find(n => n.component.id === 'web')!;
+  assert.equal(web.box.y, clients.bodyY);
 });
 
 test('a nested zone is drawn after — and inside — its parent', () => {

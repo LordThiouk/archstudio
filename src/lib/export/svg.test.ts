@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { normalizeArchitecture } from '../defaults';
 import type { Architecture } from '../types';
+import { ICONS } from '../icons';
 import { buildDiagramSvg } from './svg';
 
 const doc = (over: Partial<Architecture> = {}): Architecture => normalizeArchitecture({
@@ -90,6 +91,28 @@ test('the transition takes the border and a tick, never a hue', () => {
   assert.ok(svg.includes('>DEL<'));
   assert.match(svg, /stroke="#3D566B" stroke-width="1.8"/, 'a new component is drawn heavier');
   assert.match(svg, /stroke-dasharray="4 3"/, 'a removal is drawn as a ghost');
+});
+
+test('a card wears its own icon, not a swatch', () => {
+  /* Three of the four renderers put the real glyph on the scope chip; this one
+   * used to draw a plain square, so a database was a cylinder on screen and a
+   * coloured box in the file people actually forward. */
+  const svg = buildDiagramSvg(doc({
+    components: [{ id: 'db', name: 'Aurora', group: 'core', layer: 'services', icon: 'db' }]
+  }));
+  assert.ok(svg.includes(ICONS.db), 'the cylinder should be in the file');
+  assert.match(svg, /width="20" height="20" fill="#0099A0"/, 'the chip still carries the scope colour');
+  assert.match(svg, /stroke="#FFFFFF" stroke-width="2"/, 'the glyph is stroked on the chip, never filled');
+});
+
+test('a component with no icon still gets one, and an unknown name does not break the file', () => {
+  const svg = buildDiagramSvg(doc({
+    components: [
+      { id: 'a', name: 'Plain', group: 'core', layer: 'clients' },
+      { id: 'b', name: 'Odd', group: 'core', layer: 'services', icon: 'not-a-real-icon' }
+    ]
+  }));
+  assert.equal(svg.split(ICONS.box).length - 1, 2, 'both should fall back to the box glyph');
 });
 
 test('authored text cannot become markup', () => {

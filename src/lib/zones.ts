@@ -29,7 +29,11 @@
  *
  * A band is reserved on layers where its zone has nothing, so a zoned sheet is
  * wider than the same sheet unzoned. That is the visible, honest price of a
- * boundary that means what it draws.
+ * boundary that means what it draws — and a zone that only ever draws on one
+ * layer pays it on all of them, which is what `stack` is for: it puts a zone on
+ * a *shelf* below its neighbour, sharing that neighbour's columns, so the sheet
+ * gets one band narrower and one shelf taller. The reservation still holds; it
+ * is now a range of columns on a shelf rather than a range of columns.
  *
  * ------------------------------------------------------------------- drawing
  *
@@ -144,6 +148,16 @@ export const zonePad = (zoneId: string, zones: Zone[]): { x: number; y: number }
   return { x: 7 + 6 * height, y: 14 + 9 * height };
 };
 
+/** Gap between two shelves of one column group, in sheet pixels — `row-gap` on a
+ *  banded grid in all three stylesheets.
+ *
+ *  What `BAND_GUTTER` is horizontally, and sized by the same rule: the vertical
+ *  inset ladder is 14, 23, 32, and the whole of it has to fit here or a shelved
+ *  zone's rule reaches the card on the shelf above. Wider than the gutter because
+ *  the ladder is — a zone's top inset also has to clear the label sitting on its
+ *  own top edge, which has no horizontal equivalent. */
+export const SHELF_GAP = 32;
+
 /* ------------------------------------------------------------- ordering */
 
 /** The sort key that keeps a zone's members adjacent — and its nested zones
@@ -228,17 +242,37 @@ export const BAND_MAX = 6;
  *  and below it there is nothing left to take. */
 export const BAND_BUDGET = 12;
 
+/** Shelves one column group may hold.
+ *
+ *  Height is the currency a shelf spends, and unlike width it is scrollable — so
+ *  the ceiling is about reading, not fitting. Two boundaries stacked read as two
+ *  boundaries; a column of six reads as a list, and a list of zones is the thing
+ *  the bands were drawn to avoid being. Three is where it still reads as stacked.
+ *
+ *  It binds the automatic search and the explicit flag alike: a document that
+ *  asked for a fourth shelf would draw one the editor could not have offered. */
+export const SHELF_MAX = 3;
+
 export interface Band {
   zone?: string;
   /** 1-based, for `grid-column`. */
   start: number;
   span: number;
+  /** Which shelf of its column group holds this band, 0-based. Zero on a sheet
+   *  that stacks nothing, which is every sheet drawn before `stack` existed.
+   *
+   *  Not a `grid-row` on its own: a shelf that is empty on a given layer must
+   *  not leave a gap there, so the row line comes from `layerSlots`, which ranks
+   *  the shelves that layer actually draws. */
+  row: number;
 }
 
 export interface BandPlan {
   bands: Band[];
   /** Total columns the sheet reserves — `grid-template-columns` repeats this. */
   total: number;
+  /** Shelves in the deepest column group. One when nothing is stacked. */
+  rows: number;
   band: (zone?: string) => Band | undefined;
 }
 
@@ -252,6 +286,124 @@ export function zonesInTreeOrder(zones: Zone[]): Zone[] {
   return [...zones].sort((a, b) => key(a).localeCompare(key(b)));
 }
 
+/* --------------------------------------------------------------- shelving
+ *
+ * A column group is a range of columns holding one or more shelves; a shelf is
+ * one row of buckets laid side by side. Without stacking there is one group per
+ * bucket subtree and one shelf in each, which is the sheet exactly as it was.
+ *
+ * What makes a shelf safe is the same argument the bands rest on, turned on its
+ * side. A zone's rectangle is the union of its family's runs *across every
+ * layer*, so a zone drawing on layers 1 and 3 owns a rectangle that covers all
+ * of layer 2 in its columns — and anything shelved under it there would fall
+ * inside a boundary that never claimed it. So a group only gets a second shelf
+ * when every bucket in it draws on a single layer. Then each rectangle is one
+ * shelf on one layer: two on the same layer are different shelves, two on
+ * different layers are different layers, and neither can hold the other.
+ *
+ * That is the case worth having anyway — a zone confined to one layer is
+ * precisely the one paying for a band it barely uses.
+ */
+
+interface Shelf { buckets: (string | undefined)[] }
+interface Group { root: string | undefined; shelves: Shelf[] }
+
+/** Why a zone cannot take a shelf, phrased for a tooltip, or null if it can. */
+export type Blocker = string | null;
+
+/** Group the ordered buckets into column groups and shelves.
+ *
+ *  `reject` is how the editor gets its tooltip: the walk is where eligibility is
+ *  actually decided, so asking it is the only way to be sure the reason given
+ *  matches the drawing produced. */
+function groupBuckets(
+  ordered: (string | undefined)[],
+  zones: Zone[],
+  stacked: Set<string>,
+  oneLayer: (bucket: string) => boolean,
+  reject?: (bucket: string, why: string) => void
+): Group[] {
+  const by = zoneIndex(zones);
+  const name = (id: string | undefined) => (id && by.get(id)?.name) || id || 'the unzoned cards';
+  const groups: Group[] = [];
+
+  ordered.forEach(bucket => {
+    const group = groups[groups.length - 1] as Group | undefined;
+    const shelf = group?.shelves[group.shelves.length - 1];
+
+    /* A descendant stays on its ancestor's shelf. A subtree is contiguous in
+     * tree order, and keeping it on one shelf is what keeps a parent's rectangle
+     * a single range of columns on a single row rather than an L. */
+    const inside = shelf?.buckets.find(b => b && bucket && ancestry(bucket, by).includes(b));
+    if (bucket && inside) {
+      if (stacked.has(bucket)) reject?.(bucket, `it sits inside "${name(inside)}"`);
+      shelf!.buckets.push(bucket);
+      return;
+    }
+
+    if (bucket && stacked.has(bucket)) {
+      const why = shelfBlocker(bucket, group, by, oneLayer, name);
+      if (!why) { group!.shelves.push({ buckets: [bucket] }); return; }
+      reject?.(bucket, why);
+    }
+
+    groups.push({ root: bucket, shelves: [{ buckets: [bucket] }] });
+  });
+
+  return groups;
+}
+
+/** The three rules, in the order that gives the most useful message first. */
+function shelfBlocker(
+  bucket: string,
+  group: Group | undefined,
+  by: Map<string, Zone>,
+  oneLayer: (bucket: string) => boolean,
+  name: (id: string | undefined) => string
+): Blocker {
+  if (!group) return 'nothing is drawn before it';
+
+  /* Onto a sibling, and never onto the unzoned cards. A zone slides within its
+   * own level, the same restraint `moveZone` keeps: the drawing has no way to
+   * show a zone that shelved itself out of its parent. */
+  const root = group.root ? by.get(group.root) : undefined;
+  if (!root) return 'the band before it holds the unzoned cards';
+  if (root.parent !== by.get(bucket)?.parent) {
+    return `"${name(group.root)}" before it is not at the same level`;
+  }
+
+  if (!oneLayer(bucket)) return 'it draws on more than one layer';
+  const spread = group.shelves.flatMap(s => s.buckets).find(b => b && !oneLayer(b));
+  if (spread) return `"${name(spread)}" draws on more than one layer`;
+
+  if (group.shelves.length >= SHELF_MAX) return `${SHELF_MAX} zones are already stacked there`;
+
+  return null;
+}
+
+/** Turn the groups into bands: columns accumulate per group, so two shelves of
+ *  the same group start at the same column and the sheet only pays for the
+ *  widest of them. */
+function assignBands(groups: Group[], span: (bucket: string | undefined) => number): {
+  bands: Band[]; total: number; rows: number;
+} {
+  const bands: Band[] = [];
+  let at = 1;
+  let rows = 1;
+
+  groups.forEach(group => {
+    const width = (shelf: Shelf) => shelf.buckets.reduce((w, b) => w + span(b), 0);
+    group.shelves.forEach((shelf, row) => {
+      let x = at;
+      shelf.buckets.forEach(b => { bands.push({ zone: b, start: x, span: span(b), row }); x += span(b); });
+    });
+    rows = Math.max(rows, group.shelves.length);
+    at += Math.max(...group.shelves.map(width));
+  });
+
+  return { bands, total: at - 1, rows };
+}
+
 /** The column plan for a document: one band per bucket that holds a card
  *  somewhere, unzoned first, then the zones in tree order.
  *
@@ -261,52 +413,100 @@ export function zonesInTreeOrder(zones: Zone[]): Zone[] {
 export function bandPlan(components: Component[], zones: Zone[], layers: Layer[]): BandPlan {
   const by = zoneIndex(zones);
   const bucketOf = (c: Component) => (c.zone && by.has(c.zone) ? c.zone : undefined);
+  const ordered = bucketOrder(components, zones);
 
   /* Widest run wins: a band has to hold the layer where the bucket is busiest,
    * or that layer wraps inside a band sized for a quieter one. */
   const widest = new Map<string | undefined, number>();
-  const buckets = new Set<string | undefined>();
-  components.forEach(c => buckets.add(bucketOf(c)));
   (layers.length ? layers : [{ id: '', name: '' }]).forEach(layer => {
     const here = layers.length ? components.filter(c => c.layer === layer.id) : components;
-    buckets.forEach(b => {
+    ordered.forEach(b => {
       const n = here.filter(c => bucketOf(c) === b).length;
       widest.set(b, Math.max(widest.get(b) ?? 0, n));
     });
   });
 
-  const ordered: (string | undefined)[] = [
-    ...(buckets.has(undefined) ? [undefined] : []),
-    ...zonesInTreeOrder(zones).map(z => z.id).filter(id => buckets.has(id))
-  ];
+  const oneLayer = layerConfined(components, zones);
+  const spans = new Map(ordered.map(zone =>
+    [zone, Math.min(BAND_MAX, Math.max(1, widest.get(zone) ?? 0))] as const));
+  const width = (bucket: string | undefined) => spans.get(bucket) ?? 1;
 
-  /* What each bucket would take if width were free, then narrowed until the
-   * sheet fits the budget: the widest band gives up a column at a time, so the
-   * pressure lands on whatever is making the drawing wide rather than being
+  const stacked = new Set(zones.filter(z => z.stack && ordered.includes(z.id)).map(z => z.id));
+  const replan = () => assignBands(groupBuckets(ordered, zones, stacked, oneLayer), width);
+  let out = replan();
+
+  /* Over budget, shelving is tried before narrowing: a shelf gives back a whole
+   * band and costs one row of height, while narrowing gives back one column and
+   * wraps the cards anyway. The zone that buys the most width goes first, and
+   * ties go to the earliest so the result does not depend on file order.
+   *
+   * This is a layout decision and it stays one — nothing is written back to the
+   * document, so widening the frame or deleting a component puts the sheet back
+   * the way it was. */
+  while (out.total > BAND_BUDGET) {
+    let best: { bucket: string; total: number } | null = null;
+    for (const bucket of ordered) {
+      if (!bucket || stacked.has(bucket)) continue;
+      stacked.add(bucket);
+      const trial = replan();
+      stacked.delete(bucket);
+      if (trial.total < out.total && (!best || trial.total < best.total)) {
+        best = { bucket, total: trial.total };
+      }
+    }
+    if (!best) break;
+    stacked.add(best.bucket);
+    out = replan();
+  }
+
+  /* What is left is narrowed: the widest band gives up a column at a time, so
+   * the pressure lands on whatever is making the drawing wide rather than being
    * spread evenly over buckets that were already narrow. A band that loses a
    * column does not lose a card — it wraps inside itself and the layer grows
    * taller, which is the trade a reader can actually scroll. */
-  const spans = ordered.map(zone => Math.min(BAND_MAX, Math.max(1, widest.get(zone) ?? 0)));
-  let total = spans.reduce((a, b) => a + b, 0);
-  while (total > BAND_BUDGET) {
-    /* Ties go to the earliest band, which keeps the result independent of how
-     * the zones happen to be ordered in the file. */
-    let widestAt = -1;
-    spans.forEach((s, i) => { if (s > 1 && (widestAt < 0 || s > spans[widestAt])) widestAt = i; });
-    if (widestAt < 0) break;   // every band is down to one column
-    spans[widestAt] -= 1;
-    total -= 1;
+  const groups = groupBuckets(ordered, zones, stacked, oneLayer);
+  while (out.total > BAND_BUDGET) {
+    let pick: string | undefined;
+    let picked = 1;
+    let found = false;
+    for (const bucket of ordered) {
+      if (width(bucket) > picked) { pick = bucket; picked = width(bucket); found = true; }
+    }
+    if (!found) break;   // every band is down to one column
+    spans.set(pick, picked - 1);
+    out = assignBands(groups, width);
   }
 
-  const bands: Band[] = [];
-  let at = 1;
-  ordered.forEach((zone, i) => {
-    bands.push({ zone, start: at, span: spans[i] });
-    at += spans[i];
-  });
+  const index = new Map(out.bands.map(b => [b.zone, b]));
+  return { ...out, band: zone => index.get(zone) };
+}
 
-  const index = new Map(bands.map(b => [b.zone, b]));
-  return { bands, total: at - 1, band: zone => index.get(zone) };
+/** The buckets that get a band, in the order they are laid out: the unzoned
+ *  cards first, then the zones holding a card directly, in tree order. */
+function bucketOrder(components: Component[], zones: Zone[]): (string | undefined)[] {
+  const by = zoneIndex(zones);
+  const buckets = new Set<string | undefined>();
+  components.forEach(c => buckets.add(c.zone && by.has(c.zone) ? c.zone : undefined));
+  return [
+    ...(buckets.has(undefined) ? [undefined] : []),
+    ...zonesInTreeOrder(zones).map(z => z.id).filter(id => buckets.has(id))
+  ];
+}
+
+/** Does this bucket's whole family draw on a single layer? Memoised: the
+ *  shelving search asks it once per bucket per trial plan. */
+function layerConfined(components: Component[], zones: Zone[]): (bucket: string) => boolean {
+  const cache = new Map<string, boolean>();
+  return bucket => {
+    const hit = cache.get(bucket);
+    if (hit !== undefined) return hit;
+    const family = withDescendants(bucket, zones);
+    const seen = new Set<string>();
+    components.forEach(c => { if (c.zone && family.has(c.zone)) seen.add(c.layer); });
+    const ok = seen.size <= 1;
+    cache.set(bucket, ok);
+    return ok;
+  };
 }
 
 /* --------------------------------------------------------------- in use */
@@ -357,6 +557,68 @@ export function moveZone(zones: Zone[], id: string, delta: -1 | 1): Zone[] {
 /** Has this zone a sibling in that direction? Drives the buttons' disabled state. */
 export const canMoveZone = (zones: Zone[], id: string, delta: -1 | 1): boolean =>
   moveZone(zones, id, delta) !== zones;
+
+/** Ask for a shelf, or give one up. Returns the list unchanged when the flag is
+ *  already what was asked for, so the caller can compare identity. */
+export function stackZone(zones: Zone[], id: string, on: boolean): Zone[] {
+  const at = zones.findIndex(z => z.id === id);
+  if (at < 0 || (zones[at].stack === true) === on) return zones;
+  const out = [...zones];
+  const next = { ...out[at] };
+  if (on) next.stack = true; else delete next.stack;
+  out[at] = next;
+  return out;
+}
+
+/** Why shelving this zone would change nothing, phrased for a tooltip — or null
+ *  when it would work.
+ *
+ *  Asks the same walk that lays the sheet out rather than re-deriving the rules,
+ *  because a button explaining one thing while the drawing does another is worse
+ *  than a button with no explanation at all. */
+export function stackBlocker(components: Component[], zones: Zone[], id: string): Blocker {
+  const ordered = bucketOrder(components, zones);
+  if (!ordered.includes(id)) return 'it holds no component of its own yet';
+
+  const asked = new Set(zones.filter(z => z.stack).map(z => z.id));
+  asked.add(id);
+
+  let why: Blocker = null;
+  groupBuckets(ordered, zones, asked, layerConfined(components, zones),
+    (bucket, reason) => { if (bucket === id) why = reason; });
+  return why;
+}
+
+/** Can this zone take a shelf? Drives the toggle's disabled state. */
+export const canStackZone = (components: Component[], zones: Zone[], id: string): boolean =>
+  stackBlocker(components, zones, id) === null;
+
+/** Which shelves a single layer actually draws, and the `grid-row` line each
+ *  band takes there.
+ *
+ *  Ranked rather than absolute: a group whose first shelf is empty on this layer
+ *  would otherwise leave a row of dead space at the top of it. Shared by all four
+ *  renderers so the measured sheets and the arithmetic one agree without a second
+ *  layout — the same reason the band plan itself is arithmetic. */
+export interface LayerSlots {
+  /** 1-based, for `grid-row`. */
+  row: (zone?: string) => number;
+  /** Shelves drawn on this layer, at least one. */
+  rows: number;
+}
+
+export function layerSlots(runs: ZoneRun[], plan: BandPlan): LayerSlots {
+  const used = new Set<number>();
+  runs.forEach(run => { const band = plan.band(run.zone); if (band) used.add(band.row); });
+  const rank = new Map([...used].sort((a, b) => a - b).map((row, i) => [row, i] as const));
+  return {
+    row: zone => {
+      const band = plan.band(zone);
+      return (band ? rank.get(band.row) ?? 0 : 0) + 1;
+    },
+    rows: rank.size || 1
+  };
+}
 
 export const zoneOf = (zones: Zone[], id: string | undefined): Zone | undefined =>
   id ? zones.find(z => z.id === id) : undefined;

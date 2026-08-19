@@ -249,9 +249,16 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
    that gutter (the ladder is 7/13/19) or a rule reaches into the next band's
    card. Cards *within* a band stay 12 px apart — that is the run's own flex gap,
    which the grid's track gaps do not touch. MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+/* Rows are the shelves: a group of columns can hold more than one zone, one
+   under the other, which is how a zone confined to a single layer stops costing
+   the whole sheet a band of width. Implicit tracks are enough — the row plan
+   never skips a shelf number, so no empty row can leave a stray `row-gap`.
+   32 px between shelves, like 24 between bands: the vertical zone inset ladder
+   is 14/23/32 and the whole of it has to fit, or a shelved zone's rule reaches
+   the card above. MIRRORS `SHELF_GAP` in lib/zones.ts. */
 .nodes.banded{
   display:grid;grid-template-columns:repeat(var(--cols),var(--card-w));
-  row-gap:12px;column-gap:24px;align-items:start;justify-content:start;
+  row-gap:32px;column-gap:24px;align-items:start;justify-content:start;
 }
 /* A run fills its band rather than shrinking to its cards, so the rectangle
    measured from it is band-shaped on every layer instead of jumping in and out

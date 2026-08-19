@@ -29,8 +29,8 @@ import {
 } from '@/lib/lifecycle';
 import { describeMarks, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
-  bandPlan, describeZone, inflatedUnion, layerRuns, withDescendants, zoneDepth, zonePad, zoneSvg,
-  zonesInUse, type BandPlan, type Box
+  bandPlan, describeZone, inflatedUnion, layerRuns, layerSlots, withDescendants, zoneDepth,
+  zonePad, zoneSvg, zonesInUse, type BandPlan, type Box
 } from '@/lib/zones';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
@@ -448,13 +448,21 @@ function LayerCards({ doc, layer, colour, plan }: {
   );
 
   if (!plan) return <>{items.map(card)}</>;
+  const runs = layerRuns(items, doc.zones);
+  /* Ranked per layer, so a group whose first shelf is empty here does not leave
+   * a dead row at the top of it — and no shelf number is ever skipped, which is
+   * what keeps the implicit rows this grid creates free of a stray `row-gap`. */
+  const slots = layerSlots(runs, plan);
   return (
     <>
-      {layerRuns(items, doc.zones).map(run => {
+      {runs.map(run => {
         const band = plan.band(run.zone);
         return (
           <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}
-            style={band ? { gridColumn: `${band.start} / span ${band.span}` } : undefined}>
+            style={band ? {
+              gridColumn: `${band.start} / span ${band.span}`,
+              gridRow: `${slots.row(run.zone)}`
+            } : undefined}>
             {run.items.map(card)}
           </div>
         );

@@ -280,6 +280,10 @@ function normalizeZones(input: Zone[] | undefined): Zone[] {
     if (isZoneKind(z.kind)) out.kind = z.kind;
     if (z.note?.trim()) out.note = z.note.trim();
     if (typeof z.parent === 'string' && z.parent && z.parent !== z.id) out.parent = z.parent;
+    /* Only `true` is kept. The flag asks for a shelf; whether it gets one is
+     * `bandPlan`'s call, so storing anything richer here would be storing a
+     * decision this pass is in no position to make. */
+    if (z.stack === true) out.stack = true;
     clean.push(out);
   }
 

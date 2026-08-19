@@ -87,6 +87,15 @@ export interface Zone {
   parent?: string;
   /** One line under the label — "All communications are REST calls". */
   note?: string;
+  /** Sit on a shelf *below* the previous sibling, sharing its columns, instead
+   *  of taking a band of its own. What keeps a zone that only draws on one layer
+   *  from costing the whole sheet a column of width.
+   *
+   *  A request, not a guarantee: `bandPlan` ignores it when the zone is not
+   *  eligible (see `canStack` there), because a flag that could break the
+   *  containment rule has to be checked where the drawing is decided, not where
+   *  it is stored. */
+  stack?: boolean;
 }
 
 /* How a caller reaches a callee. `sync` is the default reading and is left

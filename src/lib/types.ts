@@ -304,12 +304,21 @@ export interface ProjectSummary extends ProjectRecord {
 
 /** A snapshot of a project's document.
  *
- * `label` is what separates the two kinds: an automatic snapshot has none, a
- * checkpoint the user named has one — and a named checkpoint is never pruned. */
+ * `label` is what separates the kinds: an automatic snapshot has none, a version
+ * someone froze has a title — and a named row is never pruned. `kind` is that
+ * reading, made explicit, plus the third case the app writes for itself. See
+ * `src/lib/versions.ts`.
+ *
+ * `version` and `kind` are *derived*, not stored: the schema has no column for
+ * either, and could not gain one. The number is read out of the snapshot's own
+ * `meta.version` in the same parse that counts the components. */
 export interface RevisionRecord {
   id: string;
   projectId: string;
   label: string | null;
   createdAt: string;
   componentCount: number;
+  /** The number the document carried when it was frozen. */
+  version: string | null;
+  kind: import('./versions').RevisionKind;
 }

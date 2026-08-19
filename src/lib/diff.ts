@@ -82,6 +82,7 @@ const COMPONENT_FIELDS: { key: keyof Component; label: string; list?: true }[] =
   { key: 'icon', label: 'icon' },
   { key: 'badge', label: 'badge' },
   { key: 'url', label: 'URL' },
+  { key: 'deployedOn', label: 'deployment' },
   { key: 'role', label: 'role' },
   { key: 'marks', label: 'security marks', list: true },
   { key: 'tech', label: 'technologies', list: true },
@@ -283,6 +284,7 @@ const zoneChanges = (from: Architecture, to: Architecture) =>
       bits.push(`inside: ${inside(from, a.parent)} → ${inside(to, b.parent)}`);
     }
     if (!textSame(a.note, b.note)) bits.push('note');
+    if (!a.stack !== !b.stack) bits.push(b.stack ? 'stacked under its neighbour' : 'given its own band');
     return bits;
   });
 

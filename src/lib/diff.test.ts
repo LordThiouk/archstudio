@@ -70,6 +70,14 @@ test('edited fields are listed by name in one entry', () => {
     'badge, role, technologies');
 });
 
+test('moving a component to another platform is reported, and named as a deployment', () => {
+  /* Distinct from a zone move, which History already spells out with both sides'
+   * names. This one is a fact about the component, not a boundary it crossed. */
+  const before = doc({ components: [comp('api', { deployedOn: 'AWS' })] });
+  const after = doc({ components: [comp('api', { deployedOn: 'OpenShift' })] });
+  assert.equal(find(diffArchitecture(before, after).changes, 'api')?.detail, 'deployment');
+});
+
 test('absent and empty are the same document, not an edit', () => {
   /* The left side is what an imported or pre-normalisation revision looks like:
    * the list keys are simply missing. Normalising fills them with `[]`, and

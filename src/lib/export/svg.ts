@@ -29,6 +29,7 @@
  */
 
 import type { Architecture } from '../types';
+import { ICON_VIEWBOX, iconPath } from '../icons';
 import {
   CARD_H, INK, LAYER_PAD_TOP, SHEET_PAD_X, clip, layoutSheet, textWidth, zoneFill,
   type EdgePlacement, type LayerPlacement, type NodePlacement, type Sheet, type ZonePlacement
@@ -148,9 +149,44 @@ function layerSvg(l: LayerPlacement, sheetW: number): string {
     + `stroke="${l.tint || INK.line3}" stroke-width="1" stroke-dasharray="4 4" opacity="0.42"/>`;
 }
 
+/* The scope chip and the glyph on it. 20 px square with a 12 px glyph centred in
+ * it, which is what `.ccard .ic`, `.paper-node .ic` and `.node .ic` all are — so
+ * a card exported to a file is the card the editor drew, down to the icon.
+ *
+ * The chip is where a scope colour is allowed to live (rule 1), and the glyph is
+ * stroked white on it. Header baseline sits at 21.5, so a 20 px chip runs from
+ * 11.5 above it to 8.5 below: the row reads as one line rather than as a square
+ * and a label that happen to be near each other. */
+const CHIP = 20;
+const GLYPH = 12;
+const CHIP_X = 12;
+const CHIP_Y = 7.5;
+/** Where the name starts: the chip, plus the same 9 px gap the three stylesheets
+ *  put between a chip and a name. */
+const NAME_X = CHIP_X + CHIP + 9;
+
+function chipSvg(x: number, y: number, colour: string, icon?: string): string {
+  const inset = (CHIP - GLYPH) / 2;
+  /* The paths are drawn on a 24-unit box, so one scale puts them on the chip.
+   * `stroke-width` is inside the scaled group and comes out at 1 px, exactly as
+   * a 12 px `<svg viewBox="0 0 24 24" stroke-width="2">` does in the browser. */
+  const scale = GLYPH / ICON_VIEWBOX;
+  return `<rect x="${round(x)}" y="${round(y)}" width="${CHIP}" height="${CHIP}" fill="${colour}"/>`
+    + `<g transform="translate(${round(x + inset)} ${round(y + inset)}) scale(${round(scale)})" `
+    + `fill="none" stroke="${INK.paper}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+    + iconPath(icon)
+    + `</g>`;
+}
+
 /* The card. One shape repeated, three lines of content, and the two channels the
  * transition is allowed to use: the border treatment and a monospace tick in the
- * corner. Colour stays on the chip, where scope lives. */
+ * corner. Colour stays on the chip, where scope lives.
+ *
+ * One shape, deliberately: a circle means "a node in a graph" — the mark, an
+ * edge endpoint — and that is the only thing carrying direction once hover is
+ * gone. What tells a database from a queue is the glyph on the chip, not the
+ * outline, which is why the chip carries the real icon here and not a swatch.
+ * A cylinder drawn as a card would spend the one channel the edges need. */
 function nodeSvg(n: NodePlacement): string {
   const { box: b, component: c } = n;
   const removed = c.state === 'removed';
@@ -161,11 +197,11 @@ function nodeSvg(n: NodePlacement): string {
     + `fill="${INK.paper}" stroke="${marked ? INK.ink2 : INK.line3}" `
     + `stroke-width="${marked ? 1.8 : 1}"`
     + (removed ? ' stroke-dasharray="4 3"' : '') + `/>`
-    + `<rect x="${round(b.x + 12)}" y="${round(b.y + 13)}" width="9" height="9" fill="${n.color}"/>`;
+    + chipSvg(b.x + CHIP_X, b.y + CHIP_Y, n.color, c.icon);
 
   const tickW = n.tick ? 28 : 0;
-  out += text(b.x + 27, b.y + 21.5,
-    esc(clip(c.name, b.w - 27 - 12 - tickW, 12, SANS_RATIO)),
+  out += text(b.x + NAME_X, b.y + 21.5,
+    esc(clip(c.name, b.w - NAME_X - 12 - tickW, 12, SANS_RATIO)),
     { cls: 's', size: 12, fill: INK.ink, weight: '600' });
 
   if (n.tick) {
@@ -178,9 +214,24 @@ function nodeSvg(n: NodePlacement): string {
       { cls: 's', size: 10, fill: INK.ink2 });
   }
 
+  /* The lower line, and the one place where it is not all one ink. Where a
+   * component runs leads it and is set a step darker than what it is built with
+   * — a file has no outline to give it, which is the treatment the three
+   * measured surfaces use, so weight of ink carries the same distinction. */
+  const place = c.deployedOn ? `${c.deployedOn}` : '';
   const lower = [c.badge, ...(c.tech || [])].filter(Boolean).join(' · ');
-  if (lower) {
-    out += text(b.x + 12, b.y + CARD_H - 11, esc(clip(lower, b.w - 24, 9, MONO_RATIO)),
+  const room = b.w - 24;
+  if (place) {
+    const head = lower ? `${place} · ` : place;
+    out += text(b.x + 12, b.y + CARD_H - 11, esc(clip(head, room, 9, MONO_RATIO)),
+      { cls: 'm', size: 9, fill: INK.ink2 });
+    const used = textWidth(head, 9, MONO_RATIO);
+    if (lower && used < room) {
+      out += text(b.x + 12 + used, b.y + CARD_H - 11,
+        esc(clip(lower, room - used, 9, MONO_RATIO)), { cls: 'm', size: 9, fill: INK.ink3 });
+    }
+  } else if (lower) {
+    out += text(b.x + 12, b.y + CARD_H - 11, esc(clip(lower, room, 9, MONO_RATIO)),
       { cls: 'm', size: 9, fill: INK.ink3 });
   }
 

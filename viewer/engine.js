@@ -55,7 +55,8 @@ const PALETTE_DARK  = ['#14BBC2', '#67AAED', '#A497EA', '#D686BC', '#69BA7C'];
 const LABELS = {
   en: {
     searchPlaceholder: 'Search a component, a technology…',
-    allScopes: 'All scopes', overview: 'Overview', architecture: 'Architecture',
+    allScopes: 'All scopes', anywhere: 'Anywhere', deployedOn: 'Deployed on',
+    overview: 'Overview', architecture: 'Architecture',
     flows: 'Flows', stack: 'Tech stack', hintDiagram: 'Hover = dependencies · Click = detail sheet',
     role: 'Role', technologies: 'Technologies', responsibilities: 'Responsibilities',
     notes: 'Notes', dependsOn: 'Depends on', usedBy: 'Used by', outgoing: 'outgoing',
@@ -75,7 +76,8 @@ const LABELS = {
   },
   fr: {
     searchPlaceholder: 'Rechercher un composant, une techno…',
-    allScopes: 'Tous les périmètres', overview: "Vue d’ensemble", architecture: 'Architecture',
+    allScopes: 'Tous les périmètres', anywhere: 'Partout', deployedOn: 'Déployé sur',
+    overview: "Vue d’ensemble", architecture: 'Architecture',
     flows: 'Flux métier', stack: 'Stack technique', hintDiagram: 'Survol = dépendances · Clic = fiche détaillée',
     role: 'Rôle', technologies: 'Technologies', responsibilities: 'Responsabilités',
     notes: 'Chantiers identifiés', dependsOn: 'Dépend de', usedBy: 'Sollicité par',
@@ -445,7 +447,12 @@ const ZONES_IN_USE = (() => {
  *
  * Arithmetic, not measured: a card has a fixed width, so a band's width is a
  * column count. The cost is that a band is reserved on layers where its zone has
- * nothing, which makes a zoned sheet wider than the same sheet unzoned.
+ * nothing, which makes a zoned sheet wider than the same sheet unzoned — and a
+ * zone that only draws on one layer pays that on all of them. Hence shelves: a
+ * range of columns can hold two zones, one under the other, and the reservation
+ * becomes a range of columns *on a shelf*. Only zones confined to a single layer
+ * may take one, because a zone's rectangle is the union of its runs across every
+ * layer, and one that skipped a layer would cover whatever was shelved there.
  *
  * MIRROR of bandPlan in src/lib/zones.ts. */
 const BAND_MAX = 6;
@@ -454,6 +461,9 @@ const BAND_MAX = 6;
  * a ceiling, not a promise: more buckets than columns means one column each and
  * a sheet wider than this, because one card per band is the floor. */
 const BAND_BUDGET = 12;
+/* Two boundaries stacked read as two boundaries; six read as a list, and a list
+ * of zones is what the bands were drawn to stop being. */
+const SHELF_MAX = 3;
 
 /** Zones in tree order, so a subtree's bands are contiguous and a parent's box
  *  is one range of columns rather than two with a hole in the middle. */
@@ -483,32 +493,124 @@ const BAND_PLAN = (() => {
 
   const ordered = [...(buckets.has('') ? [''] : []), ...ZONES_TREE_ORDER.filter(id => buckets.has(id))];
 
-  /* Narrowed until the sheet fits: the widest band gives up a column at a time,
-   * so the pressure lands on what is making the drawing wide. A band that loses
-   * a column keeps its cards — it wraps inside itself and the layer grows
-   * taller, which is the trade a reader can scroll. */
-  const spans = ordered.map(b => Math.min(BAND_MAX, Math.max(1, widest[b] || 0)));
-  let total = spans.reduce((a, b) => a + b, 0);
-  while (total > BAND_BUDGET) {
-    let widestAt = -1;
-    spans.forEach((s, i) => { if (s > 1 && (widestAt < 0 || s > spans[widestAt])) widestAt = i; });
-    if (widestAt < 0) break;
-    spans[widestAt] -= 1;
-    total -= 1;
+  const spans = {};
+  ordered.forEach(b => { spans[b] = Math.min(BAND_MAX, Math.max(1, widest[b] || 0)); });
+
+  /* Does this bucket's whole family draw on a single layer? Memoised — the
+   * shelving search asks it once per bucket per trial plan. */
+  const confined = {};
+  const oneLayer = id => {
+    if (confined[id] === undefined) {
+      const family = new Set(zoneFamily(id));
+      const seen = new Set();
+      DATA.components.forEach(c => { if (c.zone && family.has(c.zone)) seen.add(c.layer); });
+      confined[id] = seen.size <= 1;
+    }
+    return confined[id];
+  };
+
+  /* Onto a sibling, never onto the unzoned cards, never past a zone that draws
+   * on more than one layer, never more than SHELF_MAX deep. */
+  const canShelve = (b, group) => {
+    if (!group) return false;
+    const root = group.root ? ZONE_BY[group.root] : null;
+    if (!root) return false;
+    if ((root.parent || null) !== (ZONE_BY[b].parent || null)) return false;
+    if (!oneLayer(b)) return false;
+    if (group.shelves.some(s => s.some(x => x && !oneLayer(x)))) return false;
+    return group.shelves.length < SHELF_MAX;
+  };
+
+  /* A column group holds one or more shelves; a shelf is one row of buckets side
+   * by side. A descendant stays on its ancestor's shelf, which is what keeps a
+   * parent's rectangle one range of columns on one row rather than an L. */
+  const groupsFor = stacked => {
+    const groups = [];
+    ordered.forEach(b => {
+      const group = groups[groups.length - 1];
+      const shelf = group && group.shelves[group.shelves.length - 1];
+      if (b && shelf && shelf.some(x => x && zoneAncestry(b).includes(x))) { shelf.push(b); return; }
+      if (b && stacked.has(b) && canShelve(b, group)) { group.shelves.push([b]); return; }
+      groups.push({ root: b, shelves: [[b]] });
+    });
+    return groups;
+  };
+
+  const assign = groups => {
+    const byBucket = {};
+    let at = 1;
+    let rowCount = 1;
+    groups.forEach(g => {
+      g.shelves.forEach((shelf, row) => {
+        let x = at;
+        shelf.forEach(b => { byBucket[b] = { start: x, span: spans[b], row }; x += spans[b]; });
+      });
+      rowCount = Math.max(rowCount, g.shelves.length);
+      at += Math.max(...g.shelves.map(s => s.reduce((w, b) => w + spans[b], 0)));
+    });
+    return { byBucket, total: at - 1, rows: rowCount };
+  };
+
+  const stacked = new Set(ZONES.filter(z => z.stack && ordered.includes(z.id)).map(z => z.id));
+  let out = assign(groupsFor(stacked));
+
+  /* Over budget, shelving is tried before narrowing: a shelf gives back a whole
+   * band and costs one row of height, while narrowing gives back one column and
+   * wraps the cards anyway. Ties go to the earliest so the result does not
+   * depend on file order. */
+  while (out.total > BAND_BUDGET) {
+    let best = null;
+    for (const b of ordered) {
+      if (!b || stacked.has(b)) continue;
+      stacked.add(b);
+      const trial = assign(groupsFor(stacked));
+      stacked.delete(b);
+      if (trial.total < out.total && (!best || trial.total < best.total)) best = { b, total: trial.total };
+    }
+    if (!best) break;
+    stacked.add(best.b);
+    out = assign(groupsFor(stacked));
   }
 
-  const byBucket = {};
-  let at = 1;
-  ordered.forEach((b, i) => { byBucket[b] = { start: at, span: spans[i] }; at += spans[i]; });
-  return { byBucket, total: at - 1 };
+  /* What is left is narrowed: the widest band gives up a column at a time, so
+   * the pressure lands on what is making the drawing wide. A band that loses a
+   * column keeps its cards — it wraps inside itself and the layer grows taller,
+   * which is the trade a reader can scroll. */
+  const groups = groupsFor(stacked);
+  while (out.total > BAND_BUDGET) {
+    let pick = null;
+    let picked = 1;
+    for (const b of ordered) { if (spans[b] > picked) { pick = b; picked = spans[b]; } }
+    if (pick === null) break;
+    spans[pick] -= 1;
+    out = assign(groups);
+  }
+
+  return out;
 })();
 
-/** `grid-column` for a run, or '' when the sheet reserves no bands. */
-const bandStyle = zone => {
+/** `grid-column` and `grid-row` for a run, or '' when the sheet reserves no
+ *  bands. The row is ranked per layer by `layerShelf`, not taken from the plan:
+ *  a group whose first shelf is empty here must not leave a dead row above it. */
+const bandStyle = (zone, row) => {
   if (!BAND_PLAN) return '';
   const b = BAND_PLAN.byBucket[zone || ''];
-  return b ? ` style="grid-column:${b.start} / span ${b.span}"` : '';
+  return b ? ` style="grid-column:${b.start} / span ${b.span};grid-row:${row}"` : '';
 };
+
+/** The shelves one layer actually draws, ranked. Skipping no number is what
+ *  keeps the implicit rows this grid creates free of a stray `row-gap`. */
+function layerShelf(runs) {
+  const used = [...new Set(runs
+    .map(r => (BAND_PLAN && BAND_PLAN.byBucket[r.zone || '']) || null)
+    .filter(Boolean)
+    .map(b => b.row))].sort((a, b) => a - b);
+  return zone => {
+    const b = BAND_PLAN && BAND_PLAN.byBucket[zone || ''];
+    const at = b ? used.indexOf(b.row) : -1;
+    return (at < 0 ? 0 : at) + 1;
+  };
+}
 
 /** One run per zone within a layer, unzoned first, then zones in declaration
  *  order — the same order on every layer, so a bucket's cards always land in
@@ -647,7 +749,7 @@ function buildTabs() {
 }
 
 const TABS = buildTabs();
-let state = { tab: TABS[0]?.id, group: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all',
+let state = { tab: TABS[0]?.id, group: 'all', place: 'all', q: '', flow: DATA.flows[0]?.id, step: 0, playing: null, cat: 'all',
   compact: ARCH_OPTS.compact == null ? DENSE : !!ARCH_OPTS.compact,
   /* On as soon as the document marks anything: a landscape opens on the delta
    * it was drawn for. Off, the removals leave the sheet and what is left is the
@@ -737,6 +839,18 @@ function renderArchitecture() {
       ${isAll ? '' : `<i style="background:${gvar(id)}"></i>`}${esc(isAll ? T.allScopes : G[id].name)}</button>`;
   }).join('');
 
+  /* Where things run, on the same bar and deliberately unlike it: no swatch and
+   * monospace, because colour is scope's (rule 1) and a platform name is
+   * something the machine knows (rule 3). Shown only once the document names
+   * two — one chip that filters to everything is furniture. */
+  const places = [...new Set(DATA.components.map(c => c.deployedOn).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const placeChips = places.length > 1
+    ? `<span class="chipsplit" aria-hidden="true"></span>`
+      + ['all', ...places].map(p => `<button class="chip mono" data-place="${esc(p)}"
+        aria-pressed="${state.place === p}">${esc(p === 'all' ? T.anywhere : p)}</button>`).join('')
+    : '';
+
   const layers = DATA.layers.map(layerHTML).join('');
 
   const s = ARCH_OPTS;
@@ -744,7 +858,7 @@ function renderArchitecture() {
     <div class="sec-title"><h2>${esc(s.title || T.architecture)}</h2></div>
     ${s.subtitle ? `<p class="sec-sub">${rich(s.subtitle)}</p>` : ''}
     <div class="archwrap" id="archwrap">
-      <div class="filters">${chips}
+      <div class="filters">${chips}${placeChips}
         <span class="hintline">${T.hintDiagram} · ${T.zoomHint}</span>
         <div class="tools">
           ${STATES_IN_USE.length ? `<button class="chip" id="transition"
@@ -798,9 +912,14 @@ function layerHTML(l, index) {
      * same in theory, and not adding the element is how that stops being a thing
      * to verify. */
     : BAND_PLAN
-      ? `<div class="nodes banded" style="--cols:${BAND_PLAN.total}">${layerRuns(nodes).map(run =>
-          `<div class="zrun"${run.zone ? ` data-zone="${esc(run.zone)}"` : ''}${
-            bandStyle(run.zone)}>${run.items.map(nodeHTML).join('')}</div>`).join('')}</div>`
+      ? (() => {
+          const runs = layerRuns(nodes);
+          const shelf = layerShelf(runs);
+          return `<div class="nodes banded" style="--cols:${BAND_PLAN.total}">${runs.map(run =>
+            `<div class="zrun"${run.zone ? ` data-zone="${esc(run.zone)}"` : ''}${
+              bandStyle(run.zone, shelf(run.zone))}>${run.items.map(nodeHTML).join('')}</div>`
+          ).join('')}</div>`;
+        })()
       : `<div class="nodes">${nodes.map(nodeHTML).join('')}</div>`;
 
   /* Only the index travels: the six values live in the stylesheet, which is what
@@ -858,7 +977,9 @@ function nodeHTML(c) {
       marksOf(c).length ? `<span class="marks">${marksOf(c).map(m =>
         `<i title="${esc((MARK_LABELS[DATA.lang] || MARK_LABELS.en)[m])}">${svgIcon(MARK_ICON[m])}</i>`
       ).join('')}</span>` : ''}</div>
-    ${c.tech.length ? `<div class="tech">${c.tech.slice(0, 3).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
+    ${c.deployedOn || c.tech.length ? `<div class="tech">${
+      c.deployedOn ? `<span class="place">${esc(c.deployedOn)}</span>` : ''
+    }${c.tech.slice(0, 3).map(t => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.url ? `<div class="url mono">${esc(c.url)}</div>` : ''}
   </button>`;
 }
@@ -867,6 +988,13 @@ function bindArchitecture() {
   $$('#v-architecture .chip[data-group]').forEach(b => b.onclick = () => {
     state.group = b.dataset.group;
     $$('#v-architecture .chip[data-group]').forEach(x => x.setAttribute('aria-pressed', x.dataset.group === state.group));
+    applyFilter();
+  });
+  /* The second dimension, bound the same way and left independent: pressing a
+   * platform does not clear the scope, because the intersection is the answer. */
+  $$('#v-architecture .chip[data-place]').forEach(b => b.onclick = () => {
+    state.place = b.dataset.place;
+    $$('#v-architecture .chip[data-place]').forEach(x => x.setAttribute('aria-pressed', x.dataset.place === state.place));
     applyFilter();
   });
   $$('#v-architecture .node').forEach(n => {
@@ -899,6 +1027,9 @@ function matches(c) {
    * drawEdges skipping anything dimmed. */
   if (!state.transition && c.state === 'removed') return false;
   if (state.group !== 'all' && c.group !== state.group) return false;
+  /* The two dimensions compose: asking for Core *and* OpenShift leaves the
+   * intersection, which is the question worth asking on a sheet this size. */
+  if (state.place !== 'all' && (c.deployedOn || '') !== state.place) return false;
   const q = state.q.trim().toLowerCase();
   if (!q) return true;
   /* The marks are searchable in words as well as by glyph: "no authentication"
@@ -906,8 +1037,8 @@ function matches(c) {
    * dense to scan, and the ids are in there too so "sso" works. */
   const words = MARK_LABELS[DATA.lang] || MARK_LABELS.en;
   const marks = (c.marks || []).map(m => `${m} ${words[m] || ''}`).join(' ');
-  return [c.name, c.url, c.tech.join(' '), c.role, c.features.join(' '), marks]
-    .join(' ').toLowerCase().includes(q);
+  return [c.name, c.url, c.tech.join(' '), c.deployedOn, c.role, c.features.join(' '), marks]
+    .filter(Boolean).join(' ').toLowerCase().includes(q);
 }
 
 function applyFilter() {
@@ -1538,6 +1669,7 @@ function openDrawer(id) {
   $('#db').style.setProperty('--c', col);
   $('#db').innerHTML = `
     ${c.role ? `<h4>${T.role}</h4><p>${rich(c.role)}</p>` : ''}
+    ${c.deployedOn ? `<h4>${T.deployedOn}</h4><p>${esc(c.deployedOn)}</p>` : ''}
     ${c.tech.length ? `<h4>${T.technologies}</h4><div class="taglist">${c.tech.map(t => `<span class="tag k">${esc(t)}</span>`).join('')}</div>` : ''}
     ${c.features.length ? `<h4>${T.responsibilities}</h4><ul>${c.features.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}
     ${c.notes.length ? `<h4>${T.notes}</h4><ul>${c.notes.map(f => `<li>${rich(f)}</li>`).join('')}</ul>` : ''}

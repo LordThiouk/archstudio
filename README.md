@@ -211,7 +211,15 @@ Five rules hold the whole thing together, and each one is written where it is en
 3. **Monospace says only what the machine knows.** Technologies, paths, ids, chapter numbers,
    counts, timestamps. Prose is Archivo, on screen and on paper alike.
 4. **Circles mean "a node in a graph"** — the mark, an edge endpoint, a flow step. Everything else
-   is square, including the scope swatches.
+   is square, including the scope swatches and the card itself.
+   **What a component *is* rides on the glyph, not on the outline.** A database is a cylinder on
+   its chip and a rectangle as a card, because the outline is the one channel the edges need: an
+   endpoint reads as an endpoint only while nothing else on the sheet is round. The set is 61
+   glyphs in `src/lib/icons.ts`, drawn on a 24-unit box and stroked white on the scope chip — the
+   same 20 px chip and 12 px glyph on the canvas, the printed sheet, the exported viewer *and* the
+   SVG/PNG file, which is the surface people actually forward. The draw.io export is the one that
+   opts out on purpose: it hands over a named `icon` field and an editable box, because a glyph
+   mapped onto the wrong shape from someone else's library is worse than a field you can read.
    **The stroke between them says how the call travels** — solid waits, dashed is queued, dotted
    is scheduled. The endpoints never change: direction must not get quieter because a call is
    asynchronous. The table is `src/lib/links.ts`, mirrored by hand in `viewer/engine.js`, which
@@ -415,7 +423,23 @@ and not two with a hole in the middle. The horizontal insets form a ladder — 7
 fits inside the 24 px gutter between two bands, because anything wider would draw over the
 neighbour's card and reintroduce exactly the false claim the bands exist to prevent.
 
-**Two things to know before you reach for them.**
+**A zone is not the only way to say where something runs.** A component also carries
+`deployedOn` — free text, "OpenShift", "AWS", "on-prem" — and the two answer different questions.
+A zone *draws* the boundary: it reserves a band of columns on every layer and forces its members
+to be adjacent, which is right when the point of the drawing is that these six are inside the
+cluster and those three are not. `deployedOn` only *records* the fact: it costs the layout
+nothing, works when what runs on a platform is scattered across the sheet, and gives you a second
+row of filter chips that composes with the scopes — Core **and** OpenShift leaves the
+intersection lit. Use the zone when the boundary is part of the argument; use the field when the
+hosting is just something you need to look up, filter and hand on.
+
+Free text rather than a list, because every closed list breaks on the first real answer:
+"OpenShift" is a runtime and "AWS" is a provider, and OpenShift on AWS is one deployment. What
+makes free text usable as a filter dimension anyway is one pass in the normaliser — the first
+spelling a document uses wins, and every later case-variant folds onto it, so a stray "openshift"
+cannot become a chip of its own. `src/lib/deployment.ts`.
+
+**Two things to know before you reach for zones.**
 
 *Zones turn clustering off.* Two groupings cannot own one row: clustering splits a layer into
 one column per scope, zones group the same cards by where they run, and asking for both cuts the
@@ -428,31 +452,67 @@ is the whole reason nothing foreign can wander into it — and the reason the dr
 column per zone whether or not every row uses it. That is the visible, honest price of a
 boundary that means what it draws.
 
+**Shelves are how you buy that width back.** A zone that only ever draws on one layer pays for a
+band on all of them, and that is the case worth fixing. Stacking puts it on a *shelf* — the same
+range of columns as the zone before it, one row down — so the sheet loses a band and the layer
+gains a row:
+
+```
+before: 8 columns                     after: 6 columns
+┌─ 1-3 ──┐┌─ 4-6 ────┐┌─ 7-8 ──┐      ┌─ 1-3 ──┐┌───── 4-6 ─────┐
+│  Edge  ││ OpenShift││ Legacy │      │  Edge  ││   OpenShift   │  shelf 0
+└────────┘└──────────┘└────────┘      └────────┘├───────────────┤
+                                                │   Legacy      │  shelf 1
+                                                └───────────────┘
+```
+
+The reservation still holds; it is now a range of columns *on a shelf*. What keeps it true is one
+rule, and it is the same argument as before turned on its side: a zone's rectangle is the union of
+its runs across every layer, so a zone drawing on layers 1 and 3 owns a rectangle covering all of
+layer 2 in its columns — and anything shelved under it there would fall inside a boundary that
+never claimed it. **So a group only gets a second shelf when every zone in it draws on a single
+layer.** Then each rectangle is one shelf on one layer: two on the same layer are different
+shelves, two on different layers are different layers, and neither can hold the other. A zone can
+only shelve under a *sibling*, never under the unzoned cards and never out of its own parent; a
+group holds at most `SHELF_MAX` (three) shelves, because six boundaries in a column read as a list
+and a list of zones is what the bands were drawn to stop being. The vertical inset ladder — 14, 23,
+32 px — fits inside the 32 px `SHELF_GAP`, for the same reason the horizontal one fits inside the
+gutter. A `stack` flag the layout cannot honour is ignored rather than drawn wrong.
+
 **The sheet is capped, and the order is yours.** `BAND_MAX` caps one band at six columns; nothing
 capped their *sum*, so a fourth zone could push the drawing off the right of the frame — where the
 editor has no zoom to pull it back, only a scrollbar to find it with. `BAND_BUDGET` is twelve
-columns, about 2 900 px, and when the bands ask for more the widest gives up a column at a time
-until they fit. No card is lost: a narrowed band wraps inside itself and its layer grows taller,
-which is the trade a reader can scroll. It is a ceiling and not a promise — a document with more
-buckets than columns gets one each and is wider than that, because one card per band is the floor.
+columns, about 2 900 px. When the bands ask for more, shelving is tried first — a shelf gives back
+a whole band for one row of height, while narrowing gives back one column and wraps the cards
+anyway — and whatever is left over is narrowed, the widest band giving up a column at a time until
+they fit. No card is lost either way: a narrowed band wraps inside itself and its layer grows
+taller, which is the trade a reader can scroll. Automatic shelving is a layout decision and stays
+one: nothing is written back to the document, so deleting a component puts the sheet back the way
+it was. It is a ceiling and not a promise — a document whose zones all span layers, with more
+buckets than columns, gets one each and is wider than that, because one card per band is the floor.
 
-The **Zones** panel moves a zone left or right among its own siblings. Left and right rather than
-up and down, because a zone *is* a band of columns and that is the direction it moves on the sheet;
-among siblings, because the band order comes from the zone tree, where the array position only ever
-breaks ties between zones sharing a parent — a plain array swap would usually move nothing at all.
-A nested zone slides inside its parent and never out of it, and its children travel with it.
+The **Zones** panel moves a zone two ways. The chevrons slide it among its own siblings — among
+siblings because the band order comes from the zone tree, where the array position only ever breaks
+ties between zones sharing a parent, so a plain array swap would usually move nothing at all. A
+nested zone slides inside its parent and never out of it, and its children travel with it. On its
+own shelf that reads as left and right; once it is stacked, the same move is up and down. The third
+button puts it on a shelf under the zone before it, or takes it back off; when it cannot, the
+tooltip says which of the rules above is in the way, because a disabled button that does not
+explain itself reads as a bug.
 
 To see a wide sheet whole, use **Preview**: it renders the real exported viewer, which has zoom,
 pan and a **Fit** button. The editor canvas has none of those — it scrolls.
 
 The **EXTERNAL / INTERNAL** divide those diagrams draw as a full-height vertical line does not
-transpose. This layout is horizontal bands; a vertical axis wants columns. Modelled as a zone it
-gives you a frame around the external services, which is legible and is not the same thing.
+transpose, and shelves do not change that: a shelf is a row inside one layer, not an axis running
+the height of the sheet. Modelled as a zone it gives you a frame around the external services,
+which is legible and is not the same thing.
 
 ```
 src/lib/links.ts       the protocol convention, and the plate's geometry
 src/lib/lifecycle.ts   the three transition marks and what each commits you to
 src/lib/marks.ts       the closed security set, its icons and its key
+src/lib/deployment.ts  where a component runs, and why it is not a zone
 src/lib/zones.ts       the zone tree, the run ordering, and the measured union
 ```
 

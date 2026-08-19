@@ -28,11 +28,13 @@ import {
 import {
   edgeOpacity, edgeStroke, STATE_LABELS, STATE_SIGN, stateTick, statesInUse
 } from '@/lib/lifecycle';
+import { deploymentsInUse } from '@/lib/deployment';
 import { MARK_BLURBS, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
-  bandPlan, canMoveZone, describeZone, inflatedUnion, layerRuns, moveZone, withDescendants,
+  bandPlan, canMoveZone, describeZone, inflatedUnion, layerRuns, layerSlots, moveZone,
+  stackBlocker, stackZone, withDescendants,
   zoneDepth, zonePad, zoneSvg, zonesInUse, ZONE_KINDS, ZONE_KIND_BLURBS, ZONE_KIND_LABELS,
-  type BandPlan, type Box, type ZoneKind
+  type Band, type BandPlan, type Box, type ZoneKind
 } from '@/lib/zones';
 import { protocolLabel, suggestedLinkForBrick } from '@/lib/lego/protocols';
 import {
@@ -1299,6 +1301,7 @@ function CanvasStage(props: StageProps) {
   const [zoom, setZoomState] = useState(1);
   const [compact, setCompact] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
+  const [place, setPlace] = useState<string | null>(null);
 
   /* Firefox only learned `zoom` in 126. Assumed present on the server, where
    * there is no CSS object to ask — the factor is 1 there and neither mechanism
@@ -1318,6 +1321,21 @@ function CanvasStage(props: StageProps) {
   useEffect(() => {
     setFilter(f => (f && scopes.some(g => g.id === f) ? f : null));
   }, [scopes]);
+
+  /* The second dimension. Free text, so the chips are whatever the document
+   * already says — the normaliser keeps one spelling per platform, which is what
+   * stops a stray "openshift" from becoming a chip of its own. */
+  const places = useMemo(() => deploymentsInUse(doc.components), [doc.components]);
+  useEffect(() => { setPlace(p => (p && places.includes(p) ? p : null)); }, [places]);
+
+  /* The two compose rather than replace: asking for Core *and* OpenShift leaves
+   * the intersection lit, which is the question worth asking on a sheet big
+   * enough to need either. A card is dimmed when it fails either one. */
+  const dim = useCallback(
+    (c: Component) => (!!filter && c.group !== filter) || (!!place && c.deployedOn !== place),
+    [filter, place]
+  );
+  const filtering = !!filter || !!place;
 
   const setZoom = useCallback((next: number, anchor?: { x: number; y: number }) => {
     const from = zoomRef.current;
@@ -1453,6 +1471,23 @@ function CanvasStage(props: StageProps) {
               <i style={{ background: groupColor(g.id).light }} />{g.name}
             </button>
           ))}
+          {/* Where things run, on the same bar and deliberately unlike it: no
+              swatch and monospace, because colour is scope's (rule 1) and a
+              platform name is something the machine knows (rule 3). Shown only
+              once the document names two — one chip that filters to everything
+              is furniture. */}
+          {places.length > 1 && (
+            <>
+              <span className="chipsplit" aria-hidden />
+              <button className="chip mono" aria-pressed={!place} onClick={() => setPlace(null)}>
+                Anywhere
+              </button>
+              {places.map(p => (
+                <button key={p} className="chip mono" aria-pressed={place === p}
+                  onClick={() => setPlace(q => (q === p ? null : p))}>{p}</button>
+              ))}
+            </>
+          )}
         </div>
         {/* Hint and controls are one right-hand group, so a bar narrow enough to
             wrap keeps them together instead of dropping the zoom bar to the far
@@ -1478,7 +1513,7 @@ function CanvasStage(props: StageProps) {
       <div className="canvas-frame" ref={frameRef}
         onPointerDown={onPanDown} onPointerMove={onPanMove}
         onPointerUp={endPan} onPointerCancel={endPan}>
-        <Canvas {...props} hostRef={hostRef} zoom={zoom} compact={compact} filter={filter}
+        <Canvas {...props} hostRef={hostRef} zoom={zoom} compact={compact} dim={dim} filtering={filtering}
           zoomStyleValue={zoomStyle(zoom, hasZoomProp)} />
       </div>
     </div>
@@ -1490,10 +1525,13 @@ function CanvasStage(props: StageProps) {
 function Canvas({
   doc, selected, setSelected, hoverTarget, linkFrom, onStartLink, groupColor, patch, notify,
   onAddComponent, selectedEdge, onSelectEdge, onClearSelection,
-  hostRef, zoom, compact, filter, zoomStyleValue
+  hostRef, zoom, compact, dim, filtering, zoomStyleValue
 }: Omit<StageProps, 'onZoomChange'> & {
   hostRef: React.RefObject<HTMLDivElement | null>;
-  zoom: number; compact: boolean; filter: string | null; zoomStyleValue: ZoomStyle;
+  zoom: number; compact: boolean; zoomStyleValue: ZoomStyle;
+  /* Two filter dimensions arrive already combined: the canvas only has to know
+   * whether a card is out of the answer, not which of the two put it there. */
+  dim: (c: Component) => boolean; filtering: boolean;
 }) {
   const ref = hostRef;
   const [edges, setEdges] = useState<string>('');
@@ -1548,7 +1586,7 @@ function Canvas({
       /* An edge belongs to its caller's scope, so it fades with it. Both ends
        * are checked: a line arriving from a faded card would otherwise be the
        * loudest thing left on a narrowed sheet. */
-      const faded = !!filter && c.group !== filter && byId[dep].group !== filter;
+      const faded = dim(c) && dim(byId[dep]);
       /* The transition takes the two channels colour never claimed: a departure
        * from the existing state is drawn heavier, and a removal is a ghost of an
        * ordinary edge. Selection still wins over both — the canvas is where you
@@ -1575,7 +1613,7 @@ function Canvas({
      * card paints over the region rather than under it. */
     setEdges(zoneLayer(host, box, doc, sc) + out
       + (labels ? `<g class="edgelbl">${labels}</g>` : ''));
-  }, [doc, selected, selectedEdge, groupColor, zoom, filter]);
+  }, [doc, selected, selectedEdge, groupColor, zoom, dim]);
 
   useLayoutEffect(() => { draw(); }, [draw]);
   useEffect(() => {
@@ -1622,7 +1660,7 @@ function Canvas({
 
   return (
     <div
-      className={`canvas${linking ? ' linking' : ''}${compact ? ' compact' : ''}${filter ? ' filtered' : ''}`}
+      className={`canvas${linking ? ' linking' : ''}${compact ? ' compact' : ''}${filtering ? ' filtered' : ''}`}
       ref={ref} style={zoomStyleValue as React.CSSProperties}
       onClick={e => {
         const edge = (e.target as Element).closest('g[data-from]') as SVGGElement | null;
@@ -1649,7 +1687,7 @@ function Canvas({
         <LayerRow key={layer.id} layer={layer} doc={doc} patch={patch} notify={notify}
           selected={selected} setSelected={setSelected} hoverTarget={hoverTarget}
           onStartLink={onStartLink} groupColor={groupColor} plan={plan} index={i}
-          filter={filter} near={near} linkFrom={linkFrom} onAdd={onAddComponent} />
+          dim={dim} near={near} linkFrom={linkFrom} onAdd={onAddComponent} />
       ))}
     </div>
   );
@@ -1657,7 +1695,7 @@ function Canvas({
 
 function LayerRow({
   layer, doc, patch, notify, selected, setSelected, hoverTarget, onStartLink, groupColor, plan,
-  index, filter, near, linkFrom, onAdd
+  index, dim, near, linkFrom, onAdd
 }: {
   layer: { id: string; name: string; desc?: string };
   doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
@@ -1667,7 +1705,8 @@ function LayerRow({
   groupColor: (id: string) => { light: string; dark: string };
   plan: BandPlan | null;
   index: number;
-  filter: string | null;
+  /* Already combined — see `dim` in `CanvasStage`. */
+  dim: (c: Component) => boolean;
   /** The hovered card and its two neighbourhoods, or null when nothing is. */
   near: ReadonlySet<string> | null;
   linkFrom: string | null;
@@ -1677,6 +1716,10 @@ function LayerRow({
     id: layerDropId(layer.id), data: { depth: DEPTH.layer }
   });
   const items = doc.components.filter(c => c.layer === layer.id);
+  /* Which shelves this layer draws, and the row each band takes among them. A
+   * group whose first shelf is empty here must not leave a dead row at the top,
+   * so the ranking is per layer while the band plan stays sheet-wide. */
+  const slots = plan ? layerSlots(layerRuns(items, doc.zones), plan) : null;
   const [renaming, setRenaming] = useState(false);
   /* Computed once for the row rather than per card: the answer is the same list
    * every time, and a drag re-renders every layer on the sheet. */
@@ -1700,7 +1743,7 @@ function LayerRow({
   const card = (c: Component) => (
     <ComponentCard key={c.id} comp={c} colour={groupColor(c.group).light}
       selected={selected === c.id} isLinkTarget={hoverTarget === c.id}
-      faded={!!filter && c.group !== filter}
+      faded={dim(c)}
       away={!!near && !near.has(c.id)}
       linked={!!alreadyLinked?.has(c.id)}
       onSelect={() => setSelected(c.id)} onStartLink={onStartLink} />
@@ -1766,7 +1809,9 @@ function LayerRow({
       </div>
       <div ref={setNodeRef}
         className={`layer-drop${items.length ? '' : ' empty-hint'}${plan ? ' banded' : ''}`}
-        style={plan ? { ['--cols' as string]: plan.total } : undefined}>
+        style={plan && slots
+          ? { ['--cols' as string]: plan.total, ['--rows' as string]: slots.rows }
+          : undefined}>
         {items.length === 0 && (
           <button type="button" className="emptyadd" onClick={() => onAdd(layer.id)}>
             Drop a component here, or click to add one
@@ -1778,27 +1823,49 @@ function LayerRow({
             The wrapper appears only on a document that has zones. A row of cards
             and a row of one-run-of-cards lay out the same in theory; not adding
             the element at all is how that stops being a thing to verify. */}
-        {plan ? (() => {
+        {plan && slots ? (() => {
           const held = new Map(layerRuns(items, doc.zones).map(run => [run.zone ?? '', run.items]));
+          const over = (a: Band, b: Band) => a.start < b.start + b.span && b.start < a.start + a.span;
+          const here = (band: Band) => !!held.get(band.zone ?? '')?.length;
+          /* A band this layer does not draw still needs somewhere for a first
+             card to land, and it can have the whole height — but only one band
+             per range of columns can, and only when nothing is drawn there. A
+             shelved zone that loses its target this way is still reachable
+             through its rail row, which exists for exactly this. Widening the
+             layer to show its empty shelves would reflow the sheet under the
+             pointer, moving the very target being aimed at. */
+          const spare = (band: Band) => {
+            const sharing = plan.bands.filter(b => over(b, band));
+            return !sharing.some(here) && sharing[0] === band;
+          };
           return (
             <>
-              {/* The drop targets, one per reserved band, full height and behind
-                  everything. A separate layer rather than making the runs
-                  droppable: a run is measured to draw its zone rectangle and has
-                  to stay a tight box around its own cards, while a target has to
-                  cover the whole band — including the part of it that is empty,
-                  which on this row is the only place a first card can land. */}
-              <div className="banddrops" style={{ ['--cols' as string]: plan.total }}>
-                {plan.bands.map(band => (
-                  <BandDrop key={band.zone ?? ''} layerId={layer.id} zone={band.zone} band={band} />
-                ))}
+              {/* The drop targets, one per reserved band, behind everything. A
+                  separate layer rather than making the runs droppable: a run is
+                  measured to draw its zone rectangle and has to stay a tight box
+                  around its own cards, while a target has to cover the whole
+                  cell — including the part of it that is empty, which on this
+                  row is the only place a first card can land. Laid on the same
+                  tracks through `subgrid`, so it follows the shelves without
+                  measuring them. */}
+              <div className="banddrops">
+                {plan.bands.map(band => {
+                  if (!here(band) && !spare(band)) return null;
+                  return (
+                    <BandDrop key={band.zone ?? ''} layerId={layer.id} zone={band.zone} band={band}
+                      row={here(band) ? slots.row(band.zone) : 0} />
+                  );
+                })}
               </div>
               {plan.bands.map(band => {
                 const items = held.get(band.zone ?? '') ?? [];
                 if (!items.length) return null;
                 return (
                   <div className="zrun" key={band.zone ?? ''} data-zone={band.zone || undefined}
-                    style={{ gridColumn: `${band.start} / span ${band.span}` }}>
+                    style={{
+                      gridColumn: `${band.start} / span ${band.span}`,
+                      gridRow: `${slots.row(band.zone)}`
+                    }}>
                     {items.map(card)}
                   </div>
                 );
@@ -1817,8 +1884,11 @@ function LayerRow({
  * something you assign it to from a form. It is drawn for every band the plan
  * reserves, not only the ones holding a card here — otherwise the first card to
  * join a zone on a given row would have nowhere to land. */
-function BandDrop({ layerId, zone, band }: {
+function BandDrop({ layerId, zone, band, row }: {
   layerId: string; zone: string | undefined; band: { start: number; span: number };
+  /** The shelf this band draws on here, 1-based — or 0 when it draws nothing on
+   *  this layer and the target takes the whole height instead. */
+  row: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: bandDropId(layerId, zone), data: { depth: DEPTH.band }
@@ -1831,7 +1901,10 @@ function BandDrop({ layerId, zone, band }: {
        different things is the kind of thing a future selector gets wrong. */
     <div ref={setNodeRef} aria-hidden data-band-zone={zone ?? ''}
       className={`banddrop${active ? ' live' : ''}${isOver && active ? ' over' : ''}`}
-      style={{ gridColumn: `${band.start} / span ${band.span}` }} />
+      style={{
+        gridColumn: `${band.start} / span ${band.span}`,
+        gridRow: row ? `${row}` : '1 / -1'
+      }} />
   );
 }
 
@@ -1901,8 +1974,16 @@ function ComponentCard({
           </span>
         )}
       </div>
-      {!!comp.tech?.length && (
-        <div className="tech">{comp.tech.slice(0, 3).map(t => <span key={t}>{t}</span>)}</div>
+      {/* Where it runs leads the row, outlined against the tinted technology
+          pills: same line, because the export's card is a fixed 64 px and a
+          fourth line would break the band arithmetic — different treatment,
+          because "OpenShift" among "Java" and "Spring" would otherwise read as
+          one more thing the component is built with. */}
+      {(comp.deployedOn || !!comp.tech?.length) && (
+        <div className="tech">
+          {comp.deployedOn && <span className="place" title="Deployed on">{comp.deployedOn}</span>}
+          {comp.tech?.slice(0, 3).map(t => <span key={t}>{t}</span>)}
+        </div>
       )}
       {!!comp.deps?.length && <span className="depcount">{comp.deps.length} →</span>}
       <span
@@ -2068,6 +2149,10 @@ function ZonesPanel({ doc, patch, notify, fold, onAdd }: {
     z.id,
     doc.components.filter(c => c.zone && withDescendants(z.id, doc.zones).has(c.zone)).length
   ]));
+  /* Asked of the layout rather than re-derived here, so the tooltip and the
+   * drawing can never disagree about why a shelf was refused. */
+  const blocked = new Map(doc.zones.map(z =>
+    [z.id, stackBlocker(doc.components, doc.zones, z.id)]));
 
   return (
     <>
@@ -2093,19 +2178,36 @@ function ZonesPanel({ doc, patch, notify, fold, onAdd }: {
                 return d;
               })} />
             <span className="count">{counts.get(z.id) ?? 0}</span>
-            {/* Left and right, not up and down: a zone is a band of columns, so
-                this is the direction it actually moves on the sheet. Among its
-                own siblings — a nested zone slides inside its parent, never out
-                of it, because the drawing could not show that anyway. */}
-            <button className="iconbtn" style={{ width: 22, height: 22 }} title="Move left"
+            {/* A zone is a range of columns on a shelf, so it moves two ways.
+                These two slide it among its own siblings — a nested zone moves
+                inside its parent, never out of it, because the drawing could not
+                show that anyway. On its own shelf that reads as left and right;
+                once it is stacked, the same move is up and down. */}
+            <button className="iconbtn" style={{ width: 22, height: 22 }}
+              title={z.stack ? 'Move up' : 'Move left'}
               disabled={!canMoveZone(doc.zones, z.id, -1)}
               onClick={() => patch(d => { d.zones = moveZone(d.zones, z.id, -1); return d; })}>
               <Icon name="chevron" size={12} style={{ transform: 'rotate(180deg)' }} />
             </button>
-            <button className="iconbtn" style={{ width: 22, height: 22 }} title="Move right"
+            <button className="iconbtn" style={{ width: 22, height: 22 }}
+              title={z.stack ? 'Move down' : 'Move right'}
               disabled={!canMoveZone(doc.zones, z.id, 1)}
               onClick={() => patch(d => { d.zones = moveZone(d.zones, z.id, 1); return d; })}>
               <Icon name="chevron" size={12} />
+            </button>
+            {/* And this one moves it off its shelf onto a new one below the zone
+                before it, which gives the sheet back a whole band of width. The
+                title says why when it cannot: a disabled button that does not
+                explain itself reads as a bug. */}
+            <button className={`iconbtn${z.stack ? ' on' : ''}`} style={{ width: 22, height: 22 }}
+              title={z.stack
+                ? 'Unstack — give this zone a band of its own again'
+                : (blocked.get(z.id)
+                  ? `Cannot stack: ${blocked.get(z.id)}`
+                  : 'Stack under the zone before it, sharing its columns')}
+              disabled={!z.stack && !!blocked.get(z.id)}
+              onClick={() => patch(d => { d.zones = stackZone(d.zones, z.id, !z.stack); return d; })}>
+              <Icon name="stack" size={12} />
             </button>
             <button className="iconbtn" style={{ width: 22, height: 22 }} title="Delete zone"
               onClick={() => {

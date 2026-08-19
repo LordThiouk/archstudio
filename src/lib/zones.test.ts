@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { blankArchitecture, normalizeArchitecture } from './defaults';
 import { diffArchitecture } from './diff';
 import {
-  ancestry, BAND_BUDGET, BAND_GUTTER, BAND_MAX, bandPlan, canMoveZone, moveZone, describeZone, inflatedUnion, isZoneKind, layerRuns, subtreeHeight,
+  ancestry, BAND_BUDGET, BAND_GUTTER, BAND_MAX, bandPlan, canMoveZone, canStackZone, moveZone, describeZone, inflatedUnion, isZoneKind, layerRuns, layerSlots, SHELF_MAX, stackBlocker, stackZone, subtreeHeight,
   withDescendants, zonesInTreeOrder,
   zoneDepth, zoneIndex, zonePad, zoneSortKey, zoneSvg, zonesInUse, type Box, type ZoneKind
 } from './zones';
@@ -332,13 +332,25 @@ test('bands do not overlap, and they tile the sheet without a gap', () => {
   assert.equal(plan.total, expected - 1);
 });
 
+/** No two bands may claim the same column on the same shelf. The tiling test
+ *  above is the unstacked special case of this one; once zones can share columns
+ *  the cell is what has to be disjoint. */
+const noCellOverlaps = (plan: ReturnType<typeof bandPlan>) => {
+  plan.bands.forEach((a, i) => plan.bands.slice(i + 1).forEach(b => {
+    const columns = a.start < b.start + b.span && b.start < a.start + a.span;
+    assert.ok(!(columns && a.row === b.row),
+      `bands ${a.zone} and ${b.zone} share a cell on shelf ${a.row}`);
+    assert.ok(a.start + a.span - 1 <= plan.total, `band ${a.zone} runs past the sheet`);
+  }));
+};
+
 test('the screenshot case: OpenShift owns a band the unzoned cards cannot enter', () => {
   const plan = bandPlan(LANDSCAPE, NESTED, LAYERS);
   const bare = plan.band(undefined)!;
   const ocp = plan.band('ocp')!;
   /* One unzoned card per layer at most, and one OpenShift card per layer. */
-  assert.deepEqual(bare, { zone: undefined, start: 1, span: 1 });
-  assert.deepEqual(ocp, { zone: 'ocp', start: 2, span: 1 });
+  assert.deepEqual(bare, { zone: undefined, start: 1, span: 1, row: 0 });
+  assert.deepEqual(ocp, { zone: 'ocp', start: 2, span: 1, row: 0 });
   /* Disjoint: Flutter and the Anthropic API are in column 1 on every row, and
    * OpenShift's rectangle covers column 2 only. */
   assert.ok(bare.start + bare.span <= ocp.start);
@@ -440,7 +452,14 @@ test('four full bands would run off the frame, so the sheet is narrowed to the b
 });
 
 test('the widest band gives up its columns first', () => {
-  const items = [...fill(undefined, 1), ...fill('a', 6), ...fill('b', 6), ...fill('c', 2)];
+  /* Every zone here spans two layers, so nothing can be shelved and the budget
+   * has only narrowing left — which is the behaviour under test. */
+  const items = [
+    ...fill(undefined, 1), ...fill(undefined, 1, 'data'),
+    ...fill('a', 6), ...fill('a', 1, 'data'),
+    ...fill('b', 6), ...fill('b', 1, 'data'),
+    ...fill('c', 2), ...fill('c', 1, 'data')
+  ];
   const plan = bandPlan(items, WIDE, LAYERS);
   const span = (z?: string) => plan.band(z)!.span;
   assert.equal(plan.total, BAND_BUDGET);
@@ -452,7 +471,7 @@ test('the widest band gives up its columns first', () => {
 });
 
 test('bands still tile without a gap after the budget has narrowed them', () => {
-  const items = [...fill('a', 6), ...fill('b', 6), ...fill('c', 6), ...fill('d', 6)];
+  const items = ['a', 'b', 'c', 'd'].flatMap(z => [...fill(z, 6), ...fill(z, 1, 'data')]);
   const plan = bandPlan(items, WIDE, LAYERS);
   let expected = 1;
   for (const b of plan.bands) {
@@ -464,9 +483,10 @@ test('bands still tile without a gap after the budget has narrowed them', () => 
 
 test('more buckets than columns means one each — the floor, not a crash', () => {
   /* The budget is a ceiling, not a promise: below one column per band there is
-   * nothing left to take, and the loop has to stop rather than spin. */
+   * nothing left to take, and the loop has to stop rather than spin. Two layers
+   * each, so shelving cannot rescue this one either. */
   const many: Zone[] = Array.from({ length: 15 }, (_, i) => ({ id: `z${i}`, name: `Z${i}` }));
-  const items = many.flatMap(z => fill(z.id, 2));
+  const items = many.flatMap(z => [...fill(z.id, 2), ...fill(z.id, 1, 'data')]);
   const plan = bandPlan(items, many, LAYERS);
   assert.equal(plan.bands.length, 15);
   assert.ok(plan.bands.every(b => b.span === 1));
@@ -481,6 +501,160 @@ test('the plan does not depend on how the zones happen to be ordered in the file
   const spans = (zones: Zone[]) =>
     bandPlan(items, zones, LAYERS).bands.map(b => b.span).sort();
   assert.deepEqual(spans(WIDE), spans([WIDE[2], WIDE[0], WIDE[1], WIDE[3]]));
+});
+
+/* ------------------------------------------------------------- the shelves */
+
+/* Two siblings that both live on `services` only — the case that pays for a
+ * band it barely uses, and the one shelving exists for. */
+const SIBLINGS: Zone[] = [
+  { id: 'edge', name: 'Edge' },
+  { id: 'legacy', name: 'Legacy' }
+];
+const ON_ONE_LAYER = [
+  comp('web', { layer: 'clients' }),
+  comp('gw', { layer: 'services', zone: 'edge' }),
+  comp('gw2', { layer: 'services', zone: 'edge' }),
+  comp('as400', { layer: 'services', zone: 'legacy' })
+];
+
+const shelved = (zones: Zone[], id: string) => stackZone(zones, id, true);
+
+test('nothing is stacked unless the document asks or the budget forces it', () => {
+  /* The flag is opt-in: a sheet that fits is drawn exactly as it always was. */
+  const plan = bandPlan(ON_ONE_LAYER, SIBLINGS, LAYERS);
+  assert.ok(plan.bands.every(b => b.row === 0));
+  assert.equal(plan.rows, 1);
+});
+
+test('a shelved zone shares its neighbour’s columns and the sheet gets narrower', () => {
+  const before = bandPlan(ON_ONE_LAYER, SIBLINGS, LAYERS);
+  const plan = bandPlan(ON_ONE_LAYER, shelved(SIBLINGS, 'legacy'), LAYERS);
+
+  assert.equal(plan.band('legacy')!.row, 1, 'legacy should sit one shelf down');
+  assert.equal(plan.band('legacy')!.start, plan.band('edge')!.start,
+    'a shelf starts in the same column as the band above it');
+  assert.equal(plan.rows, 2);
+  assert.equal(plan.total, before.total - 1, 'the sheet should give back legacy’s band');
+  noCellOverlaps(plan);
+});
+
+test('a group is only as wide as its widest shelf', () => {
+  /* `edge` needs two columns, `legacy` one — the group pays for two, not three. */
+  const plan = bandPlan(ON_ONE_LAYER, shelved(SIBLINGS, 'legacy'), LAYERS);
+  assert.equal(plan.band('edge')!.span, 2);
+  assert.equal(plan.band('legacy')!.span, 1);
+  assert.equal(plan.total, plan.band(undefined)!.span + 2);
+});
+
+test('a zone drawing on more than one layer is refused a shelf', () => {
+  /* Its rectangle is the union of its runs across every layer, so it would cover
+   * the layer it skipped — and whatever was shelved there. */
+  const items = [...ON_ONE_LAYER, comp('tape', { layer: 'data', zone: 'legacy' })];
+  assert.equal(stackBlocker(items, SIBLINGS, 'legacy'), 'it draws on more than one layer');
+  assert.equal(bandPlan(items, shelved(SIBLINGS, 'legacy'), LAYERS).band('legacy')!.row, 0);
+});
+
+test('a shelf is refused when the zone it would sit under spans layers', () => {
+  const items = [...ON_ONE_LAYER, comp('cdn', { layer: 'clients', zone: 'edge' })];
+  assert.equal(stackBlocker(items, SIBLINGS, 'legacy'), '"Edge" draws on more than one layer');
+});
+
+test('a zone cannot shelve under the unzoned cards', () => {
+  const items = [comp('web', { layer: 'clients' }), comp('gw', { layer: 'services', zone: 'edge' })];
+  assert.equal(stackBlocker(items, SIBLINGS, 'edge'), 'the band before it holds the unzoned cards');
+});
+
+test('a nested zone cannot shelve out of its own parent', () => {
+  /* It would leave its parent's rectangle two shelves tall over columns the
+   * parent does not own — the L-shaped box the bands exist to prevent. */
+  const zones: Zone[] = [{ id: 'ocp', name: 'OpenShift' }, { id: 'gw', name: 'Gateway', parent: 'ocp' }];
+  const items = [
+    comp('a', { layer: 'services', zone: 'ocp' }),
+    comp('b', { layer: 'services', zone: 'gw' })
+  ];
+  assert.equal(stackBlocker(items, zones, 'gw'), 'it sits inside "OpenShift"');
+});
+
+test('a zone holding nothing yet cannot be shelved, because it has no band', () => {
+  assert.equal(stackBlocker([comp('gw', { layer: 'services', zone: 'edge' })], SIBLINGS, 'legacy'),
+    'it holds no component of its own yet');
+});
+
+test('a column group holds at most SHELF_MAX shelves', () => {
+  const many: Zone[] = Array.from({ length: SHELF_MAX + 2 }, (_, i) => ({ id: `z${i}`, name: `Z${i}` }));
+  const items = many.map(z => comp(z.id, { layer: 'services', zone: z.id }));
+  const asked = many.map(z => (z.id === 'z0' ? z : { ...z, stack: true }));
+  const plan = bandPlan(items, asked, LAYERS);
+  assert.equal(plan.rows, SHELF_MAX);
+  assert.equal(stackBlocker(items, asked, `z${SHELF_MAX}`), `${SHELF_MAX} zones are already stacked there`);
+  noCellOverlaps(plan);
+});
+
+test('over budget, shelving is tried before the bands are narrowed', () => {
+  /* Four six-wide zones on one layer: narrowing alone would wrap every one of
+   * them, while two shelves fit the budget with every card still on its row. */
+  const zones: Zone[] = ['a', 'b', 'c', 'd'].map(id => ({ id, name: id.toUpperCase() }));
+  const items = zones.flatMap(z =>
+    Array.from({ length: 6 }, (_, i) => comp(`${z.id}${i}`, { layer: 'services', zone: z.id })));
+  const plan = bandPlan(items, zones, LAYERS);
+
+  assert.ok(plan.total <= BAND_BUDGET);
+  assert.ok(plan.rows > 1, 'the budget should have shelved rather than narrowed');
+  assert.ok(plan.bands.every(b => b.span === BAND_MAX), 'no band should have lost a column');
+  noCellOverlaps(plan);
+});
+
+test('shelving is a layout decision and is never written back to the document', () => {
+  const zones: Zone[] = ['a', 'b', 'c', 'd'].map(id => ({ id, name: id.toUpperCase() }));
+  const items = zones.flatMap(z =>
+    Array.from({ length: 6 }, (_, i) => comp(`${z.id}${i}`, { layer: 'services', zone: z.id })));
+  bandPlan(items, zones, LAYERS);
+  assert.ok(zones.every(z => z.stack === undefined));
+});
+
+test('layerSlots ranks the shelves a layer draws and skips no number', () => {
+  /* A group whose first shelf is empty here must not leave a dead row above it —
+   * and a skipped row would be a `row-gap` the arithmetic renderer never adds. */
+  const zones = shelved(SIBLINGS, 'legacy');
+  const plan = bandPlan(ON_ONE_LAYER, zones, LAYERS);
+
+  const services = layerSlots(layerRuns(ON_ONE_LAYER.filter(c => c.layer === 'services'), zones), plan);
+  assert.equal(services.rows, 2);
+  assert.deepEqual([services.row('edge'), services.row('legacy')], [1, 2]);
+
+  /* `clients` holds only unzoned cards, so it draws one shelf and starts at 1. */
+  const clients = layerSlots(layerRuns(ON_ONE_LAYER.filter(c => c.layer === 'clients'), zones), plan);
+  assert.equal(clients.rows, 1);
+  assert.equal(clients.row(undefined), 1);
+});
+
+test('stackZone refuses a no-op by identity, so the button can tell', () => {
+  assert.equal(stackZone(SIBLINGS, 'legacy', false), SIBLINGS);
+  assert.equal(stackZone(SIBLINGS, 'nope', true), SIBLINGS);
+  assert.equal(shelved(SIBLINGS, 'legacy').find(z => z.id === 'legacy')!.stack, true);
+  /* And it comes back off, rather than being left as `false` for the file. */
+  assert.equal(stackZone(shelved(SIBLINGS, 'legacy'), 'legacy', false)
+    .find(z => z.id === 'legacy')!.stack, undefined);
+});
+
+test('canStackZone agrees with the drawing, not with a second set of rules', () => {
+  assert.equal(canStackZone(ON_ONE_LAYER, SIBLINGS, 'legacy'), true);
+  assert.equal(canStackZone(ON_ONE_LAYER, SIBLINGS, 'edge'), false);
+});
+
+test('a stacked flag on a zone that cannot take a shelf draws the old sheet', () => {
+  /* The flag is a request; an unhonoured one must not corrupt the plan. */
+  const zones: Zone[] = [{ id: 'edge', name: 'Edge', stack: true }, { id: 'legacy', name: 'Legacy' }];
+  const plan = bandPlan(ON_ONE_LAYER, zones, LAYERS);
+  assert.ok(plan.bands.every(b => b.row === 0));
+  noCellOverlaps(plan);
+});
+
+test('a shelved zone survives a round trip through the normaliser', () => {
+  const doc = build(shelved(SIBLINGS, 'legacy'), ON_ONE_LAYER);
+  assert.equal(doc.zones.find(z => z.id === 'legacy')!.stack, true);
+  assert.equal(doc.zones.find(z => z.id === 'edge')!.stack, undefined);
 });
 
 test('a zone moves among its siblings, and its children follow it', () => {

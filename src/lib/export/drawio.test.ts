@@ -96,13 +96,17 @@ test('what the picture cannot carry travels as cell data', () => {
   const xml = buildDrawioXml(doc({
     components: [{
       id: 'api', name: 'API', group: 'core', layer: 'services', zone: 'openshift',
-      tech: ['Java', 'Spring'], marks: ['sso', 'pii'], state: 'changed', url: 'https://x.test'
+      deployedOn: 'OpenShift', tech: ['Java', 'Spring'], marks: ['sso', 'pii'],
+      state: 'changed', url: 'https://x.test'
     }]
   }));
   assert.ok(xml.includes('archId="api"'));
   assert.ok(xml.includes('scope="Core"'));
   assert.ok(xml.includes('layer="Services"'));
   assert.ok(xml.includes('zone="OpenShift"'));
+  /* The one that pays for itself: draw.io indexes Edit Data, so "everything on
+   * Azure" becomes a search inside the file someone was forwarded. */
+  assert.ok(xml.includes('deployedOn="OpenShift"'));
   assert.ok(xml.includes('tech="Java, Spring"'));
   assert.ok(xml.includes('security="SSO protected, holds personal data"'));
   assert.ok(xml.includes('state="updated"'));

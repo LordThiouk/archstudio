@@ -422,6 +422,17 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 .chip.pole[aria-pressed="true"] {
   background: color-mix(in srgb, var(--c) 16%, transparent); border-color: var(--ink-3); color: var(--ink);
 }
+/* The second filter dimension — where things run. Monospace and swatchless, so
+   it cannot be mistaken for a scope on the same bar: colour is scope's (rule 1)
+   and a platform name is something the machine knows (rule 3). Pressed, it takes
+   the plain ink fill, because there is no hue of its own to fill with. */
+.chip.mono { font-family: var(--mono); font-size: 11px; font-weight: 400; }
+/* A hairline, not a gap: the two dimensions belong to one bar and read as one
+   row of controls, but the eye needs to know where the scopes stop. */
+.chipsplit {
+  width: 1px; align-self: stretch; margin: 0 3px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
 .zoombar {
   display: flex; align-items: center; background: var(--panel);
   border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
@@ -511,9 +522,20 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
 /* 24 px between bands, not 10: every horizontal zone inset has to fit inside that
    gutter (the ladder is 7/13/19) or a rule reaches into the next band's card.
    MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+/* Rows are the shelves: a group of columns can hold more than one zone, one
+   under the other, which is how a zone confined to a single layer stops costing
+   the whole sheet a band of width. Explicit tracks rather than implicit ones so
+   the drop overlay below can subgrid onto them — `1 / -1` only reaches the last
+   *explicit* line. `--rows` is what the layer actually draws, ranked by
+   `layerSlots`, so an empty shelf never leaves a `row-gap` behind.
+
+   32 px between shelves, not 10: the vertical zone inset ladder is 14/23/32 and
+   the whole of it has to fit, or a shelved zone's rule reaches the card above.
+   MIRRORS `SHELF_GAP` in lib/zones.ts, as the column gap mirrors `BAND_GUTTER`. */
 .layer-drop.banded {
   display: grid; grid-template-columns: repeat(var(--cols), var(--card-w));
-  row-gap: 10px; column-gap: 24px; align-items: start; justify-content: start;
+  grid-template-rows: repeat(var(--rows, 1), auto);
+  row-gap: 32px; column-gap: 24px; align-items: start; justify-content: start;
 }
 /* A run fills its band rather than shrinking to its cards, so the measured
    rectangle is band-shaped on every layer instead of jumping in and out with the
@@ -529,12 +551,17 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
    It cannot be the run itself: a run is measured to draw its zone rectangle and
    has to stay a tight box around its own cards, while a target has to cover the
    whole band including the empty part — which on a given row is exactly where
-   the first card to join that zone has to land. */
+   the first card to join that zone has to land.
+
+   `subgrid` rather than a second grid on the same numbers: the column tracks are
+   arithmetic and could be repeated, but the shelf heights are whatever the cards
+   came to, and a copy of those would be a measurement. Spanning the whole grid
+   and inheriting both axes is how the targets follow the shelves for free. */
 .layer-drop.banded { position: relative; }
 .banddrops {
-  position: absolute; inset: 0; display: grid; pointer-events: none;
-  grid-template-columns: repeat(var(--cols), var(--card-w));
-  column-gap: 24px; justify-content: start;
+  grid-column: 1 / -1; grid-row: 1 / -1;
+  display: grid; grid-template-columns: subgrid; grid-template-rows: subgrid;
+  pointer-events: none; min-height: 0;
 }
 .banddrop { border-radius: 0; transition: background .12s, box-shadow .12s; }
 .banddrop.live { pointer-events: auto; }
@@ -719,6 +746,18 @@ input.input[type="color"] { height: 34px; padding: 3px; cursor: pointer; }
   font-family: var(--mono); font-size: 10px; padding: 3px 7px; border-radius: 0; font-weight: 400;
   background: color-mix(in srgb, var(--c) 14%, transparent);
   color: color-mix(in srgb, var(--c) 70%, var(--ink));
+}
+/* ------------------------------------------------------------ deployed on
+   Where a component runs, leading the same row as what it is built with. The
+   exact negative of a technology pill — outlined and neutral where those are
+   filled and tinted — because it is a different kind of fact and the row has no
+   room for a second line: the exported card is a fixed 64 px.
+
+   Neutral and not a hue on purpose: colour is scope's (rule 1). The treatment
+   is the whole distinction, which is also why it survives a monochrome print. */
+.ccard .tech .place {
+  background: transparent; border: 1px solid var(--line-3); color: var(--ink-2);
+  padding: 2px 6px;
 }
 .ccard .badge {
   position: absolute; top: -1px; right: -1px; font-family: var(--mono); font-size: 9px; font-weight: 700;

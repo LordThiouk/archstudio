@@ -62,6 +62,10 @@ function score(c: Component, q: string, layerName: string, groupName: string): n
   if (name.includes(q)) return 60;
   if (c.id.includes(q)) return 50;
   if ((c.tech || []).some(t => t.toLowerCase().includes(q))) return 40;
+  /* Above `role` and below `tech`: someone typing "openshift" who wrote it on
+   * the component means it, while a role that happens to mention the word is a
+   * weaker answer. */
+  if ((c.deployedOn || '').toLowerCase().includes(q)) return 35;
   if ((c.role || '').toLowerCase().includes(q)) return 30;
   if ((c.badge || '').toLowerCase().includes(q)) return 25;
   if (layerName.includes(q) || groupName.includes(q)) return 10;

@@ -46,7 +46,7 @@ export function docShape(doc: Architecture): string {
   return [
     doc.layers.map(l => l.id).join(','),
     doc.groups.map(g => g.id).join(','),
-    (doc.zones ?? []).map(z => `${z.id}>${z.parent ?? ''}`).join(','),
+    (doc.zones ?? []).map(z => `${z.id}>${z.parent ?? ''}${z.stack ? '^' : ''}`).join(','),
     doc.components
       .map(c => `${c.id}@${c.layer}/${c.group}/${c.zone ?? ''}:${(c.deps ?? []).join('+')}`)
       .join(','),

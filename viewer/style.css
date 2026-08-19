@@ -163,6 +163,14 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 /* Rule 1: a filtered scope fills, it does not outline. */
 .chip.pole[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 16%,transparent);border-color:var(--ink-3);color:var(--ink)}
+/* The second filter dimension — where things run. Monospace and swatchless so it
+   cannot be mistaken for a scope on the same bar: colour is scope's (rule 1) and
+   a platform name is something the machine knows (rule 3). Pressed, it takes the
+   plain ink fill, because it has no hue of its own to fill with. */
+.chip.mono{font-family:var(--mono);font-size:11px;font-weight:400}
+/* A hairline, not a gap: one bar, two dimensions, and the eye still needs to
+   know where the scopes stop. */
+.chipsplit{width:1px;align-self:stretch;margin:0 3px;background:color-mix(in srgb,var(--ink) 14%,transparent)}
 .hintline{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-left:auto}
 /* The reader's own controls over the sheet — density and scale. They sit at
    the end of the filter row rather than floating over the diagram, because the
@@ -249,9 +257,16 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
    that gutter (the ladder is 7/13/19) or a rule reaches into the next band's
    card. Cards *within* a band stay 12 px apart — that is the run's own flex gap,
    which the grid's track gaps do not touch. MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+/* Rows are the shelves: a group of columns can hold more than one zone, one
+   under the other, which is how a zone confined to a single layer stops costing
+   the whole sheet a band of width. Implicit tracks are enough — the row plan
+   never skips a shelf number, so no empty row can leave a stray `row-gap`.
+   32 px between shelves, like 24 between bands: the vertical zone inset ladder
+   is 14/23/32 and the whole of it has to fit, or a shelved zone's rule reaches
+   the card above. MIRRORS `SHELF_GAP` in lib/zones.ts. */
 .nodes.banded{
   display:grid;grid-template-columns:repeat(var(--cols),var(--card-w));
-  row-gap:12px;column-gap:24px;align-items:start;justify-content:start;
+  row-gap:32px;column-gap:24px;align-items:start;justify-content:start;
 }
 /* A run fills its band rather than shrinking to its cards, so the rectangle
    measured from it is band-shaped on every layer instead of jumping in and out
@@ -324,6 +339,10 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
   background:color-mix(in srgb,var(--c) 14%,transparent);
   color:color-mix(in srgb,var(--c) 70%,var(--ink));
 }
+/* Where it runs, leading the row: the exact negative of a technology pill —
+   outlined and neutral where those are filled and tinted. A treatment and not a
+   hue, because colour is scope's (rule 1). */
+.node .tech .place{background:transparent;border:1px solid var(--line-3);color:var(--ink-2);padding:2px 6px}
 .node .url{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .node.dim{opacity:.16}
 

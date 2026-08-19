@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, deleteComponent, slugify } from '@/lib/defaults';
+import { deploymentsInUse } from '@/lib/deployment';
 import { displayLayerLabel } from '@/lib/layers';
 import {
   LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkIsEmpty, linkOf, shortLink
@@ -47,6 +48,9 @@ function ComponentForm({ doc, patch, comp, notify, openLink, onClose, onSelect }
     if (c) fn(c);
     return d;
   });
+
+  /* The document's own answers, offered back as suggestions. */
+  const places = deploymentsInUse(doc.components);
 
   const inbound = doc.components.filter(c => (c.deps || []).includes(comp.id));
   const outbound = (comp.deps || []).map(id => doc.components.find(c => c.id === id)).filter(Boolean) as Component[];
@@ -122,6 +126,23 @@ function ComponentForm({ doc, patch, comp, notify, openLink, onClose, onSelect }
             onChange={e => set(c => { c.url = e.target.value || undefined; })} />
         </label>
       </div>
+
+      {/* Free text with the document's own answers offered back. A closed list
+          would have to choose between "OpenShift" the runtime and "AWS" the
+          provider, and refuse the one deployment that is both — so the list is
+          whatever this document already says, and the normaliser keeps one
+          spelling per platform so the filter chips do not split.
+
+          Not the same thing as the zone above it: a zone draws the boundary and
+          pays sheet width for it; this records the fact and costs nothing. */}
+      <label className="field"><span>Deployed on</span>
+        <input className="input" list={`deployed-${comp.id}`} value={comp.deployedOn || ''}
+          placeholder="OpenShift, AWS, on-prem…"
+          onChange={e => set(c => { c.deployedOn = e.target.value || undefined; })} />
+        <datalist id={`deployed-${comp.id}`}>
+          {places.map(p => <option key={p} value={p} />)}
+        </datalist>
+      </label>
 
       {/* A closed set, so the diagram can carry a key and a reader can search
           for "no authentication". Multi-select: SSO in front of a service that

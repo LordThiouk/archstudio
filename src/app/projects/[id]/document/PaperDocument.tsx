@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Mark, Wordmark } from '@/components/Brand';
 import { PALETTE } from '@/lib/defaults';
-import { displayLayerLabel } from '@/lib/layers';
+import { displayLayerLabel, layerTintEnabled, layerTintVar } from '@/lib/layers';
 import {
   dashFor, describeLink, edgeLabelSvg, edgePlateText, kindsInUse, LINK_DASH, LINK_KIND_LABELS,
   linkOf, protocolConvention, protocolNote
@@ -400,8 +400,12 @@ function PaperDiagram({ doc, lang }: { doc: Architecture; lang: 'en' | 'fr' }) {
       <div ref={stage} className="paper-stage">
         <svg className="paper-edges" viewBox={`0 0 ${STAGE_W} ${height || 1}`}
           width={STAGE_W} height={height} dangerouslySetInnerHTML={{ __html: edges }} />
-        {doc.layers.map(layer => (
-          <div className="paper-layer" key={layer.id}>
+        {doc.layers.map((layer, i) => (
+          /* Only the index travels: the six values live in `document.css`, which
+             is what makes the printed band agree with the screen one. */
+          <div className="paper-layer" key={layer.id}
+            style={layerTintEnabled(doc.ui.architecture)
+              ? { ['--lc' as string]: layerTintVar(i) } : undefined}>
             <div className="paper-layer-head">
               <b>{displayLayerLabel(layer.name)}</b>{layer.desc && <em>{layer.desc}</em>}
             </div>

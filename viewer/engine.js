@@ -449,6 +449,11 @@ const ZONES_IN_USE = (() => {
  *
  * MIRROR of bandPlan in src/lib/zones.ts. */
 const BAND_MAX = 6;
+/* `BAND_MAX` caps one band; nothing capped their sum, so each zone added a
+ * column-load of width and four of them ran the sheet off the frame. Twelve is
+ * a ceiling, not a promise: more buckets than columns means one column each and
+ * a sheet wider than this, because one card per band is the floor. */
+const BAND_BUDGET = 12;
 
 /** Zones in tree order, so a subtree's bands are contiguous and a parent's box
  *  is one range of columns rather than two with a hole in the middle. */
@@ -477,13 +482,24 @@ const BAND_PLAN = (() => {
   });
 
   const ordered = [...(buckets.has('') ? [''] : []), ...ZONES_TREE_ORDER.filter(id => buckets.has(id))];
+
+  /* Narrowed until the sheet fits: the widest band gives up a column at a time,
+   * so the pressure lands on what is making the drawing wide. A band that loses
+   * a column keeps its cards — it wraps inside itself and the layer grows
+   * taller, which is the trade a reader can scroll. */
+  const spans = ordered.map(b => Math.min(BAND_MAX, Math.max(1, widest[b] || 0)));
+  let total = spans.reduce((a, b) => a + b, 0);
+  while (total > BAND_BUDGET) {
+    let widestAt = -1;
+    spans.forEach((s, i) => { if (s > 1 && (widestAt < 0 || s > spans[widestAt])) widestAt = i; });
+    if (widestAt < 0) break;
+    spans[widestAt] -= 1;
+    total -= 1;
+  }
+
   const byBucket = {};
   let at = 1;
-  ordered.forEach(b => {
-    const span = Math.min(BAND_MAX, Math.max(1, widest[b] || 0));
-    byBucket[b] = { start: at, span };
-    at += span;
-  });
+  ordered.forEach((b, i) => { byBucket[b] = { start: at, span: spans[i] }; at += spans[i]; });
   return { byBucket, total: at - 1 };
 })();
 
@@ -565,6 +581,18 @@ const DENSE = DATA.components.length >= 24
  * by the colour on every chip and by the filter chips above the sheet. An author
  * who sets `cluster: true` on a zoned document gets the zones, and the README
  * says so. */
+/* A tall landscape has six or seven bands and, before this, one way to tell them
+ * apart: a 10 px label in `--ink-3`. Colour belongs to scope (rule 1), so what
+ * makes a layer tint safe is position, not hue — a scope colour lives on the
+ * icon chip and the technology pills, a layer tint on the band's label and the
+ * rule under it, and the two never meet on one element. The ground was not
+ * available: zones already own it.
+ *
+ * MIRROR of layerTintVar / layerTintEnabled in src/lib/layers.ts. */
+const LAYER_TINTS = 6;
+const layerTintVar = i => `var(--lt${(((i % LAYER_TINTS) + LAYER_TINTS) % LAYER_TINTS) + 1})`;
+const LAYER_TINT = ARCH_OPTS.layerTint !== false;
+
 const CLUSTER = ZONES_IN_USE.length ? false
   : ARCH_OPTS.cluster == null ? DENSE
   : !!ARCH_OPTS.cluster;
@@ -750,7 +778,7 @@ function renderArchitecture() {
  * curves instead of arcs across the whole sheet. A layer holding a single
  * scope keeps the plain row: a column header naming the only thing there is
  * would be noise. */
-function layerHTML(l) {
+function layerHTML(l, index) {
   const nodes = DATA.components.filter(c => c.layer === l.id);
   if (!nodes.length) return '';
   const head = `<div class="layer-head"><b>${esc(l.name)}</b>${l.desc ? `<em>${esc(l.desc)}</em>` : ''}</div>`;
@@ -775,7 +803,11 @@ function layerHTML(l) {
             bandStyle(run.zone)}>${run.items.map(nodeHTML).join('')}</div>`).join('')}</div>`
       : `<div class="nodes">${nodes.map(nodeHTML).join('')}</div>`;
 
-  return `<div class="layer" data-layer="${esc(l.id)}">${head}${body}</div>`;
+  /* Only the index travels: the six values live in the stylesheet, which is what
+   * makes them follow the theme without a second table here. Off emits nothing
+   * and every rule falls back to the neutral it had before. */
+  const tint = LAYER_TINT ? ` style="--lc:${layerTintVar(index)}"` : '';
+  return `<div class="layer" data-layer="${esc(l.id)}"${tint}>${head}${body}</div>`;
 }
 
 /* The key for the line styles, drawn only for the kinds this document uses. A

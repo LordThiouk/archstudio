@@ -7,6 +7,7 @@ import {
   useDraggable, useDroppable, type DragEndEvent, type DragStartEvent
 } from '@dnd-kit/core';
 import { Icon } from './Icon';
+import { useAsk } from './Ask';
 import { Lockup } from './Brand';
 import { AnalyseNewDialog, useAiStatus } from './Analyse';
 import { SettingsDialog } from './Settings';
@@ -37,6 +38,7 @@ export default function Workspace({
    * exists to explain why it cannot work is worse than no button. */
   const ai = useAiStatus();
   const [busy, setBusy] = useState(false);
+  const ask = useAsk();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -97,25 +99,34 @@ export default function Workspace({
   }
 
   async function addFolder(parentId: string | null) {
-    const name = prompt(parentId ? 'Name of the sub-folder' : 'Name of the folder');
-    if (!name?.trim()) return;
+    const parent = parentId ? folders.find(f => f.id === parentId) : null;
+    const name = await ask.text({
+      title: parent ? `New folder in “${parent.name}”` : 'New folder',
+      label: 'Name', placeholder: 'Payments', confirmLabel: 'Create'
+    });
+    if (!name) return;
     const color = FOLDER_COLORS[folders.length % FOLDER_COLORS.length];
     const f = await api.json<FolderRecord>('/api/folders', {
-      method: 'POST', body: JSON.stringify({ name: name.trim(), parentId, color })
+      method: 'POST', body: JSON.stringify({ name, parentId, color })
     });
     setFolders(list => [...list, f]);
     setOpen(o => ({ ...o, [f.id]: true, ...(parentId ? { [parentId]: true } : {}) }));
   }
 
   async function renameFolder(f: FolderRecord) {
-    const name = prompt('Rename folder', f.name);
-    if (!name?.trim() || name === f.name) return;
-    await api.json(`/api/folders/${f.id}`, { method: 'PATCH', body: JSON.stringify({ name: name.trim() }) });
-    setFolders(list => list.map(x => (x.id === f.id ? { ...x, name: name.trim() } : x)));
+    const name = await ask.text({ title: 'Rename folder', label: 'Name', value: f.name });
+    if (!name || name === f.name) return;
+    await api.json(`/api/folders/${f.id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+    setFolders(list => list.map(x => (x.id === f.id ? { ...x, name } : x)));
   }
 
   async function removeFolder(f: FolderRecord) {
-    if (!confirm(`Delete "${f.name}"?\n\nSub-folders go with it. Projects inside are kept and moved to Unfiled.`)) return;
+    const ok = await ask.confirm({
+      title: `Delete “${f.name}”?`,
+      body: 'Sub-folders go with it. The projects inside are kept and moved to Unfiled.',
+      danger: true
+    });
+    if (!ok) return;
     await fetch(`/api/folders/${f.id}`, { method: 'DELETE' });
     if (scope.kind === 'folder' && scope.id === f.id) setScope({ kind: 'all' });
     refresh();
@@ -283,6 +294,7 @@ export default function Workspace({
             ? 'Reading documents needs a model. Choose a provider and give it a key, and “Read a document” starts working.'
             : undefined} />
       )}
+      {ask.dialog}
     </DndContext>
   );
 }
@@ -369,6 +381,7 @@ function ProjectCard({ project, folders, onOpen, onChanged }: {
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
   const [menu, setMenu] = useState(false);
+  const ask = useAsk();
   const accent = project.accent || PALETTE[0];
   const folder = folders.find(f => f.id === project.folderId);
 
@@ -400,18 +413,38 @@ function ProjectCard({ project, folders, onOpen, onChanged }: {
             <button onClick={() => window.open(`/api/projects/${project.id}/export?format=json`, '_blank')}>
               <Icon name="download" size={14} />Download JSON
             </button>
+            <button onClick={() => window.open(`/api/projects/${project.id}/export?format=drawio`, '_blank')}>
+              <Icon name="download" size={14} />Download draw.io
+            </button>
             <button onClick={async () => {
               await fetch(`/api/projects/${project.id}`, { method: 'POST' });
               setMenu(false); onChanged();
             }}><Icon name="copy" size={14} />Duplicate</button>
             <hr />
             <button className="danger" onClick={async () => {
-              if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
+              /* The menu closes first: the confirm is a second surface, and
+                 leaving the popover open behind it means two things claiming to
+                 be the thing you clicked. The dialog itself is portalled out of
+                 this menu — see useAsk — because `.pcard .menu` is `opacity: 0`
+                 off-hover, which would have painted the confirm away the moment
+                 the pointer reached it. */
+              setMenu(false);
+              const ok = await ask.confirm({
+                title: `Delete “${project.name}”?`,
+                body: <>
+                  The architecture and its {project.componentCount} component
+                  {project.componentCount === 1 ? '' : 's'} go, along with every version in its
+                  history. There is no undo for this one — export it first if you are unsure.
+                </>,
+                danger: true
+              });
+              if (!ok) return;
               await fetch(`/api/projects/${project.id}`, { method: 'DELETE' });
-              setMenu(false); onChanged();
+              onChanged();
             }}><Icon name="trash" size={14} />Delete</button>
           </div>
         )}
+        {ask.dialog}
       </div>
     </div>
   );

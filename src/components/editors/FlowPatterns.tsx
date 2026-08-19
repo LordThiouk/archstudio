@@ -18,6 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../Icon';
+import { useAsk } from '../Ask';
 import { ScopePicker, Text } from './Fields';
 import { api } from '@/lib/api';
 import { matchSteps, type Binding } from '@/lib/flows/match';
@@ -51,6 +52,7 @@ export default function FlowPatterns({ doc, catalog, onInsert, onClose }: {
   const [group, setGroup] = useState<string | undefined>();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const ask = useAsk();
 
   const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
 
@@ -72,7 +74,12 @@ export default function FlowPatterns({ doc, catalog, onInsert, onClose }: {
   };
 
   const remove = async (p: LibraryPattern) => {
-    if (!confirm(`Delete the pattern "${p.name}"? It is removed from every project.`)) return;
+    const ok = await ask.confirm({
+      title: `Delete the pattern “${p.name}”?`,
+      body: 'The library is shared, so it goes from every project at once. Flows already built from it are left alone.',
+      danger: true
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const { library } = await api.json<{ library: LibraryPattern[] }>(
@@ -104,6 +111,7 @@ export default function FlowPatterns({ doc, catalog, onInsert, onClose }: {
   })();
 
   return (
+    <>
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal wide" onClick={e => e.stopPropagation()}
         style={{ maxHeight: '86vh', overflowY: 'auto' }}>
@@ -186,6 +194,8 @@ export default function FlowPatterns({ doc, catalog, onInsert, onClose }: {
         </div>
       </div>
     </div>
+    {ask.dialog}
+    </>
   );
 }
 

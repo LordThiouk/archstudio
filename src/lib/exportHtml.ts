@@ -38,6 +38,22 @@ const UNICODE_RANGE = {
     'U+2C60-2C7F, U+A720-A7FF'
 } as const;
 
+let fontCache: { css: string; mtime: number } | null = null;
+
+/** The `@font-face` rules with every face inlined as a data URI.
+ *
+ *  Exported because the HTML is no longer the only export that has to carry its
+ *  own typography: an SVG is read by whatever opens it, and a PNG is rasterised
+ *  from that SVG inside an `<img>`, where an external font request is not merely
+ *  slow — it is blocked. Same faces, same reason, one place. */
+export function inlineFontCss(): string {
+  const mtime = Math.max(...FONT_FACES.map(f => fs.statSync(path.join(FONT_DIR, f.file)).mtimeMs));
+  if (!fontCache || fontCache.mtime !== mtime) {
+    fontCache = { css: fontCss(), mtime };
+  }
+  return fontCache.css;
+}
+
 function fontCss(): string {
   return FONT_FACES.map(f => {
     const b64 = fs.readFileSync(path.join(FONT_DIR, f.file)).toString('base64');

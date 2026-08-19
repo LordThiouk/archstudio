@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from './Icon';
+import { useAsk } from './Ask';
 import { byArea, diffArchitecture, summarise, type ChangeKind } from '@/lib/diff';
 import type { Architecture, RevisionRecord } from '@/lib/types';
 
@@ -52,6 +53,7 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
   const [picked, setPicked] = useState<string | null>(null);
   const [past, setPast] = useState<Architecture | null>(null);
   const [busy, setBusy] = useState(false);
+  const ask = useAsk();
   const [error, setError] = useState('');
 
   const load = useCallback(async (select?: string) => {
@@ -81,7 +83,11 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
   const current = list?.find(r => r.id === picked) ?? null;
 
   async function checkpoint() {
-    const label = prompt('Name this checkpoint', 'Sent to the client');
+    const label = await ask.text({
+      title: 'Save a checkpoint',
+      body: 'A named version is never pruned — the thirty-snapshot cap only ever removes automatic ones.',
+      label: 'Name', value: 'Sent to the client', confirmLabel: 'Save'
+    });
     if (label === null) return;
     setBusy(true); setError('');
     try {
@@ -95,8 +101,12 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
   }
 
   async function rename(rev: RevisionRecord) {
-    const label = prompt('Name this version — an empty name makes it an ordinary snapshot again',
-      rev.label ?? '');
+    const label = await ask.text({
+      title: 'Name this version',
+      body: 'A named version is kept for good. Clearing the name makes it an ordinary snapshot again, and it can then be pruned.',
+      label: 'Name', value: rev.label ?? '', placeholder: 'Sent to the client',
+      allowEmpty: true
+    });
     if (label === null) return;
     setBusy(true);
     await fetch(`/api/projects/${projectId}/revisions`, {
@@ -108,7 +118,12 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
   }
 
   async function remove(rev: RevisionRecord) {
-    if (!confirm(`Delete the version from ${stamp(rev.createdAt)}? The document itself is untouched.`)) return;
+    const ok = await ask.confirm({
+      title: `Delete the version from ${stamp(rev.createdAt)}?`,
+      body: 'The document itself is untouched — only this snapshot of it goes, and it cannot be brought back.',
+      danger: true
+    });
+    if (!ok) return;
     setBusy(true);
     await fetch(`/api/projects/${projectId}/revisions?revisionId=${encodeURIComponent(rev.id)}`,
       { method: 'DELETE' }).catch(() => setError('Could not delete it.'));
@@ -119,11 +134,15 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
 
   async function restore(rev: RevisionRecord) {
     const n = diff?.total ?? 0;
-    if (!confirm(
-      `Restore the version from ${stamp(rev.createdAt)}?\n\n`
-      + `${n} change${n === 1 ? '' : 's'} made since then will be undone. `
-      + 'The current version is kept in the history as "Before restore", so this is reversible.'
-    )) return;
+    const ok = await ask.confirm({
+      title: `Restore the version from ${stamp(rev.createdAt)}?`,
+      body: <>
+        {n} change{n === 1 ? '' : 's'} made since then will be undone. The current version is kept
+        in the history as <b>Before restore</b>, so this is reversible.
+      </>,
+      confirmLabel: 'Restore'
+    });
+    if (!ok) return;
 
     setBusy(true); setError('');
     try {
@@ -139,6 +158,7 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
   }
 
   return (
+    <>
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal wide" onClick={e => e.stopPropagation()}>
         <div className="modal-head">
@@ -237,5 +257,7 @@ export default function History({ projectId, doc, dirty, onClose, onRestore }: {
         </div>
       </div>
     </div>
+    {ask.dialog}
+    </>
   );
 }

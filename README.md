@@ -221,12 +221,30 @@ Five rules hold the whole thing together, and each one is written where it is en
 
 | Token | | |
 |---|---|---|
+| Layers | `--lt1..--lt6` | a band's label and the rule under it — never a chip |
 | Ink | `#0B1B2B` | text, rules, the mark |
 | Paper | `#FFFFFF` | surfaces, cards, the printed page |
 | Calque | `#EEF3F6` | the canvas ground, the app background |
 | Teal | `#0E7C8A` | the single accent — actions and selection only |
 | Cyan | `#00E5FF` | **marine ground only, never on white** |
 | Scopes | `oklch(0.62 0.11 h)` | h = 200, 250, 290, 340, 150 |
+
+**The layer ramp is the one exception to rule 1, and it is an exception about
+position rather than about colour.** A tall landscape has six or seven bands and, before it, one
+way to tell them apart: a 10 px monospace label in `--ink-3`. What makes a layer tint safe is that
+a scope colour lives on the icon chip and the technology pills, and a layer tint lives on the
+band's label and the rule under it — the two never meet on one element, so neither can be read as
+the other. The ground was not available: zones already own it at 3–9 % ink, and a second tint
+under a zone rectangle makes both unreadable. The ramp is lower in chroma than the scope palette
+and spans a wider arc, including warm hues the scope circle never reaches, so a band label never
+competes with a card for attention.
+
+It also reads *better* than what it replaced. Against paper the six measure 3.68–4.17:1 where
+`--ink-3` measured 2.67:1; on the marine ground, 6.90–7.98:1 against 5.77:1. Six, where scopes
+stop at five: that ceiling is an argument about one hue circle at fixed lightness, and this ramp
+is neither. Past the sixth band it cycles. `ui.architecture.layerTint: false` emits no custom
+property at all, and every rule falls back to the neutral it had before — the off state is the
+absence of this look, not a second one to maintain.
 
 Cyan is the one colour with a hard rule attached, and the rule is arithmetic: it sits at 1.5:1
 against white and 11.3:1 against ink. So it is the inverted mark, the app icon, and the accent the
@@ -409,6 +427,23 @@ the sheet. `cluster: true` on a zoned document is ignored.
 is the whole reason nothing foreign can wander into it — and the reason the drawing grows a
 column per zone whether or not every row uses it. That is the visible, honest price of a
 boundary that means what it draws.
+
+**The sheet is capped, and the order is yours.** `BAND_MAX` caps one band at six columns; nothing
+capped their *sum*, so a fourth zone could push the drawing off the right of the frame — where the
+editor has no zoom to pull it back, only a scrollbar to find it with. `BAND_BUDGET` is twelve
+columns, about 2 900 px, and when the bands ask for more the widest gives up a column at a time
+until they fit. No card is lost: a narrowed band wraps inside itself and its layer grows taller,
+which is the trade a reader can scroll. It is a ceiling and not a promise — a document with more
+buckets than columns gets one each and is wider than that, because one card per band is the floor.
+
+The **Zones** panel moves a zone left or right among its own siblings. Left and right rather than
+up and down, because a zone *is* a band of columns and that is the direction it moves on the sheet;
+among siblings, because the band order comes from the zone tree, where the array position only ever
+breaks ties between zones sharing a parent — a plain array swap would usually move nothing at all.
+A nested zone slides inside its parent and never out of it, and its children travel with it.
+
+To see a wide sheet whole, use **Preview**: it renders the real exported viewer, which has zoom,
+pan and a **Fit** button. The editor canvas has none of those — it scrolls.
 
 The **EXTERNAL / INTERNAL** divide those diagrams draw as a full-height vertical line does not
 transpose. This layout is horizontal bands; a vertical axis wants columns. Modelled as a zone it

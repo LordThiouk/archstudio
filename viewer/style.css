@@ -458,6 +458,31 @@ table.cmp tbody tr:hover{background:var(--panel-2)}
 table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .dot{width:9px;height:9px;border-radius:0;display:inline-block;margin-right:8px;vertical-align:-1px}
 
+/* ------------------------------------------------------------ environments
+   One column per environment the document fills in. Wide by nature — three
+   environments of domain names past a component name — so it scrolls inside its
+   own box rather than pushing the card off the page. */
+.tablewrap{overflow-x:auto}
+.envtable{min-width:520px}
+.envtable td:first-child{white-space:nowrap}
+.envcell{font-size:11.5px;color:var(--ink-2)}
+/* An address is one token — broken across two lines at its hyphens it stops
+   being copyable and starts being a puzzle. So it never wraps, and the table
+   scrolls inside `.tablewrap` instead. */
+.envcell span{display:block;white-space:nowrap}
+/* The version and the note are the fields that go stale on their own, so they
+   are set quieter than the address rather than louder. */
+.envcell em{display:block;font-style:normal;font-size:10px;color:var(--ink-3);margin-top:2px}
+
+/* The same rows in the detail drawer, where there is one component and room to
+   put the environment's name beside its address rather than above it. */
+.envlist>div{display:grid;grid-template-columns:70px 1fr;gap:10px;margin-bottom:6px}
+.envlist dt{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);padding-top:2px}
+.envlist dd{margin:0;font-family:var(--mono);font-size:11.5px}
+.envlist dd a{color:var(--brand);text-decoration:none}
+.envlist dd a:hover{text-decoration:underline}
+.envlist dd em{display:block;font-style:normal;font-size:10px;color:var(--ink-3);margin-top:2px}
+
 /* ---------- Flows ---------- */
 .flowpick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .flowgrid{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}

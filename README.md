@@ -192,7 +192,7 @@ UPDATE_SNAPSHOTS=1 npm test     # accept a deliberate change
 
 ## The identity
 
-*Atelier* — an engineer's tool drawn like a workshop instrument, on the TonuxCorp colours.
+*Atelier* — an engineer's tool drawn like a workshop instrument, on the tonux colours.
 Marine ink on white paper, one teal for action, monospace for everything the machine knows.
 Square corners, hairline rules, no gradients, no shadows.
 
@@ -439,6 +439,27 @@ makes free text usable as a filter dimension anyway is one pass in the normalise
 spelling a document uses wins, and every later case-variant folds onto it, so a stray "openshift"
 cannot become a chip of its own. `src/lib/deployment.ts`.
 
+**And "where it runs" is not "which copy of it".** `deployedOn` names a platform; the
+**environments** name the stages the whole architecture runs in — dev, SA, production. They are
+declared once on the document, in the palette rail beside the layers and the scopes, and each
+component fills in the ones it lives in: an address, what version is running there, and a line of
+prose. A component list of its own `{ name, url }` pairs would have been less plumbing and useless
+within a week — one component says "SA", the next says "recette", the third says "staging", and
+*give me every SA address* has no answer a table can hold.
+
+Declaration order is the pipeline, which is why the rail moves them up and down rather than
+sorting them: every table reads its columns from that order, and one that sorted itself would put
+dev after SA and production first. The addresses surface on the component's inspector, in its
+detail sheet, in the viewer's drawer, as a column per environment in the viewer's overview table
+and in a generated **Environments** chapter under *DevOps & delivery* — the page someone prints
+before a release — and as one Edit Data field per environment in the draw.io export. Every one of
+those asks first: an environment nobody filled in draws no column.
+
+The version field is the one to be careful with, and the module says so where it is defined: it is
+the only thing here that goes stale on its own, nothing derives from it, and a document claiming
+"prod = 2.4.1" three releases later is worse than one that never said. It earns its place during a
+migration and should be cleared after. `src/lib/environments.ts`.
+
 **Two things to know before you reach for zones.**
 
 *Zones turn clustering off.* Two groupings cannot own one row: clustering splits a layer into
@@ -513,6 +534,7 @@ src/lib/links.ts       the protocol convention, and the plate's geometry
 src/lib/lifecycle.ts   the three transition marks and what each commits you to
 src/lib/marks.ts       the closed security set, its icons and its key
 src/lib/deployment.ts  where a component runs, and why it is not a zone
+src/lib/environments.ts dev / SA / prod, and one address per component per stage
 src/lib/zones.ts       the zone tree, the run ordering, and the measured union
 ```
 
@@ -765,8 +787,6 @@ automatically.
 - Multi-select and bulk move on the canvas
 
 ## Community
-
-[tonuxcorp.com](https://tonuxcorp.com)
 
 ## License
 

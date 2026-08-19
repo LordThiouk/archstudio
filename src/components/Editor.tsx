@@ -29,6 +29,7 @@ import {
   edgeOpacity, edgeStroke, STATE_LABELS, STATE_SIGN, stateTick, statesInUse
 } from '@/lib/lifecycle';
 import { deploymentsInUse } from '@/lib/deployment';
+import { canMoveEnvironment, moveEnvironment } from '@/lib/environments';
 import { MARK_BLURBS, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
   bandPlan, canMoveZone, describeZone, inflatedUnion, layerRuns, layerSlots, moveZone,
@@ -831,7 +832,7 @@ function Finder({ doc, onClose, onPick }: {
  * One component for the three because the frame is the same and only the middle
  * differs; splitting it would mean three copies of the focus, the Escape and the
  * Enter handling, which is the part that has to be identical. */
-type RailKind = 'layer' | 'scope' | 'zone';
+type RailKind = 'layer' | 'scope' | 'zone' | 'environment';
 
 const RAIL_COPY: Record<RailKind, { title: string; blurb: string; placeholder: string }> = {
   layer: {
@@ -848,6 +849,11 @@ const RAIL_COPY: Record<RailKind, { title: string; blurb: string; placeholder: s
     title: 'New zone',
     blurb: 'A boundary that crosses the layers — a platform, a network zone, the perimeter of a migration.',
     placeholder: 'OpenShift'
+  },
+  environment: {
+    title: 'New environment',
+    blurb: 'One of the places this whole architecture runs — dev, SA, production. Declare them in pipeline order; every table reads its columns from it.',
+    placeholder: 'Production'
   }
 };
 
@@ -2033,6 +2039,14 @@ function Palette({ doc, patch, catalog, notify, onOpenPlacement }: {
         });
         return d;
       });
+    } else if (creating === 'environment') {
+      /* Appended, never sorted: the order is the pipeline, and the author is the
+       * only one who knows whether SA comes before or after the integration
+       * platform they call "int". */
+      patch(d => {
+        d.environments.push({ id: slugify(v.name, d.environments.map(e => e.id)), name: v.name });
+        return d;
+      });
     }
     setCreating(null);
   };
@@ -2121,6 +2135,9 @@ function Palette({ doc, patch, catalog, notify, onOpenPlacement }: {
 
       <ZonesPanel doc={doc} patch={patch} notify={notify} fold={fold}
         onAdd={() => setCreating('zone')} />
+
+      <EnvironmentsPanel doc={doc} patch={patch} notify={notify} fold={fold}
+        onAdd={() => setCreating('environment')} />
 
       <EdgeLegend doc={doc} fold={fold} />
 
@@ -2252,6 +2269,88 @@ function ZonesPanel({ doc, patch, notify, fold, onAdd }: {
       ))}
       </RailSection>
     </>
+  );
+}
+
+/* The environments this architecture runs in — dev, SA, production.
+ *
+ * In the rail with the layers, the scopes and the zones because it is structure
+ * rather than content, and like the zones nothing prunes it: an environment
+ * nobody has filled in yet is one someone is about to.
+ *
+ * Up and down rather than left and right, and this is the whole reason the
+ * buttons are here: the order is the *pipeline*, and every table downstream
+ * reads its columns from it. A list that sorted itself would put dev after SA
+ * and production first. */
+function EnvironmentsPanel({ doc, patch, notify, fold, onAdd }: {
+  doc: Architecture; patch: (fn: (d: Architecture) => Architecture) => void;
+  notify: Notify;
+  fold: RailFolds;
+  onAdd: () => void;
+}) {
+  const counts = new Map(doc.environments.map(e => [
+    e.id,
+    doc.components.filter(c => (c.envs || []).some(x => x.env === e.id)).length
+  ]));
+
+  return (
+    <RailSection id="environments" label={`Environments (${doc.environments.length})`}
+      open={fold.isOpen('environments')} onToggle={() => fold.toggle('environments')}
+      action={
+        <button className="iconbtn" style={{ width: 20, height: 20 }} title="Add environment"
+          onClick={onAdd}><Icon name="plus" size={13} /></button>
+      }>
+      {!doc.environments.length && (
+        <div className="hint" style={{ padding: '2px 6px' }}>
+          Where this runs — dev, SA, production. Declare them here in pipeline
+          order, then give each component its address in the inspector.
+        </div>
+      )}
+      {doc.environments.map(e => (
+        <div className="grouprow" key={e.id}>
+          <input value={e.name}
+            onChange={ev => patch(d => {
+              const x = d.environments.find(y => y.id === e.id);
+              if (x) x.name = ev.target.value;
+              return d;
+            })} />
+          <span className="count">{counts.get(e.id) ?? 0}</span>
+          <button className="iconbtn" style={{ width: 22, height: 22 }} title="Move earlier"
+            disabled={!canMoveEnvironment(doc.environments, e.id, -1)}
+            onClick={() => patch(d => {
+              d.environments = moveEnvironment(d.environments, e.id, -1); return d;
+            })}>
+            <Icon name="chevron" size={12} style={{ transform: 'rotate(-90deg)' }} />
+          </button>
+          <button className="iconbtn" style={{ width: 22, height: 22 }} title="Move later"
+            disabled={!canMoveEnvironment(doc.environments, e.id, 1)}
+            onClick={() => patch(d => {
+              d.environments = moveEnvironment(d.environments, e.id, 1); return d;
+            })}>
+            <Icon name="chevron" size={12} style={{ transform: 'rotate(90deg)' }} />
+          </button>
+          <button className="iconbtn" style={{ width: 22, height: 22 }} title="Delete environment"
+            onClick={() => {
+              const held = counts.get(e.id) ?? 0;
+              notify(held
+                ? `Environment "${e.name}" deleted — ${held} component(s) lost their address for it`
+                : `Environment "${e.name}" deleted`);
+              patch(d => {
+                d.environments = d.environments.filter(y => y.id !== e.id);
+                /* The entries go with it. Leaving them would make the document
+                 * carry addresses for a place it no longer says exists, and the
+                 * normaliser would drop them on the next read anyway — silently,
+                 * which is the worse of the two. */
+                d.components.forEach(c => {
+                  const kept = (c.envs || []).filter(x => x.env !== e.id);
+                  c.envs = kept.length ? kept : undefined;
+                });
+                return d;
+              });
+            }}><Icon name="trash" size={13} /></button>
+        </div>
+      ))}
+    </RailSection>
   );
 }
 

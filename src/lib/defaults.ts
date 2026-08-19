@@ -1,10 +1,13 @@
 import { canonicalise, cleanDeployedOn } from './deployment';
+import { envEntryIsEmpty } from './environments';
 import { isLifecycle } from './lifecycle';
 import { normalizeMarks } from './marks';
 import { isZoneKind } from './zones';
 import { LINK_KINDS, PROTOCOL_LABEL_MODES, linkIsEmpty } from './links';
 import { displayLayerLabel } from './layers';
-import type { Architecture, Flow, Group, Link, Section, SectionType, Ui, Zone } from './types';
+import type {
+  Architecture, EnvEntry, Environment, Flow, Group, Link, Section, SectionType, Ui, Zone
+} from './types';
 
 /* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
  * h = 200, 250, 290, 340, 150, lifted to L .72 / C .12 on a marine ground.
@@ -166,6 +169,7 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
     groups: [],
     layers: [],
     zones: [],
+    environments: [],
     components: [],
     technologies: [],
     flows: [],
@@ -215,6 +219,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
       };
     }),
     zones: normalizeZones(input.zones),
+    environments: normalizeEnvironments(input.environments),
     components: input.components || [],
     technologies: input.technologies || [],
     flows: input.flows || [],
@@ -224,6 +229,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
   const groupIds = new Set(doc.groups.map(g => g.id));
   const layerIds = new Set(doc.layers.map(l => l.id));
   const zoneIds = new Set(doc.zones.map(z => z.id));
+  const envIds = new Set(doc.environments.map(e => e.id));
   const compIds = new Set(doc.components.map(c => c.id));
 
   doc.components = doc.components.map(c => {
@@ -237,6 +243,7 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
        * only honest one for a pointer to a zone that is gone. */
       zone: c.zone && zoneIds.has(c.zone) ? c.zone : undefined,
       deployedOn: cleanDeployedOn(c.deployedOn),
+      envs: normalizeEnvs(c.envs, envIds),
       tech: c.tech || [],
       features: c.features || [],
       notes: c.notes || [],
@@ -276,6 +283,49 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
  *  also stops on a repeat, so this is the second of two guards, not the only
  *  one — but it is the one that makes the stored document sane, which is what
  *  the editor and the export both read back. */
+/** The declared environments: an id and a name, once each, in the order they
+ *  were written. That order is the pipeline — dev, SA, prod — and every table
+ *  downstream reads its columns from it, so it is never re-sorted here. */
+function normalizeEnvironments(input: Environment[] | undefined): Environment[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: Environment[] = [];
+  for (const e of input) {
+    if (!e || typeof e.id !== 'string' || !e.id || seen.has(e.id)) continue;
+    seen.add(e.id);
+    const clean: Environment = { id: e.id, name: e.name?.trim() || e.id };
+    if (e.note?.trim()) clean.note = e.note.trim();
+    out.push(clean);
+  }
+  return out;
+}
+
+/** A component's entries: one per declared environment, none blank, no pointers
+ *  at an environment that is gone.
+ *
+ *  An entry naming an environment and saying nothing else *is* dropped here even
+ *  though it would be a real answer, because there is no way to have authored it
+ *  on purpose — the editor writes an entry only when a field is filled in, and
+ *  clears it when the last one empties. Returns `undefined` when nothing
+ *  survives, so a document that names no environment exports exactly as it did
+ *  before the field existed. */
+function normalizeEnvs(input: EnvEntry[] | undefined, envIds: Set<string>): EnvEntry[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const seen = new Set<string>();
+  const out: EnvEntry[] = [];
+  for (const e of input) {
+    if (!e || typeof e.env !== 'string' || !envIds.has(e.env) || seen.has(e.env)) continue;
+    const clean: EnvEntry = { env: e.env };
+    if (e.url?.trim()) clean.url = e.url.trim();
+    if (e.version?.trim()) clean.version = e.version.trim();
+    if (e.note?.trim()) clean.note = e.note.trim();
+    if (envEntryIsEmpty(clean)) continue;
+    seen.add(e.env);
+    out.push(clean);
+  }
+  return out.length ? out : undefined;
+}
+
 function normalizeZones(input: Zone[] | undefined): Zone[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();

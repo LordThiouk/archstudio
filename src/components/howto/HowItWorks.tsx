@@ -410,9 +410,6 @@ function Cta() {
       </p>
       <div className="h-ctabtns">
         <a className="btn primary" href="/"><Icon name="grid" size={15} />Open the workspace</a>
-        <a className="btn" href="https://tonuxcorp.com" target="_blank" rel="noreferrer">
-          <Icon name="external" size={15} />tonuxcorp.com
-        </a>
       </div>
     </section>
   );

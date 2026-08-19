@@ -122,6 +122,31 @@ export interface Link {
   state?: import('./lifecycle').Lifecycle;
 }
 
+/** One of the places the whole architecture runs — dev, SA, production.
+ *
+ *  Declaration order is reading order, because it is the pipeline: a table with
+ *  production in the middle is a table nobody trusts. `src/lib/environments.ts`
+ *  is where the rest of the reasoning lives. */
+export interface Environment {
+  id: string;
+  name: string;
+  /** One line about the environment itself — "anonymised data", "VPN only". */
+  note?: string;
+}
+
+/** One component, in one environment. Every field but `env` is optional: naming
+ *  an environment for a component and leaving it blank is a real answer — it
+ *  says the thing is deployed there and its address is not written down. */
+export interface EnvEntry {
+  /** The environment's id. Unknown ids are dropped on read. */
+  env: string;
+  url?: string;
+  /** What is running there — "2.4.1", "2.5.0-rc2". */
+  version?: string;
+  /** Anything the two above cannot say — "read-only replica", "nightly reset". */
+  note?: string;
+}
+
 export interface Component {
   id: string;
   name: string;
@@ -147,6 +172,11 @@ export interface Component {
    *  sheet. See `src/lib/deployment.ts`. */
   deployedOn?: string;
   url?: string;
+  /** Where to reach it in each environment, plus what is running there. One
+   *  entry per environment at most, in the document's own environment order —
+   *  see `src/lib/environments.ts`. `url` above stays the one address the
+   *  component is known by, whatever the pipeline is doing. */
+  envs?: EnvEntry[];
   role?: string;
   /** Stable Lego catalog identity; `role` remains human-readable prose. */
   brick?: import('./lego/bricks').BrickId;
@@ -231,6 +261,9 @@ export interface Architecture {
   /** Optional throughout: a document with no zones draws exactly as it did
    *  before the field existed, and normalisation leaves the key at `[]`. */
   zones: Zone[];
+  /** Optional throughout, like `zones`: a document that names none reads and
+   *  exports exactly as it did before the field existed. */
+  environments: Environment[];
   components: Component[];
   technologies: Technology[];
   flows: Flow[];

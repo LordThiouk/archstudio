@@ -272,4 +272,4 @@ keep a file — a VPS, a Raspberry Pi, a container with a volume.
 
 ---
 
-MIT. [tonuxcorp.com](https://tonuxcorp.com)
+MIT. 

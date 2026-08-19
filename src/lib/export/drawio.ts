@@ -41,6 +41,7 @@
  */
 
 import type { Architecture } from '../types';
+import { environmentName, envsOf } from '../environments';
 import { MARK_LABELS } from '../marks';
 import { STATE_LABELS } from '../lifecycle';
 import {
@@ -196,6 +197,15 @@ function nodeCell(n: NodePlacement, sheet: Sheet): string {
   if (c.marks?.length) data.security = c.marks.map(m => MARK_LABELS[m][sheet.lang]).join(', ');
   if (c.state) data.state = STATE_LABELS[c.state][sheet.lang];
   if (c.url) data.link = c.url;
+  /* One entry per environment, keyed by the environment's own name so the field
+   * reads as "SA" rather than as an id nobody outside this document knows. The
+   * version and the note ride in the same value: draw.io's Edit Data is a flat
+   * string map, and three keys per environment would bury the addresses. */
+  envsOf(c, sheet.environments).forEach(e => {
+    const env = environmentName(sheet.environments, e.env);
+    const value = [e.url, e.version, e.note].filter(Boolean).join(' · ');
+    if (value) data[env] = value;
+  });
 
   return object(`n-${slug(c.id)}`, lines.join("<br>"), data,
     `<mxCell style="${attr(style)}" vertex="1" parent="1">`

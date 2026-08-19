@@ -29,12 +29,15 @@ import {
 } from '@/lib/lifecycle';
 import { describeMarks, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
 import {
+  componentsWithEnvs, envEntry, environmentName, environmentsInUse, envsOf
+} from '@/lib/environments';
+import {
   bandPlan, describeZone, inflatedUnion, layerRuns, layerSlots, withDescendants, zoneDepth,
   zonePad, zoneSvg, zonesInUse, type BandPlan, type Box
 } from '@/lib/zones';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
-  Architecture, CardItem, CardsSection, CompareSection, Component, Flow,
+  Architecture, CardItem, CardsSection, CompareSection, Component, Environment, Flow,
   ProjectWithData, Section, TableSection, TextSection, TimelineSection
 } from '@/lib/types';
 import './document.css';
@@ -173,6 +176,7 @@ function Body({ body, doc, T }: { body: DocBody; doc: Architecture; T: Strings }
     case 'intro': return <Intro doc={doc} />;
     case 'diagram': return <Figure doc={doc} T={T} />;
     case 'inventory': return <Inventory doc={doc} T={T} />;
+    case 'environments': return <Environments doc={doc} T={T} />;
     case 'section': return <SectionBody doc={doc} section={body.section} />;
     case 'flow': return <FlowBody doc={doc} flow={body.flow} T={T} />;
     case 'stack': return <Stack doc={doc} T={T} />;
@@ -481,6 +485,62 @@ function LayerCards({ doc, layer, colour, plan }: {
   );
 }
 
+/* ------------------------------------------------------------- environments */
+
+/* One row per component, one column per environment in use. The page someone
+ * prints before a release, so it is addresses first: the version rides under
+ * the URL in a lighter ink rather than taking a column of its own, because a
+ * table three columns wide per environment does not fit A4 past two of them. */
+function Environments({ doc, T }: { doc: Architecture; T: Strings }) {
+  const envs = environmentsInUse(doc.components, doc.environments);
+  const rows = componentsWithEnvs(doc.components);
+  if (!envs.length || !rows.length) return null;
+
+  return (
+    <>
+      <table className="paper-table paper-envs">
+        <thead>
+          <tr>
+            <th style={{ width: '22%' }}>{T.component}</th>
+            {envs.map(env => <th key={env.id}>{env.name}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(c => (
+            <tr key={c.id}>
+              <td>{c.name}</td>
+              {envs.map(env => {
+                const e = envEntry(c, env.id);
+                if (!e) return <td key={env.id}>{T.dash}</td>;
+                return (
+                  <td key={env.id}>
+                    {e.url && <span className="paper-envurl">{e.url}</span>}
+                    {(e.version || e.note) && (
+                      <span className="paper-envmeta">
+                        {[e.version, e.note].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                    {!e.url && !e.version && !e.note && T.dash}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* The environment's own note, once under the table rather than repeated
+          in every cell of its column. */}
+      {envs.some(e => e.note) && (
+        <ul className="paper-envnotes">
+          {envs.filter(e => e.note).map(e => (
+            <li key={e.id}><b>{e.name}</b> — {e.note}</li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 /* ---------------------------------------------------------------- inventory */
 
 function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
@@ -533,7 +593,10 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
         <>
           <h3 className="paper-h3">{T.detail}</h3>
           <div className="paper-sheets">
-            {detailed.map(c => <Sheet key={c.id} comp={c} named={named} colour={colour} T={T} lang={lang} />)}
+            {detailed.map(c => (
+              <Sheet key={c.id} comp={c} named={named} colour={colour}
+                environments={doc.environments} T={T} lang={lang} />
+            ))}
           </div>
         </>
       )}
@@ -541,8 +604,9 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
   );
 }
 
-function Sheet({ comp, named, colour, T, lang }: {
+function Sheet({ comp, named, colour, environments, T, lang }: {
   comp: Component; named: (id: string) => string; colour: (id: string) => string;
+  environments: Environment[];
   T: Strings; lang: 'en' | 'fr';
 }) {
   return (
@@ -561,6 +625,24 @@ function Sheet({ comp, named, colour, T, lang }: {
           in a meeting, and "OpenShift" on its own line is not a sentence. */}
       {comp.deployedOn && (
         <p className="paper-deployed">{T.deployedOn} — {comp.deployedOn}</p>
+      )}
+      {/* The same rows the environments table holds, repeated here because a
+          detail sheet is read on its own — someone who turned to this page for
+          one component should not have to find the table again. */}
+      {!!envsOf(comp, environments).length && (
+        <dl className="paper-envlist">
+          {envsOf(comp, environments).map(e => (
+            <div key={e.env}>
+              <dt>{environmentName(environments, e.env)}</dt>
+              <dd>
+                {e.url && <span className="paper-envurl">{e.url}</span>}
+                {(e.version || e.note) && (
+                  <span className="paper-envmeta">{[e.version, e.note].filter(Boolean).join(' · ')}</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
       )}
       {comp.role && <p {...rich(comp.role)} />}
       {!!comp.features?.length && (

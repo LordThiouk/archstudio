@@ -49,7 +49,7 @@ import { isArrowKey, searchComponents, stepSelection } from '@/lib/navigate';
 import {
   bandDropId, DEPTH, dropChangesAnything, layerDropId, PALETTE_NEW, railZoneDropId, resolveDrop
 } from '@/lib/dnd';
-import type { Architecture, Component, ProjectWithData, Zone } from '@/lib/types';
+import type { Architecture, Component, ProjectWithData, RevisionRecord, Zone } from '@/lib/types';
 
 /* Which of the boxes under the pointer is meant.
  *
@@ -108,6 +108,10 @@ export default function Editor({ project }: { project: ProjectWithData }) {
   const [sheetZoom, setSheetZoom] = useState(1);
   const [hoverTarget, setHoverTarget] = useState<string | null>(null);
   const [history, setHistory] = useState(false);
+  /* A stored version being read in the Preview tab. Editor state rather than the
+   * panel's, because it outlives the panel — you close the versions list and
+   * keep reading the version. */
+  const [viewing, setViewing] = useState<RevisionRecord | null>(null);
   const [enrich, setEnrich] = useState(false);
   const [catalog, setCatalog] = useState<LegoCatalogSnapshot | null>(null);
   const [placementRequest, setPlacementRequest] = useState<{ callerId?: string; suggestion?: LegoDependencySuggestion } | null>(null);
@@ -531,15 +535,16 @@ export default function Editor({ project }: { project: ProjectWithData }) {
             )}
 
             <button className="btn" onClick={() => setHistory(true)}
-              title="Earlier versions, and what changed since each one">
-              <Icon name="clock" size={15} />History
+              title="The versions of this architecture, and what changed between them">
+              <Icon name="clock" size={15} />Versions
             </button>
 
             <ExportMenu projectId={project.id} name={project.name} notify={notify} />
           </div>
 
           {mode === 'preview' ? (
-            <PreviewPane projectId={project.id} version={doc} saveState={save} />
+            <PreviewPane projectId={project.id} version={doc} saveState={save}
+              viewing={viewing} onBackToCurrent={() => setViewing(null)} />
           ) : mode === 'content' ? (
             <ContentEditor doc={doc} patch={patch} catalog={catalog} notify={notify} />
           ) : (
@@ -638,6 +643,8 @@ export default function Editor({ project }: { project: ProjectWithData }) {
       {history && (
         <History projectId={project.id} doc={doc} dirty={save !== 'saved'}
           onClose={() => setHistory(false)}
+          onView={row => { setViewing(row); setMode('preview'); setHistory(false); }}
+          onFroze={data => { adopt(data); notify(`Frozen as ${data.meta.version}`); }}
           onRestore={data => {
             /* The restore already wrote the document server-side. Adopting it
              * here keeps the canvas, the inspector and the preview in step —
@@ -2452,24 +2459,58 @@ function EdgeLegend({ doc, fold }: { doc: Architecture; fold: RailFolds }) {
 
 /* ------------------------------------------------------------------ preview */
 
-function PreviewPane({ projectId, version, saveState }: {
+function PreviewPane({ projectId, version, saveState, viewing, onBackToCurrent }: {
   projectId: string; version: Architecture; saveState: SaveState;
+  /** A stored version being read instead of the live document, or null. */
+  viewing: RevisionRecord | null;
+  onBackToCurrent: () => void;
 }) {
   const [src, setSrc] = useState('');
-  const key = useMemo(() => JSON.stringify(version).length + ':' + saveState, [version, saveState]);
+  const key = useMemo(
+    () => (viewing ? `r:${viewing.id}` : JSON.stringify(version).length + ':' + saveState),
+    [version, saveState, viewing]
+  );
 
   useEffect(() => {
-    /* wait for the autosave to land, then render the real export */
-    if (saveState !== 'saved') return;
+    /* A stored version is already saved by definition, so it renders straight
+     * away; the live document waits for the autosave to land first, or the
+     * preview would be one keystroke behind the sheet it claims to be. */
+    if (!viewing && saveState !== 'saved') return;
     let alive = true;
-    fetch(`/api/projects/${projectId}/export?format=html&inline=1`)
+    const at = `/api/projects/${projectId}/export?format=html&inline=1`
+      + (viewing ? `&revisionId=${encodeURIComponent(viewing.id)}` : '');
+    fetch(at)
       .then(r => r.text())
       .then(html => { if (alive) setSrc(html); });
     return () => { alive = false; };
-  }, [projectId, key, saveState]);
+  }, [projectId, key, saveState, viewing]);
 
-  if (saveState !== 'saved' && !src) {
-    return <div className="empty">Saving your last change…</div>;
-  }
-  return <iframe className="previewframe" srcDoc={src} title="Preview" sandbox="allow-scripts allow-popups" />;
+  const frame = saveState !== 'saved' && !src && !viewing
+    ? <div className="empty">Saving your last change…</div>
+    : <iframe className="previewframe" srcDoc={src} title="Preview" sandbox="allow-scripts allow-popups" />;
+
+  if (!viewing) return frame;
+
+  /* The banner is the whole safety of this feature. What is in the frame is a
+     complete, valid drawing with no mark on it saying how old it is — so the
+     only thing standing between reading September's diagram and believing it is
+     today's is this line. */
+  return (
+    <div className="previewwrap">
+      <div className="viewingbar">
+        <Icon name="clock" size={14} />
+        <b>{[viewing.version, viewing.label].filter(Boolean).join(' — ') || 'An earlier version'}</b>
+        <span className="mono">{viewing.componentCount} comp.</span>
+        <span className="spacer" />
+        <a className="btn sm" href={`/api/projects/${projectId}/export?format=html&revisionId=${viewing.id}`}>
+          <Icon name="download" size={13} />Export this version
+        </a>
+        <a className="btn sm" href={`/projects/${projectId}/document?revision=${viewing.id}`} target="_blank" rel="noopener">
+          <Icon name="file" size={13} />Document
+        </a>
+        <button className="btn sm primary" onClick={onBackToCurrent}>Back to current</button>
+      </div>
+      {frame}
+    </div>
+  );
 }

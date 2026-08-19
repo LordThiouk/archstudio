@@ -73,11 +73,19 @@ scheduled. It is the *stroke* and not the colour because colour already means sc
 survives a monochrome print. All of it is optional, and an edge nobody has annotated draws
 exactly as it always did.
 
-**History** — every save older than five minutes since the last one writes a snapshot. The
-**History** button lists them and, for each, what changed *since* it: components added and
-removed, renames, moves between layers, edges gained and lost, sections and chapters. Name a
-version (“sent to the client”) and it is kept for good — the 30-snapshot cap only ever prunes
-automatic ones. Restoring writes a *Before restore* snapshot first, so a restore is itself
+**Versions** — a diagram that is worth drawing is one that keeps changing, so the **Versions**
+button holds the series it went through. **Freeze** the document under a number and a title
+(“v1.2 — sent to the client”) and it is kept for good; the live document sits at the head of the
+list as **Current**, with how far it has drifted since the last one. A frozen version is a place
+you can go rather than a point to subtract from: **view** it in the Preview tab, **export** it to
+HTML, SVG, PNG or draw.io, and **print** it — each one carries its own number on its cover and in
+the viewer's subtitle, because freezing writes the number into the document itself.
+
+Any two versions can be **compared**, not just each one against now: what changed between the
+September board and the October one is a question you can ask. Under the series are the automatic
+**snapshots** — one every five minutes while you edit, capped at 30, plus the ones the app writes
+before a restore or an enrichment. They are still there and still restorable; naming one promotes
+it into the series. Restoring writes a *Before restore* snapshot first, so a restore is itself
 undoable.
 
 **Preview** — the preview tab is not a re-implementation. It renders, in an iframe, byte-for-byte
@@ -535,6 +543,7 @@ src/lib/lifecycle.ts   the three transition marks and what each commits you to
 src/lib/marks.ts       the closed security set, its icons and its key
 src/lib/deployment.ts  where a component runs, and why it is not a zone
 src/lib/environments.ts dev / SA / prod, and one address per component per stage
+src/lib/versions.ts    what makes a snapshot a version, and the next number
 src/lib/zones.ts       the zone tree, the run ordering, and the measured union
 ```
 
@@ -658,13 +667,28 @@ first import with `No such built-in module: node:sqlite`. CI runs the suite on 2
 on current, so that floor is a tested number rather than a remembered one.
 
 **Revisions.** Every save older than five minutes since the last snapshot writes one. The cap of
-30 per project applies to automatic snapshots only: a named checkpoint is never pruned, and the
+30 per project applies to automatic snapshots only: a named row is never pruned, and the
 *Before restore* snapshots a restore leaves behind keep their own ceiling of five. Snapshots are
 ordered `created_at DESC, rowid DESC` — `datetime('now')` has one-second granularity, so naming a
 checkpoint during an autosave otherwise leaves two rows in the same second with no defined order.
-The full surface is `GET/POST/PATCH/DELETE /api/projects/:id/revisions`, driven by the **History**
+The full surface is `GET/POST/PATCH/DELETE /api/projects/:id/revisions`, driven by the **Versions**
 button in the editor. What that panel shows is computed by `src/lib/diff.ts`, which turns two
 documents into sentences rather than a JSON diff.
+
+**A version stores no more than a snapshot does.** The schema is `CREATE TABLE IF NOT EXISTS`
+re-exec'd on every connection and there is no `ALTER TABLE` anywhere, so a column added to
+`revisions` would land on fresh databases and never on an installed one. It is not needed: a
+version's *title* is the row's `label`, which is what a label already was, and its *number* is the
+`meta.version` of the document inside the snapshot — read back in the same `JSON.parse` that
+already counted the components. Freezing therefore *edits the document* before snapshotting it,
+which is why an exported version prints its own number without anything downstream being told
+which revision it came from. The three kinds a row can be — a version, one of the app's own
+checkpoints, an automatic save — are derived from the label in `src/lib/versions.ts`; the machine
+labels live there too, so the prune SQL and the panel cannot drift apart on them.
+
+`?revisionId=` on the export route and `?revision=` on the document page are what make a stored
+version viewable, exportable and printable. Both fall back to the live document, so nothing about
+the normal path changed.
 
 ---
 

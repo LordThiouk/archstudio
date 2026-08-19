@@ -52,6 +52,7 @@ const STRINGS = {
     back: 'Back to the editor', print: 'Print · Save as PDF', contents: 'Contents',
     hint: 'Print to “Save as PDF”. Keep background graphics on, or the scope colours disappear.',
     version: 'Version', updated: 'Last edited', figure: 'Figure — component diagram',
+    aVersion: 'An earlier version', backToCurrent: 'Back to the current version',
     component: 'Component', scope: 'Scope', deployedOn: 'Deployed on',
     tech: 'Technologies', role: 'Role',
     dependsOn: 'Depends on', detail: 'Component detail', notes: 'Notes',
@@ -62,6 +63,7 @@ const STRINGS = {
     back: "Retour à l'éditeur", print: 'Imprimer · Enregistrer en PDF', contents: 'Sommaire',
     hint: 'Imprime vers « Enregistrer au format PDF ». Garde les graphiques d’arrière-plan activés, sinon les couleurs de périmètre disparaissent.',
     version: 'Version', updated: 'Dernière modification', figure: 'Figure — schéma des composants',
+    aVersion: 'Une version antérieure', backToCurrent: 'Revenir à la version courante',
     component: 'Composant', scope: 'Périmètre', deployedOn: 'Déployé sur',
     tech: 'Technologies', role: 'Rôle',
     dependsOn: 'Dépend de', detail: 'Détail des composants', notes: 'Notes',
@@ -75,7 +77,12 @@ type Strings = Record<keyof typeof STRINGS['en'], string>;
 /** Inline `<b>`, `<i>`, `<code>` render as markup — same contract as the viewer. */
 const rich = (html: string) => ({ dangerouslySetInnerHTML: { __html: html } });
 
-export default function PaperDocument({ project }: { project: ProjectWithData }) {
+export default function PaperDocument({ project, viewing = null }: {
+  project: ProjectWithData;
+  /** Set when `?revision=` asked for a stored version rather than the live
+   *  document. Nothing about the sheet changes — the banner above it does. */
+  viewing?: { label: string | null; version: string | null; createdAt: string } | null;
+}) {
   const doc = project.data;
   const outline = useMemo(() => buildOutline(doc), [doc]);
   const contents = useMemo(() => toc(outline), [outline]);
@@ -88,7 +95,21 @@ export default function PaperDocument({ project }: { project: ProjectWithData })
           <Icon name="back" size={15} />{T.back}
         </Link>
         <b className="paper-bar-name">{project.name}</b>
-        <span className="paper-bar-hint">{T.hint}</span>
+        {/* Which version this is, on the bar and not on the page: the sheet
+            below is the version's own document and already prints its number on
+            the cover. This is here so nobody prints an old drawing thinking it
+            is today's. Not printed — `.paper-bar` is `display:none` on paper. */}
+        {viewing
+          ? (
+            <span className="paper-bar-version">
+              <Icon name="clock" size={13} />
+              {[viewing.version, viewing.label].filter(Boolean).join(' — ') || T.aVersion}
+              <Link className="paper-btn sm" href={`/projects/${project.id}/document`}>
+                {T.backToCurrent}
+              </Link>
+            </span>
+          )
+          : <span className="paper-bar-hint">{T.hint}</span>}
         <button className="paper-btn primary" onClick={() => window.print()}>
           <Icon name="download" size={15} />{T.print}
         </button>

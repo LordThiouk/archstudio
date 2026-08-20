@@ -105,3 +105,56 @@ test('prices are optional and clearable', () => {
   S.saveAiSettings({ inputPrice: null, outputPrice: null });
   assert.equal(S.resolveAiConfig()?.inputPrice, undefined);
 });
+
+/* ------------------------------------------------- an endpoint from the env
+ *
+ * The key could always come from the environment; the endpoint could not, which
+ * left an enterprise running its own inference instance automating half a
+ * configuration and typing the other half into a dialog on every fresh volume.
+ * Only the two providers whose endpoint the dialog actually offers take one. */
+
+test('an internal endpoint arrives from the environment with no dialog visit', () => {
+  process.env.POOLSIDE_BASE_URL = 'https://poolside.acme.internal/v1';
+  process.env.POOLSIDE_API_KEY = 'ps-from-env-1234';
+  S.saveAiSettings({ provider: 'poolside', model: 'poolside/laguna-s-2.1' });
+
+  const cfg = S.resolveAiConfig();
+  assert.equal(cfg?.baseUrl, 'https://poolside.acme.internal/v1');
+  assert.equal(cfg?.apiKey, 'ps-from-env-1234');
+
+  /* And the dialog says where it came from, rather than showing it as if
+   * someone had typed it. */
+  const shown = S.publicAiSettings();
+  assert.equal(shown.baseUrl, 'https://poolside.acme.internal/v1');
+  assert.equal(shown.baseUrlFromEnv, true);
+  assert.equal(shown.configured, true);
+});
+
+test('a typed endpoint beats the environment, and the dialog stops claiming otherwise', () => {
+  process.env.POOLSIDE_BASE_URL = 'https://poolside.acme.internal/v1';
+  S.saveAiSettings({
+    provider: 'poolside', model: 'm', apiKey: 'ps-typed', baseUrl: 'https://typed.example/v1'
+  });
+  assert.equal(S.resolveAiConfig()?.baseUrl, 'https://typed.example/v1');
+  assert.equal(S.publicAiSettings().baseUrlFromEnv, false);
+});
+
+test('the environment cannot redirect a provider whose endpoint is presented as fixed', () => {
+  /* Gemini declares no `envBaseUrl`, so a variable named after it is inert —
+   * a config that silently called somewhere else, with no field on screen to
+   * reveal it, is the failure this asymmetry exists to prevent. */
+  process.env.GEMINI_BASE_URL = 'https://not-google.example/v1';
+  S.saveAiSettings({ provider: 'gemini', model: 'gemini-x', apiKey: 'AIza-test' });
+  assert.match(String(S.resolveAiConfig()?.baseUrl), /generativelanguage\.googleapis\.com/);
+  assert.equal(S.publicAiSettings().baseUrlFromEnv, false);
+  delete process.env.GEMINI_BASE_URL;
+});
+
+test('the endpoint the dialog shows is the endpoint a run will call', () => {
+  /* These two resolved the field through different chains before: one fell back
+   * to the registry default and the other did not, so the dialog could show a
+   * blank endpoint for a configuration that ran perfectly well. */
+  delete process.env.POOLSIDE_BASE_URL;
+  S.saveAiSettings({ provider: 'poolside', model: 'm', apiKey: 'ps-typed', baseUrl: '' });
+  assert.equal(S.publicAiSettings().baseUrl, S.resolveAiConfig()!.baseUrl);
+});

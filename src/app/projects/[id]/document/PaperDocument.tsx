@@ -19,12 +19,26 @@ import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 import { Mark, Wordmark } from '@/components/Brand';
 import { PALETTE } from '@/lib/defaults';
-import { displayLayerLabel } from '@/lib/layers';
-import { dashFor, describeLink, kindsInUse, LINK_DASH, LINK_KIND_LABELS, linkOf } from '@/lib/links';
+import { displayLayerLabel, layerTintEnabled, layerTintVar } from '@/lib/layers';
+import {
+  dashFor, describeLink, edgeLabelSvg, edgePlateText, kindsInUse, LINK_DASH, LINK_KIND_LABELS,
+  linkOf, protocolConvention, protocolNote
+} from '@/lib/links';
+import {
+  edgeOpacity, edgeStroke, STATE_LABELS, STATE_SIGN, stateTick, statesInUse
+} from '@/lib/lifecycle';
+import { describeMarks, MARK_ICON, MARK_LABELS, marksInUse } from '@/lib/marks';
+import {
+  componentsWithEnvs, envEntry, environmentName, environmentsInUse, envsOf
+} from '@/lib/environments';
+import {
+  bandPlan, describeZone, inflatedUnion, layerRuns, layerSlots, withDescendants, zoneDepth,
+  zonePad, zoneSvg, zonesInUse, type BandPlan, type Box
+} from '@/lib/zones';
 import { componentDescription } from '@/lib/document/concerns';
 import { anchor, buildOutline, supportLayerId, toc, type DocBody, type DocPart } from '@/lib/document/plan';
 import type {
-  Architecture, CardItem, CardsSection, CompareSection, Component, Flow,
+  Architecture, CardItem, CardsSection, CompareSection, Component, Environment, Flow,
   ProjectWithData, Section, TableSection, TextSection, TimelineSection
 } from '@/lib/types';
 import './document.css';
@@ -39,7 +53,9 @@ const STRINGS = {
     back: 'Back to the editor', print: 'Print · Save as PDF', contents: 'Contents',
     hint: 'Print to “Save as PDF”. Keep background graphics on, or the scope colours disappear.',
     version: 'Version', updated: 'Last edited', figure: 'Figure — component diagram',
-    component: 'Component', scope: 'Scope', tech: 'Technologies', role: 'Role',
+    aVersion: 'An earlier version', backToCurrent: 'Back to the current version',
+    component: 'Component', scope: 'Scope', deployedOn: 'Deployed on',
+    tech: 'Technologies', role: 'Role',
     dependsOn: 'Depends on', detail: 'Component detail', notes: 'Notes',
     technology: 'Technology', category: 'Category', description: 'Description',
     step: 'Step', dash: '—',
@@ -52,7 +68,9 @@ const STRINGS = {
     back: "Retour à l'éditeur", print: 'Imprimer · Enregistrer en PDF', contents: 'Sommaire',
     hint: 'Imprime vers « Enregistrer au format PDF ». Garde les graphiques d’arrière-plan activés, sinon les couleurs de périmètre disparaissent.',
     version: 'Version', updated: 'Dernière modification', figure: 'Figure — schéma des composants',
-    component: 'Composant', scope: 'Périmètre', tech: 'Technologies', role: 'Rôle',
+    aVersion: 'Une version antérieure', backToCurrent: 'Revenir à la version courante',
+    component: 'Composant', scope: 'Périmètre', deployedOn: 'Déployé sur',
+    tech: 'Technologies', role: 'Rôle',
     dependsOn: 'Dépend de', detail: 'Détail des composants', notes: 'Notes',
     technology: 'Technologie', category: 'Catégorie', description: 'Description',
     step: 'Étape', dash: '—',
@@ -68,7 +86,12 @@ type Strings = Record<keyof typeof STRINGS['en'], string>;
 /** Inline `<b>`, `<i>`, `<code>` render as markup — same contract as the viewer. */
 const rich = (html: string) => ({ dangerouslySetInnerHTML: { __html: html } });
 
-export default function PaperDocument({ project }: { project: ProjectWithData }) {
+export default function PaperDocument({ project, viewing = null }: {
+  project: ProjectWithData;
+  /** Set when `?revision=` asked for a stored version rather than the live
+   *  document. Nothing about the sheet changes — the banner above it does. */
+  viewing?: { label: string | null; version: string | null; createdAt: string } | null;
+}) {
   const doc = project.data;
   const outline = useMemo(() => buildOutline(doc), [doc]);
   const contents = useMemo(() => toc(outline), [outline]);
@@ -81,7 +104,21 @@ export default function PaperDocument({ project }: { project: ProjectWithData })
           <Icon name="back" size={15} />{T.back}
         </Link>
         <b className="paper-bar-name">{project.name}</b>
-        <span className="paper-bar-hint">{T.hint}</span>
+        {/* Which version this is, on the bar and not on the page: the sheet
+            below is the version's own document and already prints its number on
+            the cover. This is here so nobody prints an old drawing thinking it
+            is today's. Not printed — `.paper-bar` is `display:none` on paper. */}
+        {viewing
+          ? (
+            <span className="paper-bar-version">
+              <Icon name="clock" size={13} />
+              {[viewing.version, viewing.label].filter(Boolean).join(' — ') || T.aVersion}
+              <Link className="paper-btn sm" href={`/projects/${project.id}/document`}>
+                {T.backToCurrent}
+              </Link>
+            </span>
+          )
+          : <span className="paper-bar-hint">{T.hint}</span>}
         <button className="paper-btn primary" onClick={() => window.print()}>
           <Icon name="download" size={15} />{T.print}
         </button>
@@ -171,6 +208,7 @@ function Body({ body, doc, T }: { body: DocBody; doc: Architecture; T: Strings }
     case 'adr-index': return <AdrIndex body={body} T={T} />;
     case 'diagram': return <Figure doc={doc} T={T} />;
     case 'inventory': return <Inventory doc={doc} T={T} />;
+    case 'environments': return <Environments doc={doc} T={T} />;
     case 'section': return <SectionBody doc={doc} section={body.section} />;
     case 'flow': return <FlowBody doc={doc} flow={body.flow} T={T} />;
     case 'glossary': return <Glossary doc={doc} body={body} T={T} />;
@@ -309,10 +347,13 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
    * scaled by a transform to fit the page, and a legend shrunk to 67 % of an
    * already small type size stops being readable. */
   const kinds = kindsInUse(doc.components);
+  const states = statesInUse(doc.components);
+  const marks = marksInUse(doc.components);
+  const note = protocolNote(protocolConvention(doc.ui.architecture), lang);
 
   return (
     <figure className="paper-figure">
-      <PaperDiagram doc={doc} />
+      <PaperDiagram doc={doc} lang={lang} />
       <figcaption>{T.figure}</figcaption>
       <ul className="paper-legend">
         {doc.groups.map(g => (
@@ -321,6 +362,32 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
           </li>
         ))}
       </ul>
+      {/* The security key. On paper it earns its place twice over: the reader
+          has no tooltip to hover and no search box to type "sso" into, so the
+          glyph is unreadable without it. */}
+      {!!marks.length && (
+        <div className="paper-edgekey paper-markkey">
+          {marks.map(m => (
+            <span key={m}><i><Icon name={MARK_ICON[m]} size={11} /></i>{MARK_LABELS[m][lang]}</span>
+          ))}
+        </div>
+      )}
+      {/* The transition key comes before the line-style key: on a landscape
+          sheet it is the reading the page was drawn to carry. Like the other
+          two it names the unmarked case, which is the only state with no mark
+          to point at and by far the most common. */}
+      {!!states.length && (
+        <div className="paper-edgekey paper-statekey">
+          {states.map(s => (
+            <span key={s}><i className={`tick st-${s}`}>{STATE_SIGN[s]}</i>{STATE_LABELS[s][lang]}</span>
+          ))}
+          <span className="paper-statenote">
+            {lang === 'fr'
+              ? 'Les composants et les appels sans marque existent déjà.'
+              : 'Unmarked components and calls already exist.'}
+          </span>
+        </div>
+      )}
       {!!kinds.length && (
         <div className="paper-edgekey">
           {kinds.map(k => (
@@ -334,11 +401,12 @@ function Figure({ doc, T }: { doc: Architecture; T: Strings }) {
           ))}
         </div>
       )}
+      {note && <p className="paper-protonote">{note}</p>}
     </figure>
   );
 }
 
-function PaperDiagram({ doc }: { doc: Architecture }) {
+function PaperDiagram({ doc, lang }: { doc: Architecture; lang: 'en' | 'fr' }) {
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState('');
@@ -347,6 +415,14 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
   const colour = useCallback(
     (gid: string) => doc.groups.find(g => g.id === gid)?.color || PALETTE[0],
     [doc.groups]
+  );
+
+  /* One plan for the sheet, not one per layer: a band is the same range of
+   * columns on every row, which is the whole reason a zone's rectangle can only
+   * hold what belongs to it. */
+  const plan = useMemo(
+    () => (doc.zones.length ? bandPlan(doc.components, doc.zones, doc.layers) : null),
+    [doc.zones, doc.components, doc.layers]
   );
 
   /* Coordinates come from `offsetLeft/offsetTop`, not `getBoundingClientRect`:
@@ -358,7 +434,11 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
     const support = supportLayerId(doc);
     const index = Object.fromEntries(doc.layers.map((l, i) => [l.id, i]));
     const byId = Object.fromEntries(doc.components.map(c => [c.id, c]));
+    const conv = protocolConvention(doc.ui.architecture);
     let out = '';
+    /* Apart, and appended: every plate has to paint over every line, not only
+     * over the ones that happen to be drawn before it. */
+    let labels = '';
 
     doc.components.forEach(c => (c.deps || []).forEach(dep => {
       const target = byId[dep];
@@ -390,19 +470,47 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
        * the print scale of .67 a 30 %-opacity endpoint disappears into the
        * paper. */
       const col = colour(c.group);
-      const dash = dashFor(linkOf(c, dep)?.kind);
-      out += `<g opacity=".45">`
+      const link = linkOf(c, dep);
+      const dash = dashFor(link?.kind);
+      /* The sheet is printed at ~.67, so the plate is the only thing keeping
+       * 9 px type off the curve it labels. Full strength: paper has no hover
+       * to reveal what it faded. */
+      const label = edgePlateText(link, conv);
+      if (label) labels += edgeLabelSvg(x1, y1, k1, x2, y2, k2, label);
+      /* Paper prints the whole delta — there is no Transition toggle to flip,
+       * so a removal is a ghost of an ordinary edge rather than absent. */
+      out += `<g opacity="${edgeOpacity(link?.state, .45).toFixed(3)}">`
            + `<path d="M${x1},${y1} C${x1},${y1 + k1} ${x2},${y2 + k2} ${x2},${y2}" fill="none" `
-           + `stroke="${col}" stroke-width="1.2" stroke-linecap="round"`
+           + `stroke="${col}" stroke-width="${edgeStroke(link?.state, 1.2)}" stroke-linecap="round"`
            + `${dash ? ` stroke-dasharray="${dash}"` : ''}/>`
            + `<circle cx="${x1}" cy="${y1}" r="3.5" fill="${col}"/>`
            + `<circle cx="${x2}" cy="${y2}" r="3" style="fill:var(--panel)" stroke="${col}" stroke-width="1.5"/>`
            + `</g>`;
     }));
 
-    setEdges(out);
+    /* Zones first, so every line and every card paints over the region rather
+     * than under it. Measured from the runs, through the same `offsetLeft`
+     * family the edges use: `.zrun` is static and `.paper-layer-row` is static,
+     * so a run's offset parent is `.paper-stage`, exactly as a card's is. */
+    let zones = '';
+    zonesInUse(doc.zones, doc.components).forEach(zone => {
+      const family = withDescendants(zone.id, doc.zones);
+      const boxes: Box[] = [];
+      family.forEach(id => {
+        host.querySelectorAll<HTMLElement>(`.zrun[data-zone="${CSS.escape(id)}"]`).forEach(run => {
+          if (!run.offsetWidth && !run.offsetHeight) return;
+          boxes.push({
+            x: run.offsetLeft, y: run.offsetTop, w: run.offsetWidth, h: run.offsetHeight
+          });
+        });
+      });
+      const rect = inflatedUnion(boxes, zonePad(zone.id, doc.zones));
+      if (rect) zones += zoneSvg(zone, rect, zoneDepth(zone.id, doc.zones), describeZone(zone, lang));
+    });
+
+    setEdges(zones + out + (labels ? `<g class="edgelbl">${labels}</g>` : ''));
     setHeight(host.offsetHeight);
-  }, [doc, colour]);
+  }, [doc, colour, lang]);
 
   useLayoutEffect(() => { draw(); }, [draw]);
 
@@ -444,29 +552,138 @@ function PaperDiagram({ doc }: { doc: Architecture }) {
       <div ref={stage} className="paper-stage">
         <svg className="paper-edges" viewBox={`0 0 ${STAGE_W} ${height || 1}`}
           width={STAGE_W} height={height} dangerouslySetInnerHTML={{ __html: edges }} />
-        {doc.layers.map(layer => (
-          <div className="paper-layer" key={layer.id}>
+        {doc.layers.map((layer, i) => (
+          /* Only the index travels: the six values live in `document.css`, which
+             is what makes the printed band agree with the screen one. */
+          <div className="paper-layer" key={layer.id}
+            style={layerTintEnabled(doc.ui.architecture)
+              ? { ['--lc' as string]: layerTintVar(i) } : undefined}>
             <div className="paper-layer-head">
               <b>{displayLayerLabel(layer.name)}</b>{layer.desc && <em>{layer.desc}</em>}
             </div>
-            <div className="paper-layer-row">
-              {doc.components.filter(c => c.layer === layer.id).map(c => (
-                <div className="paper-node" key={c.id} data-comp={c.id}
-                  style={{ ['--c' as string]: colour(c.group) }}>
-                  <div className="nh">
-                    <span className="ic"><Icon name={c.icon || 'box'} size={13} /></span>
-                    <span className="nm">{c.name}</span>
-                  </div>
-                  {!!c.tech?.length && (
-                    <div className="tech">{c.tech.map(t => <span key={t}>{t}</span>)}</div>
-                  )}
-                </div>
-              ))}
+            <div className={`paper-layer-row${plan ? ' banded' : ''}`}
+              style={plan ? { ['--cols' as string]: plan.total } : undefined}>
+              <LayerCards doc={doc} layer={layer.id} colour={colour} plan={plan} />
             </div>
           </div>
         ))}
       </div>
     </div>
+  );
+}
+
+/* One run per zone, so a zone's cards stay contiguous even when the row wraps —
+ * that contiguity is what keeps its measured rectangle from enclosing a card it
+ * does not hold. The wrapper appears only on a document that has zones: not
+ * adding the element is how "a row of cards lays out like a row of one run of
+ * cards" stops being a thing anyone has to verify. */
+function LayerCards({ doc, layer, colour, plan }: {
+  doc: Architecture; layer: string; colour: (gid: string) => string; plan: BandPlan | null;
+}) {
+  const items = doc.components.filter(c => c.layer === layer);
+
+  const card = (c: Component) => (
+    <div className={`paper-node${c.state ? ` st-${c.state}` : ''}`} key={c.id}
+      data-comp={c.id} style={{ ['--c' as string]: colour(c.group) }}>
+      {c.state && <span className="tick">{stateTick(c.state)}</span>}
+      <div className="nh">
+        <span className="ic"><Icon name={c.icon || 'box'} size={13} /></span>
+        <span className="nm">{c.name}</span>
+        {!!c.marks?.length && (
+          <span className="marks">
+            {c.marks.map(m => <i key={m}><Icon name={MARK_ICON[m]} size={10} /></i>)}
+          </span>
+        )}
+      </div>
+      {/* Where it runs leads the row, outlined against the tinted technology
+          pills — the same treatment the canvas gives it, and the reason it does
+          not read as one more thing the component is built with. */}
+      {(c.deployedOn || !!c.tech?.length) && (
+        <div className="tech">
+          {c.deployedOn && <span className="place">{c.deployedOn}</span>}
+          {c.tech?.map(t => <span key={t}>{t}</span>)}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!plan) return <>{items.map(card)}</>;
+  const runs = layerRuns(items, doc.zones);
+  /* Ranked per layer, so a group whose first shelf is empty here does not leave
+   * a dead row at the top of it — and no shelf number is ever skipped, which is
+   * what keeps the implicit rows this grid creates free of a stray `row-gap`. */
+  const slots = layerSlots(runs, plan);
+  return (
+    <>
+      {runs.map(run => {
+        const band = plan.band(run.zone);
+        return (
+          <div className="zrun" key={run.zone || ''} data-zone={run.zone || undefined}
+            style={band ? {
+              gridColumn: `${band.start} / span ${band.span}`,
+              gridRow: `${slots.row(run.zone)}`
+            } : undefined}>
+            {run.items.map(card)}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------- environments */
+
+/* One row per component, one column per environment in use. The page someone
+ * prints before a release, so it is addresses first: the version rides under
+ * the URL in a lighter ink rather than taking a column of its own, because a
+ * table three columns wide per environment does not fit A4 past two of them. */
+function Environments({ doc, T }: { doc: Architecture; T: Strings }) {
+  const envs = environmentsInUse(doc.components, doc.environments);
+  const rows = componentsWithEnvs(doc.components);
+  if (!envs.length || !rows.length) return null;
+
+  return (
+    <>
+      <table className="paper-table paper-envs">
+        <thead>
+          <tr>
+            <th style={{ width: '22%' }}>{T.component}</th>
+            {envs.map(env => <th key={env.id}>{env.name}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(c => (
+            <tr key={c.id}>
+              <td>{c.name}</td>
+              {envs.map(env => {
+                const e = envEntry(c, env.id);
+                if (!e) return <td key={env.id}>{T.dash}</td>;
+                return (
+                  <td key={env.id}>
+                    {e.url && <span className="paper-envurl">{e.url}</span>}
+                    {(e.version || e.note) && (
+                      <span className="paper-envmeta">
+                        {[e.version, e.note].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                    {!e.url && !e.version && !e.note && T.dash}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* The environment's own note, once under the table rather than repeated
+          in every cell of its column. */}
+      {envs.some(e => e.note) && (
+        <ul className="paper-envnotes">
+          {envs.filter(e => e.note).map(e => (
+            <li key={e.id}><b>{e.name}</b> — {e.note}</li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -477,16 +694,21 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
   const colour = (id: string) => doc.groups.find(g => g.id === id)?.color || '#94A3B8';
   const named = (id: string) => doc.components.find(c => c.id === id)?.name || id;
   const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
-  const detailed = doc.components.filter(c => c.features?.length || c.notes?.length || c.deps?.length);
+  /* A component whose only content is a transition mark or a security mark
+   * still earns a sheet: on paper those are the two readings with no tooltip
+   * and no drawer to fall back on. */
+  const detailed = doc.components.filter(c =>
+    c.features?.length || c.notes?.length || c.deps?.length || c.marks?.length || c.state);
 
   return (
     <>
       <table className="paper-table">
         <thead>
           <tr>
-            <th style={{ width: '24%' }}>{T.component}</th>
-            <th style={{ width: '18%' }}>{T.scope}</th>
-            <th style={{ width: '26%' }}>{T.tech}</th>
+            <th style={{ width: '22%' }}>{T.component}</th>
+            <th style={{ width: '16%' }}>{T.scope}</th>
+            <th style={{ width: '16%' }}>{T.deployedOn}</th>
+            <th style={{ width: '22%' }}>{T.tech}</th>
             <th>{T.role}</th>
           </tr>
         </thead>
@@ -495,7 +717,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
           if (!items.length) return null;
           return (
             <tbody key={layer.id}>
-              <tr className="paper-tr-group"><th colSpan={4}>{displayLayerLabel(layer.name)}</th></tr>
+              <tr className="paper-tr-group"><th colSpan={5}>{displayLayerLabel(layer.name)}</th></tr>
               {items.map(c => (
                 <tr key={c.id}>
                   <td>{c.name}</td>
@@ -503,6 +725,7 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
                     <i className="paper-dot" style={{ background: colour(c.group) }} />
                     {groupName(c.group)}
                   </td>
+                  <td>{c.deployedOn || T.dash}</td>
                   <td>{c.tech?.length ? c.tech.join(' · ') : T.dash}</td>
                   <td>{c.role || T.dash}</td>
                 </tr>
@@ -516,7 +739,10 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
         <>
           <h3 className="paper-h3">{T.detail}</h3>
           <div className="paper-sheets">
-            {detailed.map(c => <Sheet key={c.id} comp={c} named={named} colour={colour} T={T} lang={lang} />)}
+            {detailed.map(c => (
+              <Sheet key={c.id} comp={c} named={named} colour={colour}
+                environments={doc.environments} T={T} lang={lang} />
+            ))}
           </div>
         </>
       )}
@@ -524,8 +750,9 @@ function Inventory({ doc, T }: { doc: Architecture; T: Strings }) {
   );
 }
 
-function Sheet({ comp, named, colour, T, lang }: {
+function Sheet({ comp, named, colour, environments, T, lang }: {
   comp: Component; named: (id: string) => string; colour: (id: string) => string;
+  environments: Environment[];
   T: Strings; lang: 'en' | 'fr';
 }) {
   return (
@@ -533,7 +760,36 @@ function Sheet({ comp, named, colour, T, lang }: {
       <h4>
         <span className="paper-ic"><Icon name={comp.icon || 'box'} size={14} /></span>
         {comp.name}
+        {comp.state && <span className="paper-tick">{stateTick(comp.state)}</span>}
       </h4>
+      {/* Spelled out in words, not left to the glyph: this is the sheet someone
+          quotes in a meeting, and "lock" is not a sentence. */}
+      {!!comp.marks?.length && (
+        <p className="paper-marks">{describeMarks(comp.marks, lang)}</p>
+      )}
+      {/* With its label, not as a bare word: this is the sheet someone quotes
+          in a meeting, and "OpenShift" on its own line is not a sentence. */}
+      {comp.deployedOn && (
+        <p className="paper-deployed">{T.deployedOn} — {comp.deployedOn}</p>
+      )}
+      {/* The same rows the environments table holds, repeated here because a
+          detail sheet is read on its own — someone who turned to this page for
+          one component should not have to find the table again. */}
+      {!!envsOf(comp, environments).length && (
+        <dl className="paper-envlist">
+          {envsOf(comp, environments).map(e => (
+            <div key={e.env}>
+              <dt>{environmentName(environments, e.env)}</dt>
+              <dd>
+                {e.url && <span className="paper-envurl">{e.url}</span>}
+                {(e.version || e.note) && (
+                  <span className="paper-envmeta">{[e.version, e.note].filter(Boolean).join(' · ')}</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {comp.role && <p {...rich(comp.role)} />}
       {!!comp.features?.length && (
         <ul className="paper-bullets">{comp.features.map((f, i) => <li key={i} {...rich(f)} />)}</ul>

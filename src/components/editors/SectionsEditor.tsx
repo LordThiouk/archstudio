@@ -18,6 +18,7 @@ import type {
   Section, SectionType, TableColumn, TableSection, TextBlock, TextSection,
   TimelinePhase, TimelineSection
 } from '@/lib/types';
+import type { Notify } from '@/lib/undo';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 type Mut<T> = (fn: (draft: T) => void) => void;
@@ -29,23 +30,24 @@ function fitRows(rows: string[][], n: number): string[][] {
   return rows.map(r => Array.from({ length: n }, (_, i) => r[i] ?? ''));
 }
 
-export default function SectionsEditor({ doc, patch }: { doc: Architecture; patch: Patch }) {
+export default function SectionsEditor({ doc, patch, notify }: {
+  doc: Architecture; patch: Patch; notify?: Notify;
+}) {
+  const toast: Notify = notify ?? ((text, undoable = true) => { void text; void undoable; });
   const [newType, setNewType] = useState<SectionType>('cards');
   const chosen = SECTION_TYPES.find(t => t.type === newType)!;
   const missing = missingGatedPresetSections(doc);
 
-  /* Gated chapters stay off the tab bar — pin current tabs first, then sync. */
+  /* Gated chapters stay off the tab bar — pin current tabs first, then sync.
+   * No confirm: the row already says what the chapters are; undo covers the rest. */
   const addPreset = () => {
-    if (!confirm(
-      `Add ${missing} design-document chapter(s) opened by the bricks on the canvas `
-      + '(IAM, data, networking…)?\n\n'
-      + 'They fill from catalog metadata. The viewer keeps its current tabs.'
-    )) return;
     patch(d => {
       if (!d.ui.tabs?.length) d.ui.tabs = naturalTabs(d).map(t => t.id);
       syncGatedPresetSections(d);
       return d;
     });
+    toast(`${missing} design-document chapter${missing === 1 ? '' : 's'} added — filled from catalog metadata; the viewer keeps its current tabs`);
+
   };
 
   const setSections = (next: Section[]) => patch(d => {
@@ -93,23 +95,32 @@ export default function SectionsEditor({ doc, patch }: { doc: Architecture; patc
         blank={() => blankSection(newType, doc.sections.map(s => s.id))}
         summary={s => s.tab || s.title || s.id}
         badge={s => <span className="count">{s.type}</span>}
-        render={(sec, set) => <SectionForm doc={doc} sec={sec} set={set} />} />
+        render={(sec, set) => <SectionForm doc={doc} sec={sec} set={set} notify={toast} />} />
     </Panel>
   );
 }
 
 /* ------------------------------------------------------------------- shell */
 
-export function SectionForm({ doc, sec, set }: { doc: Architecture; sec: Section; set: Mut<Section> }) {
+export function SectionForm({ doc, sec, set, notify }: {
+  doc: Architecture; sec: Section; set: Mut<Section>; notify?: Notify;
+}) {
+  const toast: Notify = notify ?? ((text, undoable = true) => { void text; void undoable; });
+  /* Both of the destructive edits below drop content and neither asks. They go
+   * through `patch`, so each is one step on the editor's undo stack, and the
+   * notice says what went and offers it straight back — which is the answer this
+   * app gives everywhere the document itself is what changed. */
+
   const changeType = (type: SectionType) => {
     if (type === sec.type) return;
-    if (!confirm(`Switch "${sec.tab || sec.title}" to a ${type} section? Its current content is dropped.`)) return;
+    const was = sec.type;
     set(s => {
       Object.keys(s).forEach(k => { if (!KEEP.includes(k)) delete s[k]; });
       const fresh = blankSection(type, []) as Record<string, unknown>;
       Object.entries(fresh).forEach(([k, v]) => { if (!KEEP.includes(k)) s[k] = v; });
       s.type = type;
     });
+    toast(`“${sec.tab || sec.title}” switched from ${was} to ${type} — its ${was} content was dropped`);
   };
 
   return (
@@ -142,7 +153,8 @@ export function SectionForm({ doc, sec, set }: { doc: Architecture; sec: Section
       {sec.type === 'cards' && <CardsForm doc={doc} sec={sec as CardsSection} set={set as Mut<CardsSection>} />}
       {sec.type === 'timeline' && <TimelineForm doc={doc} sec={sec as TimelineSection} set={set as Mut<TimelineSection>} />}
       {sec.type === 'table' && <TableForm doc={doc} sec={sec as TableSection} set={set as Mut<TableSection>} />}
-      {sec.type === 'compare' && <CompareForm doc={doc} sec={sec as CompareSection} set={set as Mut<CompareSection>} />}
+      {sec.type === 'compare' && <CompareForm doc={doc} sec={sec as CompareSection}
+        set={set as Mut<CompareSection>} notify={toast} />}
       {sec.type === 'text' && <TextForm doc={doc} sec={sec as TextSection} set={set as Mut<TextSection>} />}
     </>
   );
@@ -261,7 +273,10 @@ function TableForm({ doc, sec, set }: { doc: Architecture; sec: TableSection; se
 
 /* ----------------------------------------------------------------- compare */
 
-function CompareForm({ doc, sec, set }: { doc: Architecture; sec: CompareSection; set: Mut<CompareSection> }) {
+function CompareForm({ doc, sec, set, notify }: {
+  doc: Architecture; sec: CompareSection; set: Mut<CompareSection>; notify?: Notify;
+}) {
+  const toast: Notify = notify ?? ((text, undoable = true) => { void text; void undoable; });
   const poles = sec.columns || [];
   const tableHeaders = [sec.table?.firstColumn || 'Dimension', ...poles.map(p => p.short || p.title || '—')];
 
@@ -321,7 +336,9 @@ function CompareForm({ doc, sec, set }: { doc: Architecture; sec: CompareSection
               hint="One row per dimension. The remaining columns follow the poles above."
               onChange={rows => set(s => { s.table!.rows = rows; })} />
             <button className="btn sm danger" onClick={() => {
-              if (confirm('Remove the comparison table and its rows?')) set(s => { s.table = undefined; });
+              const rows = sec.table?.rows?.length ?? 0;
+              set(s => { s.table = undefined; });
+              toast(`Comparison table removed${rows ? ` — ${rows} row${rows === 1 ? '' : 's'} with it` : ''}`);
             }}>
               <Icon name="trash" size={13} />Remove the table
             </button>

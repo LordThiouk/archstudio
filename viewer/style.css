@@ -19,6 +19,13 @@
   --brand-soft:color-mix(in srgb,#0E7C8A 8%,transparent);
   --accent:#0E7C8A; --cyan:#00E5FF; --on-fill:#FFFFFF;
   --p1:#0099A0; --p2:#4F8AC6; --p3:#857AC4; --p4:#B26B9B; --p5:#519962;
+  /* The layer ramp. A separate palette from the scopes above, and separate on
+     purpose: lower chroma, a wider arc that includes warm hues the scope circle
+     never reaches, and it only ever appears on a band's label and the rule under
+     it — never on a chip or a pill. Position is what keeps the two readings
+     apart; the low chroma is what keeps a band from competing with a card. */
+  --lt1:#5B7FA6; --lt2:#5E9070; --lt3:#9A8149;
+  --lt4:#A5735F; --lt5:#8474A8; --lt6:#4E8C93;
   --bg:#EEF3F6; --panel:#FFFFFF; --panel-2:#F5F8FA; --panel-3:#F0F5F8;
   --ink:#0B1B2B; --ink-2:#3D566B; --ink-3:#8CA1B2;
   --line:#E7EEF2; --line-2:#DCE5EB; --line-3:#D3DEE5;
@@ -36,6 +43,10 @@ html[data-theme="dark"]{
   --brand-soft:color-mix(in srgb,#00E5FF 14%,transparent);
   --accent:#00E5FF; --cyan:#00E5FF; --on-fill:#0B1B2B;
   --p1:#14BBC2; --p2:#67AAED; --p3:#A497EA; --p4:#D686BC; --p5:#69BA7C;
+  /* The same six hues lifted onto the marine ground, where a .55-lightness ink
+     sinks into the navy and stops reading as a label at all. */
+  --lt1:#8FB3D9; --lt2:#8FC7A2; --lt3:#CFB57E;
+  --lt4:#D6A492; --lt5:#B5A6D6; --lt6:#85C0C7;
   --bg:#0B1B2B; --panel:#10263A; --panel-2:#142D42; --panel-3:#1A3650;
   --ink:#FFFFFF; --ink-2:#C3D0DA; --ink-3:#8CA1B2;
   --line:#1C3549; --line-2:#274459; --line-3:#2F4E64;
@@ -137,6 +148,8 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .edgekey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
 .edgekey span{display:inline-flex;align-items:center;gap:7px}
 .edgekey svg{width:34px;height:8px;flex:none;overflow:visible}
+/* The convention in words, in the same rail as the line styles it completes. */
+.edgekey .protonote{opacity:.85}
 
 /* ---------- Filters ---------- */
 .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
@@ -150,6 +163,14 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 /* Rule 1: a filtered scope fills, it does not outline. */
 .chip.pole[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 16%,transparent);border-color:var(--ink-3);color:var(--ink)}
+/* The second filter dimension — where things run. Monospace and swatchless so it
+   cannot be mistaken for a scope on the same bar: colour is scope's (rule 1) and
+   a platform name is something the machine knows (rule 3). Pressed, it takes the
+   plain ink fill, because it has no hue of its own to fill with. */
+.chip.mono{font-family:var(--mono);font-size:11px;font-weight:400}
+/* A hairline, not a gap: one bar, two dimensions, and the eye still needs to
+   know where the scopes stop. */
+.chipsplit{width:1px;align-self:stretch;margin:0 3px;background:color-mix(in srgb,var(--ink) 14%,transparent)}
 .hintline{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-left:auto}
 /* The reader's own controls over the sheet — density and scale. They sit at
    the end of the filter row rather than floating over the diagram, because the
@@ -198,12 +219,75 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
   background-size:24px 24px;opacity:.05;
 }
 #edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
-.layer{position:relative;z-index:2;padding:16px 0 6px;border-bottom:1px dashed var(--line-3)}
+/* The protocol on the line. An opaque plate rather than a halo: the curve runs
+   underneath, and a stroked outline on 9 px type turns to mud. Monospace and
+   muted ink — rule 3, this is something the machine knows, not prose. */
+.edgelbl rect{fill:var(--panel);stroke:var(--line-3);stroke-width:1}
+.edgelbl text{
+  font-family:var(--mono);font-size:9px;letter-spacing:.02em;
+  fill:var(--ink-3);text-anchor:middle;
+}
+/* `--lc` is the band's tint, set by the renderer. Every rule that uses it falls
+   back to the neutral it used before, so `layerTint:false` — which emits no
+   property at all — is the absence of this look rather than a second one. */
+.layer{
+  position:relative;z-index:2;padding:16px 0 6px;
+  border-bottom:1px dashed color-mix(in srgb,var(--lc,var(--line-3)) 42%,var(--line-3));
+}
 .layer:last-child{border-bottom:0}
 .layer-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.layer-head b{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:capitalize;color:var(--ink-3);font-weight:400}
+.layer-head b{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:capitalize;color:var(--lc,var(--ink-3));font-weight:400}
 .layer-head em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--ink-3);opacity:.8}
 .nodes{display:flex;flex-wrap:wrap;gap:12px}
+/* A zone's cards in one layer. Present only on a document that has zones, and
+   it mirrors its parent exactly so a single run lays out like a bare row. Its
+   job is to be a *box*: the zone rectangle is measured from these, and a real
+   element is what stops a wrapped row from interleaving two zones' cards. */
+.zrun{display:flex;flex-wrap:wrap;gap:12px;align-content:flex-start}
+
+/* The reserved bands. A card has a fixed width, so a band is a column count and
+   the whole plan is arithmetic — no measuring, which is what lets the export and
+   the printed sheet agree with the screen without a second layout pass.
+   The band is reserved on layers where its zone has nothing: that is why a zoned
+   sheet is wider than the same sheet unzoned, and it is the price of a boundary
+   that can only ever contain what was placed in it. */
+.canvas{--card-w:212px}
+.canvas.compact{--card-w:156px}
+/* 24 px between bands, not 12: every horizontal zone inset has to fit inside
+   that gutter (the ladder is 7/13/19) or a rule reaches into the next band's
+   card. Cards *within* a band stay 12 px apart — that is the run's own flex gap,
+   which the grid's track gaps do not touch. MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+/* Rows are the shelves: a group of columns can hold more than one zone, one
+   under the other, which is how a zone confined to a single layer stops costing
+   the whole sheet a band of width. Implicit tracks are enough — the row plan
+   never skips a shelf number, so no empty row can leave a stray `row-gap`.
+   32 px between shelves, like 24 between bands: the vertical zone inset ladder
+   is 14/23/32 and the whole of it has to fit, or a shelved zone's rule reaches
+   the card above. MIRRORS `SHELF_GAP` in lib/zones.ts. */
+.nodes.banded{
+  display:grid;grid-template-columns:repeat(var(--cols),var(--card-w));
+  row-gap:32px;column-gap:24px;align-items:start;justify-content:start;
+}
+/* A run fills its band rather than shrinking to its cards, so the rectangle
+   measured from it is band-shaped on every layer instead of jumping in and out
+   with the card count. `min-width:0` keeps a long name from widening the track. */
+.nodes.banded .zrun{min-width:0;justify-self:stretch}
+
+/* --------------------------------------------------------------- zones
+   Measured after layout and drawn into the edge SVG, behind every card. Two
+   treatments and no hue — colour is scope's (rule 1):
+     solid   a boundary you could point at in a room — a platform, a vendor
+     dashed  one that exists in a document — a network zone, a perimeter
+   The ground darkens by a hair per nesting level, which is the only thing
+   saying that one neutral rectangle is inside another. */
+.zone rect{fill:color-mix(in srgb,var(--ink) 3%,transparent);stroke:var(--line-3);stroke-width:1}
+.zone[data-depth="1"] rect{fill:color-mix(in srgb,var(--ink) 6%,transparent)}
+.zone[data-depth="2"] rect{fill:color-mix(in srgb,var(--ink) 9%,transparent)}
+.zone-dashed rect{stroke-dasharray:5 4}
+.zone text{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  fill:var(--ink-3);
+}
 /* A layer split into one column per scope. The rule carries the scope colour
    and the label names it, so the column needs no card around it — rule 1: the
    colour is an index, not a decoration. */
@@ -229,14 +313,81 @@ main{max-width:1440px;margin:0 auto;padding:28px 24px 90px}
 .node .ic{width:20px;height:20px;border-radius:0;background:var(--c);display:grid;place-items:center;flex:none}
 .node .ic svg{width:12px;height:12px;stroke:var(--on-fill);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .node .nm{font-size:13px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+/* --------------------------------------------------------- security marks
+   In the header row and pushed to the right edge, so they survive compact mode
+   — a dense sheet is exactly where "which of these is reachable without a
+   login" stops being answerable any other way. Neutral ink, never a hue: the
+   reference diagrams paint the SSO badge red, and colour is scope's (rule 1).
+   The glyph says "something about how this is reached"; the key says what. */
+.marks{margin-left:auto;display:flex;gap:5px;flex:none}
+.marks i{display:grid;place-items:center;width:15px;height:15px;color:var(--ink-2)}
+.marks svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.node.st-removed .marks i{color:var(--ink-3)}
+
+.markkey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.markkey span{display:inline-flex;align-items:center;gap:7px}
+.markkey i{display:grid;place-items:center;width:15px;height:15px;flex:none;color:var(--ink-2)}
+.markkey svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* The mark spelled out in the drawer, where there is room for the word. */
+.markpill{gap:5px}
+.markpill svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
 .node .tech{margin-top:9px;display:flex;flex-wrap:wrap;gap:5px}
 .node .tech span{
   font-family:var(--mono);font-size:10px;padding:3px 7px;border-radius:0;font-weight:400;
   background:color-mix(in srgb,var(--c) 14%,transparent);
   color:color-mix(in srgb,var(--c) 70%,var(--ink));
 }
+/* Where it runs, leading the row: the exact negative of a technology pill —
+   outlined and neutral where those are filled and tinted. A treatment and not a
+   hue, because colour is scope's (rule 1). */
+.node .tech .place{background:transparent;border:1px solid var(--line-3);color:var(--ink-2);padding:2px 6px}
 .node .url{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .node.dim{opacity:.16}
+
+/* ---------------------------------------------------------- the transition
+   Colour belongs to scope (rule 1) and teal to what you can act on (rule 2),
+   so the three marks take the border and a monospace tick — both of which
+   survive a monochrome print and a reader who cannot separate two hues.
+     new      dashed, because it is not there yet
+     changed  the neutral border pulled up to full ink: look here
+     removed  the name struck and the chip drained of its scope colour
+   `dropped` is the Transition toggle off: the thing is not in the target
+   state, so it leaves the flow instead of sitting there at 16 %. */
+.node.st-new{border-style:dashed;border-color:var(--ink-3)}
+.node.st-changed{border-color:var(--ink)}
+.node.st-removed .nm{text-decoration:line-through}
+.node.st-removed .ic{filter:grayscale(1)}
+.node.st-removed .nm,.node.st-removed .tech span{color:var(--ink-3)}
+.node.dropped{display:none}
+
+.node .tick,.ccard .tick{
+  position:absolute;top:-1px;left:-1px;
+  font-family:var(--mono);font-size:8px;letter-spacing:.1em;line-height:1;
+  padding:2px 4px;background:var(--ink);color:var(--panel);
+}
+.node.st-changed .tick{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.node.st-removed .tick{background:var(--ink-3)}
+
+/* The key. `.tick` again, but in the flow — the legend has no card corner. */
+.statekey{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.statekey span{display:inline-flex;align-items:center;gap:7px}
+.statekey .tick{
+  position:static;display:grid;place-items:center;width:14px;height:14px;flex:none;
+  font-family:var(--mono);font-size:10px;font-style:normal;line-height:1;
+  background:var(--ink);color:var(--panel);
+}
+.statekey .tick.st-changed{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.statekey .tick.st-removed{background:var(--ink-3)}
+.statekey .protonote{opacity:.85}
+
+/* The mark spelled out in the drawer. The tick is three letters on a card
+   because a card has no room; the sheet has room, so it says the word. */
+.statepill{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase}
+.statepill.st-new,.statepill.st-changed{box-shadow:inset 0 0 0 1px var(--ink);color:var(--ink)}
+.statepill.st-new{border-style:dashed}
+.statepill.st-removed{color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line-2)}
 /* Selection and hit are teal, because they are the reader acting — rule 2.
    The 1 px of padding given back keeps the row from shifting. */
 .node.hit{border:2px solid var(--ink);padding:11px 12px}
@@ -306,6 +457,31 @@ table.cmp thead th{font-family:var(--mono);font-size:10px;text-transform:upperca
 table.cmp tbody tr:hover{background:var(--panel-2)}
 table.cmp td:first-child{font-weight:600;color:var(--ink)}
 .dot{width:9px;height:9px;border-radius:0;display:inline-block;margin-right:8px;vertical-align:-1px}
+
+/* ------------------------------------------------------------ environments
+   One column per environment the document fills in. Wide by nature — three
+   environments of domain names past a component name — so it scrolls inside its
+   own box rather than pushing the card off the page. */
+.tablewrap{overflow-x:auto}
+.envtable{min-width:520px}
+.envtable td:first-child{white-space:nowrap}
+.envcell{font-size:11.5px;color:var(--ink-2)}
+/* An address is one token — broken across two lines at its hyphens it stops
+   being copyable and starts being a puzzle. So it never wraps, and the table
+   scrolls inside `.tablewrap` instead. */
+.envcell span{display:block;white-space:nowrap}
+/* The version and the note are the fields that go stale on their own, so they
+   are set quieter than the address rather than louder. */
+.envcell em{display:block;font-style:normal;font-size:10px;color:var(--ink-3);margin-top:2px}
+
+/* The same rows in the detail drawer, where there is one component and room to
+   put the environment's name beside its address rather than above it. */
+.envlist>div{display:grid;grid-template-columns:70px 1fr;gap:10px;margin-bottom:6px}
+.envlist dt{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);padding-top:2px}
+.envlist dd{margin:0;font-family:var(--mono);font-size:11.5px}
+.envlist dd a{color:var(--brand);text-decoration:none}
+.envlist dd a:hover{text-decoration:underline}
+.envlist dd em{display:block;font-style:normal;font-size:10px;color:var(--ink-3);margin-top:2px}
 
 /* ---------- Flows ---------- */
 .flowpick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}

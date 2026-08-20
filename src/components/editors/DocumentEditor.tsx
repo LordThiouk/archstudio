@@ -4,7 +4,8 @@
  * view. The diagram inspector edits a handful of these too — both write the
  * same `meta`, so the two stay in step. */
 
-import { Area, CardList, CellGrid, Group, IconPicker, Panel, RICH_HINT, Text } from './Fields';
+import { Area, CardList, CellGrid, Choice, Group, IconPicker, Panel, RICH_HINT, Text } from './Fields';
+import type { ProtocolLabels } from '@/lib/links';
 import type { Architecture, Tile } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
@@ -88,6 +89,34 @@ export default function DocumentEditor({ doc, patch }: { doc: Architecture; patc
         <Area label="Distribution note" value={m.distributionNote || ''} hint={RICH_HINT}
           placeholder="Read the bars as ownership, not as effort."
           onChange={v => meta(x => { x.distributionNote = v || undefined; })} />
+
+        {/* Naming the protocol the architecture speaks is what turns edge
+            labels on, so the two fields sit together and the second one only
+            appears once the first has an answer to override. */}
+        <div className="frow">
+          <Text label="Default protocol" mono
+            value={doc.ui.architecture?.defaultProtocol || ''} placeholder="REST"
+            hint="Named, and only the edges that depart from it are labelled."
+            onChange={v => patch(d => {
+              d.ui.architecture = { ...d.ui.architecture, defaultProtocol: v || undefined };
+              return d;
+            })} />
+          {!!doc.ui.architecture?.defaultProtocol?.trim() && (
+            <Choice label="Edge labels" value={doc.ui.architecture?.protocolLabels || 'exceptions'}
+              options={[
+                { value: 'exceptions', label: 'Exceptions only' },
+                { value: 'all', label: 'Every annotated edge' },
+                { value: 'off', label: 'None — keep the note' }
+              ]}
+              onChange={v => patch(d => {
+                d.ui.architecture = {
+                  ...d.ui.architecture,
+                  protocolLabels: v === 'exceptions' ? undefined : (v as ProtocolLabels)
+                };
+                return d;
+              })} />
+          )}
+        </div>
       </Group>
 
       <Group title="Scope descriptions"

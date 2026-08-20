@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
-  createRevision, deleteRevision, getRevisionData, labelRevision, listRevisions, restoreRevision
+  createRevision, deleteRevision, freezeVersion, getRevisionData, labelRevision, listRevisions,
+  restoreRevision
 } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -21,18 +22,28 @@ export async function GET(req: Request, { params }: Ctx) {
   return data ? NextResponse.json({ id: revisionId, data }) : missing();
 }
 
-/** With `revisionId`, restore it. Without, snapshot the project as it stands —
- *  that is how a named checkpoint is created. */
+/** Three operations on one verb, told apart by what the body carries.
+ *
+ *  `revisionId`  restore it.
+ *  `version`     freeze the current document as a numbered version — this also
+ *                writes the number into the document, so it is a save as well.
+ *  neither       snapshot the project as it stands, unnamed or named. */
 export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;
-  const { revisionId, label } = await req.json().catch(() => ({}));
+  const { revisionId, version, label } = await req.json().catch(() => ({}));
+  const title = typeof label === 'string' ? label : undefined;
 
   if (revisionId) {
     const restored = restoreRevision(id, String(revisionId));
     return restored ? NextResponse.json(restored) : missing();
   }
 
-  const created = createRevision(id, typeof label === 'string' ? label : undefined);
+  if (typeof version === 'string' && version.trim()) {
+    const frozen = freezeVersion(id, version, title);
+    return frozen ? NextResponse.json(frozen) : missing();
+  }
+
+  const created = createRevision(id, title);
   return created ? NextResponse.json(created) : missing();
 }
 

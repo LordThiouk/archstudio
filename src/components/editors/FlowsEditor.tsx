@@ -34,19 +34,25 @@ export default function FlowsEditor({ doc, patch, catalog }: { doc: Architecture
   const [picking, setPicking] = useState(false);
   /* The id of the flow currently being saved, so only its own button says so. */
   const [saving, setSaving] = useState<string | null>(null);
+  /* Why the last save to the library failed. In the panel rather than in an
+   * `alert()`: the message is about the flow it sits next to, and a modal that
+   * has to be dismissed before you can look at that flow is the wrong shape for
+   * an error you are meant to act on. */
+  const [saveError, setSaveError] = useState('');
 
   /* Reads the document from React state rather than the database, so a pattern
    * saved before the 700 ms autosave has run still captures what is on screen —
    * which is what a button sitting next to the flow it copies has to do. */
   const saveAsPattern = async (flow: Flow) => {
     setSaving(flow.id);
+    setSaveError('');
     try {
       await api.json('/api/flow-templates/library', {
         method: 'POST',
         body: JSON.stringify(toFlowPattern(doc, flow, { from: doc.meta.name }))
       });
     } catch (e) {
-      alert((e as Error).message);
+      setSaveError((e as Error).message);
     } finally {
       setSaving(null);
     }
@@ -73,6 +79,12 @@ export default function FlowsEditor({ doc, patch, catalog }: { doc: Architecture
       </Group>
 
       <Group title={`Flows (${doc.flows.length})`}>
+        {saveError && (
+          <div className="warnbox">
+            <Icon name="alert" size={15} />
+            Could not save that flow to the pattern library — {saveError}
+          </div>
+        )}
         {noComponents && (
           <div className="warnbox">
             <Icon name="alert" size={15} />

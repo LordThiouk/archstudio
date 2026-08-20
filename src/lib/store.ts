@@ -1,6 +1,7 @@
 import { db, uid, now, plain, plainAll } from './db';
 import { applyResolvedFlowCopy } from './admin/flow-copy.server';
 import { blankArchitecture, normalizeArchitecture } from './defaults';
+import { RESTORE_LABEL, revisionKind } from './versions';
 import type {
   Architecture, FolderRecord, ProjectRecord, ProjectSummary, ProjectWithData, RevisionRecord
 } from './types';
@@ -15,8 +16,9 @@ const REVISION_INTERVAL_MS = 5 * 60_000;
  * the way a reader expects: last written, first shown. */
 const NEWEST_FIRST = 'created_at DESC, rowid DESC';
 
-/** The label a restore leaves behind, so the restore itself can be undone. */
-const RESTORE_LABEL = 'Before restore';
+/* `RESTORE_LABEL` is imported rather than declared: it is one of the two strings
+ * that decide what kind of row a revision is, and both live in versions.ts so
+ * the panel and the prune SQL can never drift apart on it. */
 /** How many of those to keep. They are machine-written, so they get a ceiling
  *  of their own rather than the exemption a hand-named checkpoint gets. */
 const RESTORE_CAP = 5;
@@ -243,6 +245,37 @@ export function createRevision(projectId: string, label?: string): RevisionRecor
   return listRevisions(projectId).find(r => r.id === id) ?? null;
 }
 
+/** Freeze the current document as a numbered version.
+ *
+ *  The number goes *into the document* before the snapshot is taken, not beside
+ *  it. That is the whole design: a frozen version is a document that knows what
+ *  it is called, so exporting it prints the right number on the cover and in the
+ *  viewer's subtitle without anything downstream having to be told which
+ *  revision it came from. It also means freezing is a real edit — undoable, and
+ *  reported in the history as a "Version" change like any other field.
+ *
+ *  Order matters. `updateProject` may write its own five-minute snapshot of the
+ *  *previous* document on the way through, which is the state just before the
+ *  freeze and worth keeping; the version's own snapshot is written after it, so
+ *  it is the newest row and the one the panel opens on. */
+export function freezeVersion(
+  projectId: string, version: string, label?: string
+): RevisionRecord | null {
+  const current = getProject(projectId);
+  if (!current) return null;
+
+  const number = version.trim();
+  const data: Architecture = number
+    ? { ...current.data, meta: { ...current.data.meta, version: number } }
+    : current.data;
+
+  const saved = updateProject(projectId, { data });
+  if (!saved) return null;
+
+  const id = writeSnapshot(projectId, saved.data, label?.trim() || null);
+  return listRevisions(projectId).find(r => r.id === id) ?? null;
+}
+
 export function listRevisions(projectId: string): RevisionRecord[] {
   const rows = db.prepare(
     `SELECT id, project_id, label, created_at, data FROM revisions WHERE project_id = ? ORDER BY ${NEWEST_FIRST}`
@@ -250,12 +283,20 @@ export function listRevisions(projectId: string): RevisionRecord[] {
   return plainAll<Record<string, unknown>>(rows)
     .map(o => {
       let componentCount = 0;
-      try { componentCount = (JSON.parse(o.data as string) as Architecture).components?.length ?? 0; }
-      catch { /* a corrupt snapshot should still be listed, and restorable */ }
+      let version: string | null = null;
+      try {
+        /* One parse, two answers. The number a version carries is the document's
+         * own `meta.version` — there is no column for it and there does not need
+         * to be, because this row was already being read to count components. */
+        const doc = JSON.parse(o.data as string) as Architecture;
+        componentCount = doc.components?.length ?? 0;
+        version = doc.meta?.version?.trim() || null;
+      } catch { /* a corrupt snapshot should still be listed, and restorable */ }
+      const label = (o.label ?? null) as string | null;
       return {
         id: o.id as string, projectId: o.project_id as string,
-        label: (o.label ?? null) as string | null, createdAt: o.created_at as string,
-        componentCount
+        label, createdAt: o.created_at as string,
+        componentCount, version, kind: revisionKind(label)
       };
     });
 }

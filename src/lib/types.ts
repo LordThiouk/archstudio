@@ -40,6 +40,22 @@ export interface Ui {
     cluster?: boolean;
     /** Start with the nodes stripped to icon and name. Unset = on past ~24 components. */
     compact?: boolean;
+    /** The protocol the architecture speaks unless a line says otherwise —
+     *  "REST", "HTTPS". Naming it draws the exceptions on their edges and puts
+     *  the convention in words under the diagram. */
+    defaultProtocol?: string;
+    /** Tint each layer's label and the rule under it, from a ramp separate from
+     *  the scope palette. On unless set to `false`, which emits no colour at all
+     *  and leaves the neutral bands exactly as they were. */
+    layerTint?: boolean;
+    /** Where the Transition toggle starts. Unset = on as soon as the document
+     *  marks anything, so a landscape opens on the delta it was drawn for; the
+     *  reader can still flip to the target state from the toolbar. */
+    transition?: boolean;
+    /** Override what `defaultProtocol` implies: `exceptions` (the default once
+     *  one is named), `all` to label every annotated edge, `off` to keep the
+     *  note and draw no labels. Unset with no default = no labels at all. */
+    protocolLabels?: import('./links').ProtocolLabels;
   };
   flows?: { title?: string; subtitle?: string };
   stack?: { title?: string; subtitle?: string };
@@ -55,6 +71,32 @@ export interface Group {
 }
 
 export interface Layer { id: string; name: string; desc?: string }
+
+/** A boundary that cuts across the layers — a platform, a network zone, an API
+ *  gateway, the perimeter of a migration.
+ *
+ *  Layers are rows and scopes are colours, and neither can say "these six run on
+ *  OpenShift" when three are front ends and three are APIs. A zone can, and it
+ *  nests: `parent` puts a gateway inside an internal network. See
+ *  `src/lib/zones.ts` for how one is drawn and what the nesting costs. */
+export interface Zone {
+  id: string;
+  name: string;
+  kind?: import('./zones').ZoneKind;
+  /** The zone this one sits inside. Unknown ids and cycles are dropped. */
+  parent?: string;
+  /** One line under the label — "All communications are REST calls". */
+  note?: string;
+  /** Sit on a shelf *below* the previous sibling, sharing its columns, instead
+   *  of taking a band of its own. What keeps a zone that only draws on one layer
+   *  from costing the whole sheet a column of width.
+   *
+   *  A request, not a guarantee: `bandPlan` ignores it when the zone is not
+   *  eligible (see `canStack` there), because a flag that could break the
+   *  containment rule has to be checked where the drawing is decided, not where
+   *  it is stored. */
+  stack?: boolean;
+}
 
 /* How a caller reaches a callee. `sync` is the default reading and is left
  * unset rather than written out, so a document that never says anything about
@@ -75,6 +117,34 @@ export interface Link {
   protocol?: string;
   /** Anything the two fields above cannot say: "read replica", "nightly 02:00". */
   note?: string;
+  /** Where this call sits in the transition. Unset = it already exists.
+   *  See `src/lib/lifecycle.ts` for what each mark commits you to. */
+  state?: import('./lifecycle').Lifecycle;
+}
+
+/** One of the places the whole architecture runs — dev, SA, production.
+ *
+ *  Declaration order is reading order, because it is the pipeline: a table with
+ *  production in the middle is a table nobody trusts. `src/lib/environments.ts`
+ *  is where the rest of the reasoning lives. */
+export interface Environment {
+  id: string;
+  name: string;
+  /** One line about the environment itself — "anonymised data", "VPN only". */
+  note?: string;
+}
+
+/** One component, in one environment. Every field but `env` is optional: naming
+ *  an environment for a component and leaving it blank is a real answer — it
+ *  says the thing is deployed there and its address is not written down. */
+export interface EnvEntry {
+  /** The environment's id. Unknown ids are dropped on read. */
+  env: string;
+  url?: string;
+  /** What is running there — "2.4.1", "2.5.0-rc2". */
+  version?: string;
+  /** Anything the two above cannot say — "read-only replica", "nightly reset". */
+  note?: string;
 }
 
 export interface Component {
@@ -82,10 +152,31 @@ export interface Component {
   name: string;
   group: string;
   layer: string;
+  /** The innermost zone holding this component. Its ancestors are implied. */
+  zone?: string;
   icon?: string;
   badge?: string;
+  /** How this component is reached, and what it holds — a closed set, drawn as
+   *  glyphs on the card with a legend. `badge` stays for the one word that fits
+   *  no category. See `src/lib/marks.ts`. */
+  marks?: import('./marks').SecurityMark[];
   tech?: string[];
+  /** Where this runs — "OpenShift", "AWS", "on-prem". Free text, because no
+   *  closed list writes "OpenShift on AWS" and the tail past the three obvious
+   *  clouds is one nobody can finish.
+   *
+   *  Not a zone, and not a lesser one. A zone of kind `platform` draws the
+   *  boundary and pays a band of sheet width for it, which is right when the
+   *  boundary is the argument. This only records the fact, so it costs the
+   *  drawing nothing and works when what runs there is scattered across the
+   *  sheet. See `src/lib/deployment.ts`. */
+  deployedOn?: string;
   url?: string;
+  /** Where to reach it in each environment, plus what is running there. One
+   *  entry per environment at most, in the document's own environment order —
+   *  see `src/lib/environments.ts`. `url` above stays the one address the
+   *  component is known by, whatever the pipeline is doing. */
+  envs?: EnvEntry[];
   role?: string;
   /** Snapshotted catalog purpose at placement; preferred over `role` in ADD. */
   purpose?: string;
@@ -97,6 +188,10 @@ export interface Component {
   notes?: string[];
   deps?: string[];
   links?: Link[];
+  /** Where this component sits in the transition — new, changed, or on its way
+   *  out. Unset = it already exists, which is the common case and stays unwritten
+   *  so a document that describes no transition exports exactly as it did. */
+  state?: import('./lifecycle').Lifecycle;
 }
 
 export interface Technology {
@@ -182,6 +277,12 @@ export interface Architecture {
   ui: Ui;
   groups: Group[];
   layers: Layer[];
+  /** Optional throughout: a document with no zones draws exactly as it did
+   *  before the field existed, and normalisation leaves the key at `[]`. */
+  zones: Zone[];
+  /** Optional throughout, like `zones`: a document that names none reads and
+   *  exports exactly as it did before the field existed. */
+  environments: Environment[];
   components: Component[];
   technologies: Technology[];
   flows: Flow[];
@@ -223,12 +324,21 @@ export interface ProjectSummary extends ProjectRecord {
 
 /** A snapshot of a project's document.
  *
- * `label` is what separates the two kinds: an automatic snapshot has none, a
- * checkpoint the user named has one — and a named checkpoint is never pruned. */
+ * `label` is what separates the kinds: an automatic snapshot has none, a version
+ * someone froze has a title — and a named row is never pruned. `kind` is that
+ * reading, made explicit, plus the third case the app writes for itself. See
+ * `src/lib/versions.ts`.
+ *
+ * `version` and `kind` are *derived*, not stored: the schema has no column for
+ * either, and could not gain one. The number is read out of the snapshot's own
+ * `meta.version` in the same parse that counts the components. */
 export interface RevisionRecord {
   id: string;
   projectId: string;
   label: string | null;
   createdAt: string;
   componentCount: number;
+  /** The number the document carried when it was frozen. */
+  version: string | null;
+  kind: import('./versions').RevisionKind;
 }

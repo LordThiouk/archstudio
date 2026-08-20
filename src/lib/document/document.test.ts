@@ -103,6 +103,30 @@ test('the diagram leads part 2 and the inventory is its first chapter', () => {
   assert.equal(part.entries[0].number, '2.1');
 });
 
+test('the environments table is a chapter of DevOps & delivery, and only when filled', () => {
+  const base = () => {
+    const doc = blankArchitecture('Test');
+    doc.layers = [{ id: 'services', name: 'Services' }];
+    doc.groups = [{ id: 'core', name: 'Core' }];
+    doc.environments = [{ id: 'dev', name: 'Dev' }, { id: 'prod', name: 'Production' }];
+    doc.components = [{
+      id: 'api', name: 'API', group: 'core', layer: 'services', tech: [], features: [], notes: [], deps: []
+    }];
+    return doc;
+  };
+
+  /* Declared but never filled in: the chapter would be a grid of dashes. */
+  const empty = buildOutline(normalizeArchitecture(base()));
+  assert.ok(!empty.parts.some(p => p.entries.some(e => e.body.kind === 'environments')));
+
+  const filled = base();
+  filled.components[0].envs = [{ env: 'prod', url: 'api.acme.test' }];
+  const outline = buildOutline(normalizeArchitecture(filled));
+  const part = outline.parts.find(p => p.entries.some(e => e.body.kind === 'environments'));
+  assert.ok(part, 'the environments table should earn a chapter');
+  assert.equal(part!.title, 'DevOps & delivery');
+});
+
 test('flows and the stack table close the appendices', () => {
   const doc = instantiate(getTemplate('multi-service')!, {
     target: 'aws', lang: 'fr', projectName: 'Demo', today: '2026-08-14'

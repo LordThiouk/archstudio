@@ -6,6 +6,9 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 .env.local
+# docker compose reads .env, and the Docker section of the README points API
+# keys at it — it must never be committable.
+.env
 .DS_Store
 *.log
 next-env.d.ts

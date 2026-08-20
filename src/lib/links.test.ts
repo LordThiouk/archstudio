@@ -3,7 +3,10 @@ import { test } from 'node:test';
 
 import { blankArchitecture, normalizeArchitecture } from './defaults';
 import { diffArchitecture } from './diff';
-import { describeLink, dashFor, kindsInUse, linkOf, shortLink } from './links';
+import {
+  describeLink, dashFor, edgeLabel, edgeLabelSvg, edgeMidpoint, kindsInUse, labelPlateWidth,
+  linkOf, protocolConvention, protocolNote, shortLink, type ProtocolLabels
+} from './links';
 import type { Architecture, Component, Link } from './types';
 
 const comp = (id: string, over: Partial<Component> = {}): Component => ({
@@ -160,4 +163,92 @@ test('a new edge carries its description into the history', () => {
   assert.deepEqual(diffArchitecture(before, after).changes, [
     { kind: 'added', area: 'dependency', label: 'API → Postgres', detail: 'SQL · batch' }
   ]);
+});
+
+/* ------------------------------------------------------- protocol labels */
+
+const arch = (over: Partial<NonNullable<Architecture['ui']['architecture']>>) =>
+  normalizeArchitecture({ ...blankArchitecture('Test'), ui: { architecture: over } })
+    .ui.architecture;
+
+test('no protocol convention means no labels, so an older document draws as it did', () => {
+  const conv = protocolConvention(undefined);
+  assert.equal(conv.mode, 'off');
+  assert.equal(edgeLabel({ to: 'db', protocol: 'JDBC' }, conv), null);
+  assert.equal(protocolNote(conv), null);
+});
+
+test('naming a default protocol is what turns the labels on', () => {
+  const conv = protocolConvention({ defaultProtocol: 'REST' });
+  assert.equal(conv.mode, 'exceptions');
+  assert.equal(edgeLabel({ to: 'db', protocol: 'JDBC' }, conv), 'JDBC');
+  assert.equal(protocolNote(conv), 'All calls are REST unless the line says otherwise.');
+  assert.equal(protocolNote(conv, 'fr'),
+    'Tous les appels sont en REST, sauf mention contraire sur la ligne.');
+});
+
+test('an edge speaking the default protocol stays silent, whatever its casing', () => {
+  const conv = protocolConvention({ defaultProtocol: 'REST' });
+  assert.equal(edgeLabel({ to: 'a', protocol: 'REST' }, conv), null);
+  assert.equal(edgeLabel({ to: 'a', protocol: 'rest' }, conv), null);
+  assert.equal(edgeLabel({ to: 'a', protocol: ' REST ' }, conv), null);
+});
+
+test('`all` labels every annotated edge, `off` keeps the note and drops the plates', () => {
+  const all = protocolConvention({ defaultProtocol: 'REST', protocolLabels: 'all' });
+  assert.equal(edgeLabel({ to: 'a', protocol: 'REST' }, all), 'REST');
+
+  const off = protocolConvention({ defaultProtocol: 'REST', protocolLabels: 'off' });
+  assert.equal(edgeLabel({ to: 'a', protocol: 'JDBC' }, off), null);
+  assert.equal(protocolNote(off), 'All calls are REST unless the line says otherwise.');
+});
+
+test('an edge with no protocol is never labelled, and neither is a bare one', () => {
+  const conv = protocolConvention({ defaultProtocol: 'REST', protocolLabels: 'all' });
+  assert.equal(edgeLabel(undefined, conv), null);
+  assert.equal(edgeLabel({ to: 'a' }, conv), null);
+  assert.equal(edgeLabel({ to: 'a', protocol: '   ' }, conv), null);
+});
+
+test('a blank default protocol is dropped rather than printed as an empty sentence', () => {
+  assert.equal(arch({ defaultProtocol: '   ' }), undefined);
+  assert.deepEqual(arch({ defaultProtocol: '  REST ' }), { defaultProtocol: 'REST' });
+});
+
+test('an invented label mode is dropped, so three renderers cannot fall through', () => {
+  assert.deepEqual(
+    arch({ defaultProtocol: 'REST', protocolLabels: 'loud' as ProtocolLabels }),
+    { defaultProtocol: 'REST' }
+  );
+  assert.deepEqual(
+    arch({ defaultProtocol: 'REST', protocolLabels: 'all' }),
+    { defaultProtocol: 'REST', protocolLabels: 'all' }
+  );
+});
+
+test('setting nothing leaves `ui.architecture` absent instead of an empty object', () => {
+  assert.equal(arch({}), undefined);
+  assert.deepEqual(arch({ title: 'Landscape' }), { title: 'Landscape' });
+});
+
+/* --------------------------------------------------------- label geometry */
+
+test('a cross-layer edge labels on the straight-line midpoint', () => {
+  /* k2 = -k1 there, so the 3(k1+k2)/8 term vanishes by construction. */
+  assert.deepEqual(edgeMidpoint(0, 0, 40, 100, 200, -40), { x: 50, y: 100 });
+});
+
+test('a within-layer edge labels on the belly of its arc, below the row', () => {
+  /* Both control offsets are +30, so the label clears the row it passes under
+   * rather than landing inside it. */
+  const { x, y } = edgeMidpoint(0, 100, 30, 100, 100, 30);
+  assert.equal(x, 50);
+  assert.equal(y, 122.5);
+});
+
+test('the plate is centred on the midpoint and the text is escaped', () => {
+  const svg = edgeLabelSvg(0, 0, 40, 100, 200, -40, 'A&B');
+  const w = labelPlateWidth('A&B');
+  assert.match(svg, new RegExp(`<rect x="${(50 - w / 2).toFixed(1)}" y="93.5" `));
+  assert.match(svg, /<text x="50.0" y="103.2">A&amp;B<\/text>/);
 });

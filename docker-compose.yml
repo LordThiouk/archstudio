@@ -1,0 +1,20 @@
+services:
+  archstudio:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_PATH=/app/data/studio.db
+      # Optional — copy .env.example to .env and fill in the ones you use.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - POOLSIDE_API_KEY=${POOLSIDE_API_KEY:-}
+      # The endpoint too, for the two providers whose endpoint is yours to pick —
+      # an internal Poolside instance, or your own vLLM alongside this container.
+      - POOLSIDE_BASE_URL=${POOLSIDE_BASE_URL:-}
+      - OPENAI_COMPATIBLE_BASE_URL=${OPENAI_COMPATIBLE_BASE_URL:-}
+    restart: unless-stopped

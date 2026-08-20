@@ -72,6 +72,19 @@
 a.paper-btn { border-bottom-width: 1px; }
 .paper-btn:hover { background: var(--panel-3); border-color: var(--ink); }
 .paper-btn.primary { background: var(--brand); border-color: var(--brand); color: #FFFFFF; }
+.paper-btn.sm { height: 24px; padding: 0 9px; font-size: 11px; }
+
+/* Reading a stored version rather than the live document. Loud, because the one
+   mistake this page can cause is printing September's drawing believing it is
+   today's — and the sheet itself gives no clue, since it *is* a valid document
+   with its own cover. It never prints: `.paper-bar` is hidden on paper. */
+.paper-bar-version {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+  padding: 4px 8px 4px 10px;
+}
 
 /* --------------------------------------------------------------------- page */
 
@@ -90,6 +103,11 @@ a.paper-btn { border-bottom-width: 1px; }
   --ink: #0B1B2B;
   --ink-2: #3D566B;
   --ink-3: #8CA1B2;
+
+  /* The layer ramp, transposed from the screen unchanged — a label and a
+     hairline are exactly the two things a print can still carry. */
+  --lt1: #5B7FA6; --lt2: #5E9070; --lt3: #9A8149;
+  --lt4: #A5735F; --lt5: #8474A8; --lt6: #4E8C93;
   --line: #E7EEF2;
   --line-2: #DCE5EB;
   --line-3: #D3DEE5;
@@ -275,15 +293,63 @@ a.paper-btn { border-bottom-width: 1px; }
 .paper-edges { position: absolute; inset: 0; pointer-events: none; }
 
 /* `.layer` / `.layer-head` / `.nodes` */
-.paper-layer { position: static; padding: 16px 0 6px; border-bottom: 1px dashed var(--line-3); }
+.paper-layer {
+  position: static; padding: 16px 0 6px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--lc, var(--line-3)) 42%, var(--line-3));
+}
 .paper-layer:last-child { border-bottom: 0; }
 .paper-layer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .paper-layer-head b {
   font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: capitalize;
-  color: var(--ink-3); font-weight: 400;
+  color: var(--lc, var(--ink-3)); font-weight: 400;
 }
 .paper-layer-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--ink-3); opacity: .8; }
 .paper-layer-row { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* A zone's cards in one layer. Static, like `.paper-layer-row` above it, so a
+   run's offset parent is `.paper-stage` — exactly as a card's is, which is what
+   lets the zone rectangles be measured through the same `offsetLeft` family the
+   edges use rather than through a second mechanism. */
+.zrun { display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; position: static; }
+
+/* The reserved bands, on a 1000 px stage. Arithmetic rather than measured is what
+   makes this work on paper at all: the print layout is not the screen layout, and
+   a band computed from a column count is the same band in both. */
+.paper-stage { --card-w: 212px; }
+/* 24 px between bands: every horizontal zone inset has to fit inside that gutter
+   (the ladder is 7/13/19) or a rule reaches into the next band's card.
+   MIRRORS `BAND_GUTTER` in lib/zones.ts. */
+/* Rows are the shelves — two zones can share a range of columns, one under the
+   other. Implicit tracks are enough here: nothing is laid over this grid, and
+   `layerSlots` never skips a shelf number, so no empty row can leave a stray
+   `row-gap` behind. 32 px, like the gutter is 24: the vertical zone inset ladder
+   is 14/23/32 and the whole of it has to fit, or a shelved zone's rule reaches
+   the card above. MIRRORS `SHELF_GAP` in lib/zones.ts. */
+.paper-layer-row.banded {
+  display: grid; grid-template-columns: repeat(var(--cols), var(--card-w));
+  row-gap: 32px; column-gap: 24px; align-items: start; justify-content: start;
+}
+/* A run fills its band rather than shrinking to its cards, so the measured
+   rectangle is band-shaped on every layer. */
+.paper-layer-row.banded .zrun { min-width: 0; justify-self: stretch; }
+
+/* ------------------------------------------------------------------- zones
+   The screen's two treatments transposed, and the reason they are treatments and
+   not colours: this rectangle has to survive being printed. Solid is a boundary
+   you could point at in a room; dashed is one that exists in a document. Depth
+   is a hair of extra ground, which needs background graphics left on in the print
+   dialog — the same condition the scope colours already have. */
+.paper-edges .zone rect {
+  fill: color-mix(in srgb, var(--ink) 3%, transparent);
+  stroke: var(--line-3); stroke-width: 1;
+}
+.paper-edges .zone[data-depth="1"] rect { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+.paper-edges .zone[data-depth="2"] rect { fill: color-mix(in srgb, var(--ink) 9%, transparent); }
+.paper-edges .zone-dashed rect { stroke-dasharray: 5 4; }
+.paper-edges .zone text {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+  fill: var(--ink-3);
+}
 
 /* `.node`, verbatim minus the interaction states. */
 .paper-node {
@@ -310,6 +376,100 @@ a.paper-btn { border-bottom-width: 1px; }
   background: color-mix(in srgb, var(--c) 14%, transparent);
   color: color-mix(in srgb, var(--c) 70%, var(--ink));
 }
+/* Where it runs, leading the row: the exact negative of a technology pill —
+   outlined and neutral where those are filled and tinted. It has to be a
+   treatment rather than a hue (colour is scope's, rule 1), which is also what
+   makes it survive the black-and-white print this sheet is built for. */
+.paper-node .tech .place {
+  background: transparent; border: 1px solid var(--line-3); color: var(--ink-2);
+  padding: 2px 6px;
+}
+
+/* ---------------------------------------------------------- security marks
+   The screen's placement transposed: header row, right edge, neutral ink. On
+   paper the key is not a convenience — there is no tooltip to hover and no
+   search box to type "sso" into, so the glyph is unreadable without it, which
+   is why `Figure` draws one whenever a single mark is in use. */
+.paper-node .marks { margin-left: auto; display: flex; gap: 4px; flex: none; }
+.paper-node .marks i { display: grid; place-items: center; width: 13px; height: 13px; color: var(--ink-2); }
+.paper-node.st-removed .marks i { color: var(--ink-3); }
+
+.paper-markkey i { display: grid; place-items: center; width: 14px; height: 14px; flex: none; color: var(--ink-2); }
+
+/* On a detail sheet the marks are words, not glyphs: this is the page someone
+   quotes in a meeting, and "lock" is not a sentence. */
+.paper-marks { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin: 0 0 6px; }
+/* Where it runs, on the detail sheet. Monospace like the marks above it: both
+   are things the machine knows rather than prose about the component (rule 3). */
+.paper-deployed { font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); margin: 0 0 6px; }
+
+/* --------------------------------------------------------- environments
+   A component's addresses, repeated on its own detail sheet — someone who
+   turned to this page for one component should not have to find the table in
+   part 4 again. The environment name is a monospace rail, the address is the
+   line that matters, and the version and note ride under it a step lighter. */
+.paper-envlist { margin: 0 0 8px; }
+.paper-envlist > div { display: grid; grid-template-columns: 62px 1fr; gap: 8px; margin-bottom: 3px; }
+.paper-envlist dt {
+  font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-3); padding-top: 1px;
+}
+.paper-envlist dd { margin: 0; }
+.paper-envurl { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--ink-2); }
+/* The version is the one field here that goes stale on its own, so it is set
+   quieter than the address rather than louder — see `src/lib/environments.ts`. */
+.paper-envmeta { display: block; font-family: var(--mono); font-size: 8.5px; color: var(--ink-3); }
+/* The table in part 4: addresses first, and the per-environment note collected
+   once underneath rather than repeated down a column. */
+.paper-envs td { font-size: 10px; }
+.paper-envnotes {
+  margin: 8px 0 0; padding-left: 16px; font-size: 10px; color: var(--ink-3); line-height: 1.5;
+}
+.paper-tick {
+  margin-left: 6px; font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em;
+  padding: 2px 4px; background: var(--ink); color: var(--panel); vertical-align: middle;
+}
+
+/* ------------------------------------------------------------ the transition
+   The screen's three treatments, transposed unchanged — border and a monospace
+   tick, never a hue, which is exactly why they survive being printed and
+   photocopied. Paper prints the whole delta: there is no Transition toggle to
+   flip, so a removal is drawn quieter rather than dropped.
+
+   `position: relative` only on a card that carries a tick. `.paper-node` is
+   static on purpose — the edge geometry reads `offsetLeft/offsetTop` against
+   `.paper-stage` — and while an element's own `position: relative` leaves its
+   own offsets alone, narrowing it to the three state classes keeps the
+   exception where it can be read next to the reason for it. */
+.paper-node.st-new, .paper-node.st-changed, .paper-node.st-removed { position: relative; }
+.paper-node.st-new { border-style: dashed; border-color: var(--ink-3); }
+.paper-node.st-changed { border-color: var(--ink); }
+.paper-node.st-removed .nm { text-decoration: line-through; }
+.paper-node.st-removed .ic { filter: grayscale(1); }
+.paper-node.st-removed .nm, .paper-node.st-removed .tech span { color: var(--ink-3); }
+
+.paper-node .tick {
+  position: absolute; top: -1px; left: -1px;
+  font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; line-height: 1;
+  padding: 2px 4px; background: var(--ink); color: var(--panel);
+}
+.paper-node.st-changed .tick {
+  background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink);
+}
+.paper-node.st-removed .tick { background: var(--ink-3); }
+
+/* The key rides the edge key's row rules and only restyles the tick, which
+   here sits in the flow rather than in a card's corner. */
+.paper-statekey .tick {
+  position: static; display: grid; place-items: center; width: 13px; height: 13px; flex: none;
+  font-size: 9px; font-style: normal; letter-spacing: 0;
+  background: var(--ink); color: var(--panel);
+}
+.paper-statekey .tick.st-changed {
+  background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink);
+}
+.paper-statekey .tick.st-removed { background: var(--ink-3); }
+.paper-statenote { color: var(--ink-3); }
 
 /* `.ub` — the legend reuses the used-by chip. */
 .paper-legend { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
@@ -332,6 +492,25 @@ a.paper-btn { border-bottom-width: 1px; }
   font-family: var(--mono); font-size: 9.5px; color: var(--ink-2);
 }
 .paper-edgekey svg { width: 30px; height: 8px; flex: none; overflow: visible; }
+
+/* The protocol convention in words, next to the key that it completes — and
+   outside `.paper-frame` for the same reason: the page-fit transform must not
+   shrink the reading of the figure along with the figure. */
+.paper-protonote {
+  font-family: var(--mono); font-size: 9.5px; color: var(--ink-2);
+  margin: 6px 0 0;
+}
+
+/* The protocol on the line, inside the scaled stage. `.edgelbl` unprefixed on
+   purpose: it is emitted by `src/lib/links.ts`, which all three renderers
+   share, so the one class name has to work in all three stylesheets. The plate
+   is opaque because the curve runs underneath it — and at the print scale of
+   .67 a halo would disappear before the type did. */
+.paper-edges .edgelbl rect { fill: var(--panel); stroke: var(--line-3); stroke-width: 1; }
+.paper-edges .edgelbl text {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .02em;
+  fill: var(--ink-2); text-anchor: middle;
+}
 
 /* ------------------------------------------------------------------- tables */
 

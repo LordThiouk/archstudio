@@ -70,6 +70,31 @@ test('edited fields are listed by name in one entry', () => {
     'badge, role, technologies');
 });
 
+test('moving a component to another platform is reported, and named as a deployment', () => {
+  /* Distinct from a zone move, which History already spells out with both sides'
+   * names. This one is a fact about the component, not a boundary it crossed. */
+  const before = doc({ components: [comp('api', { deployedOn: 'AWS' })] });
+  const after = doc({ components: [comp('api', { deployedOn: 'OpenShift' })] });
+  assert.equal(find(diffArchitecture(before, after).changes, 'api')?.detail, 'deployment');
+});
+
+test('comparing two versions is directional — A to B is the mirror of B to A', () => {
+  /* The panel lets you pick any two versions, so it has to order them itself.
+     Handing them over the wrong way round swaps every `+` for a `−`, which is a
+     kind of wrong the reader has no way to notice. */
+  const older = doc({ components: [comp('api')] });
+  const newer = doc({ components: [comp('api'), comp('worker')] });
+
+  const forward = diffArchitecture(older, newer);
+  const back = diffArchitecture(newer, older);
+
+  assert.equal(forward.added, 1);
+  assert.equal(forward.removed, 0);
+  assert.equal(back.added, 0);
+  assert.equal(back.removed, 1);
+  assert.equal(forward.total, back.total);
+});
+
 test('absent and empty are the same document, not an edit', () => {
   /* The left side is what an imported or pre-normalisation revision looks like:
    * the list keys are simply missing. Normalising fills them with `[]`, and

@@ -1,22 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon, ICONS } from './Icon';
 import { ICON_KEYS, deleteComponent, slugify } from '@/lib/defaults';
+import { deploymentsInUse } from '@/lib/deployment';
+import { envEntry, setEnvField } from '@/lib/environments';
 import { displayLayerLabel } from '@/lib/layers';
-import { LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkOf, shortLink } from '@/lib/links';
+import {
+  LINK_KINDS, LINK_KIND_BLURBS, LINK_KIND_LABELS, linkIsEmpty, linkOf, shortLink
+} from '@/lib/links';
+import { LIFECYCLES, STATE_BLURBS, STATE_LABELS } from '@/lib/lifecycle';
+import { MARK_BLURBS, MARK_ICON, MARK_LABELS, SECURITY_MARKS } from '@/lib/marks';
+import { describeZone } from '@/lib/zones';
+import type { Notify } from '@/lib/undo';
 import type { Architecture, Component, Link, LinkKind } from '@/lib/types';
 
 type Patch = (fn: (d: Architecture) => Architecture) => void;
 
-export default function Inspector({ doc, patch, component, onClose, onSelect }: {
+export default function Inspector({ doc, patch, component, notify, openLink, onClose, onSelect }: {
   doc: Architecture; patch: Patch; component: Component | null;
+  notify: Notify;
+  /** A dependency selected on the canvas — its row opens on its own, so clicking
+   *  a line lands on the three fields that describe it. */
+  openLink?: string | null;
   onClose: () => void; onSelect: (id: string) => void;
 }) {
   return (
     <aside className="inspector">
       {component
-        ? <ComponentForm doc={doc} patch={patch} comp={component} onClose={onClose} onSelect={onSelect} />
+        ? <ComponentForm doc={doc} patch={patch} comp={component} notify={notify}
+            openLink={openLink ?? null} onClose={onClose} onSelect={onSelect} />
         : <DocumentForm doc={doc} patch={patch} />}
     </aside>
   );
@@ -24,8 +37,9 @@ export default function Inspector({ doc, patch, component, onClose, onSelect }: 
 
 /* ------------------------------------------------------------------ component */
 
-function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
-  doc: Architecture; patch: Patch; comp: Component; onClose: () => void; onSelect: (id: string) => void;
+function ComponentForm({ doc, patch, comp, notify, openLink, onClose, onSelect }: {
+  doc: Architecture; patch: Patch; comp: Component; notify: Notify; openLink: string | null;
+  onClose: () => void; onSelect: (id: string) => void;
 }) {
   const [techDraft, setTechDraft] = useState('');
   const [showIcons, setShowIcons] = useState(false);
@@ -35,6 +49,9 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
     if (c) fn(c);
     return d;
   });
+
+  /* The document's own answers, offered back as suggestions. */
+  const places = deploymentsInUse(doc.components);
 
   const inbound = doc.components.filter(c => (c.deps || []).includes(comp.id));
   const outbound = (comp.deps || []).map(id => doc.components.find(c => c.id === id)).filter(Boolean) as Component[];
@@ -67,6 +84,22 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         </label>
       </div>
 
+      {/* Only offered once a zone exists — the picker is created in the palette
+          rail, next to the layers and the scopes. Unzoned is a real answer and
+          stays the first option, not a placeholder. The innermost zone is the
+          one to name: its ancestors are implied by the nesting. */}
+      {!!doc.zones.length && (
+        <label className="field"><span>Zone</span>
+          <select className="select" value={comp.zone || ''}
+            onChange={e => set(c => { c.zone = e.target.value || undefined; })}>
+            <option value="">no zone</option>
+            {doc.zones.map(z => (
+              <option key={z.id} value={z.id}>{describeZone(z)}</option>
+            ))}
+          </select>
+        </label>
+      )}
+
       <div className="field">
         <span>Icon</span>
         <button className="btn sm" onClick={() => setShowIcons(s => !s)} style={{ width: '100%', justifyContent: 'flex-start' }}>
@@ -93,6 +126,105 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
           <input className="input" value={comp.url || ''} placeholder="api.example.com"
             onChange={e => set(c => { c.url = e.target.value || undefined; })} />
         </label>
+      </div>
+
+      {/* Free text with the document's own answers offered back. A closed list
+          would have to choose between "OpenShift" the runtime and "AWS" the
+          provider, and refuse the one deployment that is both — so the list is
+          whatever this document already says, and the normaliser keeps one
+          spelling per platform so the filter chips do not split.
+
+          Not the same thing as the zone above it: a zone draws the boundary and
+          pays sheet width for it; this records the fact and costs nothing. */}
+      <label className="field"><span>Deployed on</span>
+        <input className="input" list={`deployed-${comp.id}`} value={comp.deployedOn || ''}
+          placeholder="OpenShift, AWS, on-prem…"
+          onChange={e => set(c => { c.deployedOn = e.target.value || undefined; })} />
+        <datalist id={`deployed-${comp.id}`}>
+          {places.map(p => <option key={p} value={p} />)}
+        </datalist>
+      </label>
+
+      {/* One row per environment the document declares, in pipeline order.
+          Rows for every environment rather than an "add" button: the list is
+          already closed and already short, and a form you have to open before
+          you can type into it is a form people stop filling in.
+
+          `setEnvField` creates the entry on the first keystroke and drops it
+          when the last field empties, so nothing here has to know whether an
+          entry exists — and the document never carries a row that says only
+          "this component has an environment". */}
+      {!!doc.environments.length && (
+        <>
+          <div className="sect-label" style={{ marginTop: 14 }}>Environments</div>
+          <div className="envrows">
+            {doc.environments.map(env => {
+              const entry = envEntry(comp, env.id);
+              const field = (key: 'url' | 'version' | 'note', placeholder: string) => (
+                <input className="input" placeholder={placeholder} value={entry?.[key] || ''}
+                  onChange={e => set(c => setEnvField(c, env.id, key, e.target.value))} />
+              );
+              return (
+                <div className="envrow" key={env.id}>
+                  <span className="envname" title={env.note || undefined}>{env.name}</span>
+                  {/* Address and version on one line, the note under it: the
+                      first two are what a reader scans down a column, and the
+                      third is the one that is usually empty. */}
+                  <div className="envline">{field('url', 'api-dev.example.com')}{field('version', 'v2.4.1')}</div>
+                  {field('note', 'anonymised data, VPN only…')}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* A closed set, so the diagram can carry a key and a reader can search
+          for "no authentication". Multi-select: SSO in front of a service that
+          also holds personal data is two facts, not a choice between them. */}
+      <div className="field">
+        <span>Security</span>
+        <div className="radio-row">
+          {SECURITY_MARKS.map(m => {
+            const on = (comp.marks || []).includes(m);
+            return (
+              <button key={m} className={`radio${on ? ' on' : ''}`} title={MARK_BLURBS[m]}
+                onClick={() => set(c => {
+                  /* Rebuilt from the canonical order rather than pushed onto the
+                   * end, so the glyphs on a card never depend on the order the
+                   * author happened to click them in. */
+                  const next = new Set(c.marks || []);
+                  if (on) next.delete(m); else next.add(m);
+                  c.marks = SECURITY_MARKS.filter(x => next.has(x));
+                  if (!c.marks.length) c.marks = undefined;
+                })}>
+                <Icon name={MARK_ICON[m]} size={12} /> {MARK_LABELS[m].en}
+              </button>
+            );
+          })}
+        </div>
+        <div className="hint">
+          {(comp.marks || []).map(m => MARK_BLURBS[m]).join(' ')
+            || 'Unset says nothing about how this component is reached.'}
+        </div>
+      </div>
+
+      {/* The transition mark. Unset is the common case and stays unwritten, so a
+          document that describes no transition keeps exporting as it did. */}
+      <div className="field">
+        <span>In the transition</span>
+        <div className="radio-row">
+          {LIFECYCLES.map(s => (
+            <button key={s} className={`radio${comp.state === s ? ' on' : ''}`}
+              title={STATE_BLURBS[s]}
+              onClick={() => set(c => { c.state = c.state === s ? undefined : s; })}>
+              <i /> {STATE_LABELS[s].en}
+            </button>
+          ))}
+        </div>
+        <div className="hint">
+          {comp.state ? STATE_BLURBS[comp.state] : 'Unset means this component already exists.'}
+        </div>
       </div>
 
       <div className="field">
@@ -135,7 +267,7 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
         <div className="cardlist">
           {outbound.map(t => (
             <LinkRow key={t.id} comp={comp} target={t} colour={colourOf(t.group)}
-              set={set} onSelect={onSelect} />
+              set={set} notify={notify} reveal={openLink === t.id} onSelect={onSelect} />
           ))}
         </div>
         <select className="select" style={{ marginTop: 6 }} value=""
@@ -168,13 +300,16 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
       )}
 
       <div className="insp-sep" />
+      {/* No confirm: the deletion is one step on the undo stack and the notice
+          that follows offers it back. A dialog here would tax every deliberate
+          delete to insure against the rare accidental one. */}
       <button className="btn danger" style={{ width: '100%', justifyContent: 'center' }}
         onClick={() => {
-          if (!confirm(`Delete "${comp.name}"? Dependencies pointing at it are removed too.`)) return;
           patch(d => {
             deleteComponent(d, comp.id);
             return d;
           });
+          notify(`"${comp.name}" deleted — dependencies pointing at it went with it`);
           onClose();
         }}>
         <Icon name="trash" size={15} />Delete component
@@ -189,13 +324,26 @@ function ComponentForm({ doc, patch, comp, onClose, onSelect }: {
  * twist and the head carries what they add up to — "SQL · async". A dependency
  * nobody has annotated shows nothing extra, which is also what it draws on the
  * canvas: a plain solid edge. */
-function LinkRow({ comp, target, colour, set, onSelect }: {
+function LinkRow({ comp, target, colour, set, notify, reveal, onSelect }: {
   comp: Component; target: Component; colour: string;
-  set: (fn: (c: Component) => void) => void; onSelect: (id: string) => void;
+  set: (fn: (c: Component) => void) => void; notify: Notify;
+  /** This is the line that was just clicked on the canvas. */
+  reveal: boolean;
+  onSelect: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(reveal);
   const link = linkOf(comp, target.id);
   const summary = shortLink(link);
+
+  /* Opens on reveal but never closes on it: the canvas says which row to show,
+   * and the twist stays the reader's after that. `scrollIntoView` because a
+   * caller with a dozen dependencies has this one below the fold. */
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!reveal) return;
+    setOpen(true);
+    row.current?.scrollIntoView({ block: 'nearest' });
+  }, [reveal]);
 
   /* Links are keyed by target, so an edit is an upsert and clearing every
    * field removes the row — normalisation would drop an empty one anyway, and
@@ -204,14 +352,14 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
     const links = [...(c.links || [])];
     const i = links.findIndex(l => l.to === target.id);
     const next: Link = { ...(i >= 0 ? links[i] : { to: target.id }), ...patch };
-    if (!next.kind && !next.protocol?.trim() && !next.note?.trim()) {
+    if (linkIsEmpty(next)) {
       c.links = links.filter(l => l.to !== target.id);
     } else if (i >= 0) { links[i] = next; c.links = links; }
     else c.links = [...links, next];
   });
 
   return (
-    <div className={`elist${open ? ' open' : ''}`}>
+    <div className={`elist${open ? ' open' : ''}${reveal ? ' revealed' : ''}`} ref={row}>
       <div className="elist-head">
         <button className="iconbtn twist" onClick={() => setOpen(o => !o)}
           aria-expanded={open} aria-label={open ? 'Collapse' : 'Describe this dependency'}>
@@ -224,10 +372,13 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
           {summary && <em className="mono"> {summary}</em>}
         </span>
         <button className="iconbtn" title="Remove this dependency"
-          onClick={() => set(c => {
-            c.deps = (c.deps || []).filter(x => x !== target.id);
-            c.links = (c.links || []).filter(l => l.to !== target.id);
-          })}><Icon name="trash" size={13} /></button>
+          onClick={() => {
+            set(c => {
+              c.deps = (c.deps || []).filter(x => x !== target.id);
+              c.links = (c.links || []).filter(l => l.to !== target.id);
+            });
+            notify(`${comp.name} → ${target.name} removed`);
+          }}><Icon name="trash" size={13} /></button>
       </div>
 
       {open && (
@@ -254,10 +405,30 @@ function LinkRow({ comp, target, colour, set, onSelect }: {
               onChange={e => edit({ protocol: e.target.value })} />
           </label>
 
-          <label className="field" style={{ marginBottom: 0 }}><span>Note</span>
+          <label className="field"><span>Note</span>
             <input className="input" value={link?.note || ''} placeholder="Read replica, at-least-once, nightly 02:00…"
               onChange={e => edit({ note: e.target.value })} />
           </label>
+
+          {/* Where this call sits in the transition. Marked on the edge rather
+              than inferred from its endpoints, because the two are different
+              statements: rewiring an existing component to a new one adds a
+              call between two things that both already exist. */}
+          <div className="field" style={{ marginBottom: 0 }}>
+            <span>In the transition</span>
+            <div className="radio-row">
+              {LIFECYCLES.map(s => (
+                <button key={s} className={`radio${link?.state === s ? ' on' : ''}`}
+                  title={STATE_BLURBS[s]}
+                  onClick={() => edit({ state: link?.state === s ? undefined : s })}>
+                  <i /> {STATE_LABELS[s].en}
+                </button>
+              ))}
+            </div>
+            <div className="hint">
+              {link?.state ? STATE_BLURBS[link.state] : 'Unset means this call already exists.'}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -87,6 +87,10 @@ export interface Component {
   tech?: string[];
   url?: string;
   role?: string;
+  /** Snapshotted catalog purpose at placement; preferred over `role` in ADD. */
+  purpose?: string;
+  /** Snapshotted CAF gating tags at placement. */
+  concernTags?: import('./document/concerns').ConcernTag[];
   /** Stable Lego catalog identity; `role` remains human-readable prose. */
   brick?: import('./lego/bricks').BrickId;
   features?: string[];
@@ -107,6 +111,17 @@ export interface Flow {
   id: string; name: string; group?: string; sub?: string; note?: string; steps: FlowStep[];
 }
 
+/** One architecture decision record (Nygard ADR), stored in the document JSON. */
+export interface ArchitectureDecision {
+  id: string;
+  title: string;
+  context: string;
+  decision: string;
+  consequences: string;
+  status: 'proposed' | 'accepted' | 'superseded';
+  supersedes?: string;
+}
+
 export type SectionType = 'cards' | 'timeline' | 'table' | 'compare' | 'text';
 
 /** Where a section sits in the printable design document.
@@ -116,7 +131,11 @@ export type SectionType = 'cards' | 'timeline' | 'table' | 'compare' | 'text';
  * chapter renumbers the rest instead of leaving a hole. Its first segment picks
  * the part (1 to 5); anything else, or no slot at all, lands in the appendices.
  * The viewer ignores this field entirely. */
-export interface DocSlot { chapter?: string }
+export interface DocSlot {
+  chapter?: string;
+  /** Auto-added from brick `concernTags` gating — removed when the gate closes. */
+  gated?: boolean;
+}
 
 export interface Section {
   id: string;
@@ -167,6 +186,7 @@ export interface Architecture {
   technologies: Technology[];
   flows: Flow[];
   sections: Section[];
+  decisions: ArchitectureDecision[];
 }
 
 /* ------------------------------------------------------------------ records */

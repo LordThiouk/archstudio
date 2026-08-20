@@ -11,8 +11,8 @@ import {
   Area, CardList, CellGrid, Group, IconPicker, Panel, RICH_HINT, ScopePicker, StringList, Text
 } from './Fields';
 import { SECTION_TYPES, blankSection } from '@/lib/defaults';
-import { applyDesignDocumentPreset, missingPresetSections } from '@/lib/document/preset';
-import { registerSectionTab, resyncSectionOrder, unregisterTab } from '@/lib/tabs';
+import { missingGatedPresetSections, syncGatedPresetSections } from '@/lib/document/preset';
+import { naturalTabs, registerSectionTab, resyncSectionOrder, unregisterTab } from '@/lib/tabs';
 import type {
   Architecture, CardItem, CardsSection, CompareCard, ComparePole, CompareSection,
   Section, SectionType, TableColumn, TableSection, TextBlock, TextSection,
@@ -32,17 +32,20 @@ function fitRows(rows: string[][], n: number): string[][] {
 export default function SectionsEditor({ doc, patch }: { doc: Architecture; patch: Patch }) {
   const [newType, setNewType] = useState<SectionType>('cards');
   const chosen = SECTION_TYPES.find(t => t.type === newType)!;
-  const missing = missingPresetSections(doc);
+  const missing = missingGatedPresetSections(doc);
 
-  /* The preset appends chapters without registering them as tabs, so the
-   * viewer is left alone — hence no `setSections` here, which would. */
+  /* Gated chapters stay off the tab bar — pin current tabs first, then sync. */
   const addPreset = () => {
     if (!confirm(
-      `Add the ${missing} missing design-document chapters (data, scaling, tenancy, recovery, `
-      + 'observability, IAM, networking, cost, delivery…)?\n\n'
-      + 'They are added empty, for the printable document only — the viewer keeps its current tabs.'
+      `Add ${missing} design-document chapter(s) opened by the bricks on the canvas `
+      + '(IAM, data, networking…)?\n\n'
+      + 'They fill from catalog metadata. The viewer keeps its current tabs.'
     )) return;
-    patch(d => { applyDesignDocumentPreset(d); return d; });
+    patch(d => {
+      if (!d.ui.tabs?.length) d.ui.tabs = naturalTabs(d).map(t => t.id);
+      syncGatedPresetSections(d);
+      return d;
+    });
   };
 
   const setSections = (next: Section[]) => patch(d => {
@@ -72,8 +75,8 @@ export default function SectionsEditor({ doc, patch }: { doc: Architecture; patc
         <div>
           <b>Architecture Design Document</b>
           <div className="hint">
-            The written chapters an ADD carries around the diagram — scaling, tenancy, recovery,
-            IAM, networking, delivery, cost. Empty and vendor-neutral, printed by the Document view.
+            The written chapters an ADD carries around the diagram — opened by placed bricks,
+            filled from catalog metadata, printed by the Document view.
           </div>
         </div>
         <button className="btn sm" onClick={addPreset} disabled={!missing}>
@@ -97,7 +100,7 @@ export default function SectionsEditor({ doc, patch }: { doc: Architecture; patc
 
 /* ------------------------------------------------------------------- shell */
 
-function SectionForm({ doc, sec, set }: { doc: Architecture; sec: Section; set: Mut<Section> }) {
+export function SectionForm({ doc, sec, set }: { doc: Architecture; sec: Section; set: Mut<Section> }) {
   const changeType = (type: SectionType) => {
     if (type === sec.type) return;
     if (!confirm(`Switch "${sec.tab || sec.title}" to a ${type} section? Its current content is dropped.`)) return;

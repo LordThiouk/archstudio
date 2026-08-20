@@ -1,5 +1,8 @@
 import { LINK_KINDS, linkIsEmpty } from './links';
 import { displayLayerLabel } from './layers';
+import { syncGatedPresetSections } from './document/preset';
+import { isBrickId } from './lego/bricks';
+import { buildCatalogSnapshot } from './lego/seed-data';
 import type { Architecture, Flow, Group, Link, Section, SectionType } from './types';
 
 /* The Atelier scope palette: five cool hues, `oklch(0.62 0.11 h)` for
@@ -130,6 +133,7 @@ export function deleteComponent(doc: Architecture, componentId: string): void {
     steps: flow.steps.filter(step => step.component !== componentId)
   }));
   pruneUnusedLayersAndScopes(doc);
+  syncGatedPresetSections(doc);
 }
 
 /** A new project starts empty on the diagram — layers and scopes appear when
@@ -164,7 +168,8 @@ export function blankArchitecture(name = 'New architecture'): Architecture {
     components: [],
     technologies: [],
     flows: [],
-    sections: []
+    sections: [],
+    decisions: []
   };
 }
 
@@ -211,17 +216,29 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
     components: input.components || [],
     technologies: input.technologies || [],
     flows: input.flows || [],
-    sections: input.sections || []
+    sections: input.sections || [],
+    decisions: input.decisions ?? []
   };
 
   const groupIds = new Set(doc.groups.map(g => g.id));
   const layerIds = new Set(doc.layers.map(l => l.id));
   const compIds = new Set(doc.components.map(c => c.id));
 
+  const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
+  const catalog = buildCatalogSnapshot(lang);
+
   doc.components = doc.components.map(c => {
     const deps = (c.deps || []).filter(d => compIds.has(d) && d !== c.id);
+    const brickId = (c.brick && isBrickId(c.brick) ? c.brick : undefined)
+      || (c.role && isBrickId(c.role) ? c.role : undefined);
+    const brick = brickId ? catalog.bricks[brickId] : undefined;
     return {
       ...c,
+      brick: c.brick ?? brickId,
+      purpose: c.purpose || brick?.purpose,
+      concernTags: c.concernTags?.length
+        ? c.concernTags
+        : (brick?.concernTags?.length ? [...brick.concernTags] : undefined),
       group: groupIds.has(c.group) ? c.group : (doc.groups[0]?.id ?? c.group),
       layer: layerIds.has(c.layer) ? c.layer : (doc.layers[0]?.id ?? c.layer),
       tech: c.tech || [],
@@ -235,11 +252,13 @@ export function normalizeArchitecture(input: Partial<Architecture>): Architectur
   /* A step pointing at a deleted component would crash the viewer, so those go.
    * A flow with no steps left is kept: it is almost always one being authored,
    * and dropping it here would delete the user's work on the next autosave. */
-  const lang = doc.meta.lang === 'fr' ? 'fr' : 'en';
   doc.flows = doc.flows
     .map(f => ({ ...f, steps: (f.steps || []).filter(s => compIds.has(s.component)) }))
     .map(f => fillFlowDefaults(f, lang));
 
+  /* Add missing gated chapters / drop stale ones — do not refresh bodies, or
+   * every autosave would wipe edits in Sections. Place/delete pass refresh. */
+  syncGatedPresetSections(doc, undefined, { refresh: false });
   return doc;
 }
 
